@@ -1,0 +1,14 @@
+package constructorgen
+
+import (
+	"database/sql"
+	"net/http"
+
+	"github.com/miyamo2/braider/pkg/annotation"
+)
+
+type ImportedService struct { // want "missing constructor for ImportedService"
+	annotation.Inject
+	db     *sql.DB
+	client *http.Client
+}

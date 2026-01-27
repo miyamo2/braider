@@ -8,23 +8,23 @@ This plan implements the Constructor Auto-Generation feature for braider, enabli
 
 ## Tasks
 
-- [ ] 1. Implement Inject Annotation Detection
-- [ ] 1.1 (P) Create the inject annotation detector capability
+- [x] 1. Implement Inject Annotation Detection
+- [x] 1.1 (P) Create the inject annotation detector capability
   - Detect embedded `annotation.Inject` fields in struct types
   - Verify the embedded type comes from the correct braider annotation package path
   - Handle aliased imports of the annotation package
   - Return the embedded Inject field when found for downstream filtering
   - _Requirements: 1.1, 6.1, 6.2, 6.4_
 
-- [ ] 1.2 Unit tests for inject annotation detection
+- [x] 1.2 Unit tests for inject annotation detection
   - Test detection of standard `annotation.Inject` embedding
   - Test detection with aliased import names
   - Test rejection of named (non-embedded) Inject fields
   - Test rejection of Inject types from different packages
   - _Requirements: 1.1, 6.1, 6.2, 6.4_
 
-- [ ] 2. Implement Struct Detection and Candidate Collection
-- [ ] 2.1 Create the struct detector capability
+- [x] 2. Implement Struct Detection and Candidate Collection
+- [x] 2.1 Create the struct detector capability
   - Traverse AST to find type declarations containing struct types
   - Filter structs that embed `annotation.Inject` using the inject detector
   - Collect constructor candidates with their AST context (TypeSpec, GenDecl, StructType)
@@ -32,21 +32,21 @@ This plan implements the Constructor Auto-Generation feature for braider, enabli
   - Depends on: Task 1.1 (inject detector)
   - _Requirements: 1.1, 1.5_
 
-- [ ] 2.2 Implement existing constructor detection
+- [x] 2.2 Implement existing constructor detection
   - Find existing `New<StructName>` functions in the package
   - Verify the function returns a pointer to the struct type
   - Track existing constructors for replacement rather than duplicate insertion
   - _Requirements: 3.5_
 
-- [ ] 2.3 Unit tests for struct detection
+- [x] 2.3 Unit tests for struct detection
   - Test detection of structs with Inject embedding
   - Test skipping of structs without Inject embedding
   - Test multi-file package analysis
   - Test existing constructor detection and tracking
   - _Requirements: 1.1, 1.5, 3.5_
 
-- [ ] 3. Implement Field Analysis
-- [ ] 3.1 (P) Create the field analyzer capability
+- [x] 3. Implement Field Analysis
+- [x] 3.1 (P) Create the field analyzer capability
   - Extract field list from struct types
   - Exclude the embedded `annotation.Inject` field from constructor parameters
   - Resolve field types using the type checker information
@@ -54,7 +54,7 @@ This plan implements the Constructor Auto-Generation feature for braider, enabli
   - Preserve field declaration order for parameter ordering
   - _Requirements: 1.2, 1.3, 1.4, 2.5, 2.6_
 
-- [ ] 3.2 Unit tests for field analysis
+- [x] 3.2 Unit tests for field analysis
   - Test extraction of exported and unexported fields
   - Test exclusion of Inject embedding from results
   - Test interface type classification
@@ -62,8 +62,8 @@ This plan implements the Constructor Auto-Generation feature for braider, enabli
   - Test structs with no injectable fields (Inject-only)
   - _Requirements: 1.2, 1.3, 1.4, 2.5, 2.6_
 
-- [ ] 4. Implement Constructor Code Generation
-- [ ] 4.1 Create the constructor generator capability
+- [x] 4. Implement Constructor Code Generation
+- [x] 4.1 Create the constructor generator capability
   - Generate `New<StructName>` function name from struct name
   - Build parameter list matching field order and resolved types
   - Generate function body with struct literal and field assignments
@@ -71,13 +71,13 @@ This plan implements the Constructor Auto-Generation feature for braider, enabli
   - Depends on: Task 3.1 (field analyzer)
   - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 4.2 (P) Implement parameter naming with keyword avoidance
+- [x] 4.2 (P) Implement parameter naming with keyword avoidance
   - Derive parameter names from field names (lowercase first letter)
   - Detect conflicts with Go keywords and append suffix
   - Detect conflicts with Go builtins and use alternative naming
   - _Requirements: 4.3, 4.4_
 
-- [ ] 4.3 Unit tests for constructor generation
+- [x] 4.3 Unit tests for constructor generation
   - Test function name generation from struct name
   - Test parameter ordering matches field declaration order
   - Test parameter types match field types (interface and concrete)
@@ -85,21 +85,21 @@ This plan implements the Constructor Auto-Generation feature for braider, enabli
   - Test builtin conflict resolution in parameter names
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 4.3, 4.4_
 
-- [ ] 5. Implement Code Formatting
-- [ ] 5.1 (P) Create the code formatter capability
+- [x] 5. Implement Code Formatting
+- [x] 5.1 (P) Create the code formatter capability
   - Apply `go/format.Source` to generated constructor code
   - Ensure output passes gofmt validation without modifications
   - Handle formatting errors gracefully
   - _Requirements: 4.1, 4.2_
 
-- [ ] 5.2 Unit tests for code formatting
+- [x] 5.2 Unit tests for code formatting
   - Test formatting of valid constructor code
   - Test proper indentation and spacing in output
   - Test error handling for malformed input
   - _Requirements: 4.1, 4.2_
 
-- [ ] 6. Implement SuggestedFix Building
-- [ ] 6.1 Create the suggested fix builder capability
+- [x] 6. Implement SuggestedFix Building
+- [x] 6.1 Create the suggested fix builder capability
   - Calculate insertion position after struct definition for new constructors
   - Calculate replacement range for existing constructors
   - Include blank line separator between struct and constructor
@@ -108,35 +108,35 @@ This plan implements the Constructor Auto-Generation feature for braider, enabli
   - Depends on: Task 5.1 (code formatter)
   - _Requirements: 3.2, 3.4, 3.5, 4.5_
 
-- [ ] 6.2 Unit tests for suggested fix building
+- [x] 6.2 Unit tests for suggested fix building
   - Test insertion position calculation after struct
   - Test replacement range calculation for existing constructors
   - Test blank line inclusion in TextEdit
   - Test handling of constructors with doc comments
   - _Requirements: 3.2, 3.4, 3.5, 4.5_
 
-- [ ] 7. Implement Diagnostic Emission
-- [ ] 7.1 (P) Create the diagnostic emitter capability
+- [x] 7. Implement Diagnostic Emission
+- [x] 7.1 (P) Create the diagnostic emitter capability
   - Emit diagnostics for constructor generation with SuggestedFix
   - Include source position information in all diagnostic messages
   - Format messages to be clear and actionable
   - _Requirements: 3.1, 5.2, 5.4_
 
-- [ ] 7.2 (P) Implement error diagnostics
+- [x] 7.2 (P) Implement error diagnostics
   - Report circular dependency errors with cycle path
   - Report constructor generation failures with reason
   - Provide actionable guidance in error messages
   - _Requirements: 5.1, 5.3, 5.4_
 
-- [ ] 7.3 Unit tests for diagnostic emission
+- [x] 7.3 Unit tests for diagnostic emission
   - Test diagnostic message format for constructor availability
   - Test position information inclusion
   - Test circular dependency error reporting
   - Test generation failure error reporting
   - _Requirements: 3.1, 5.1, 5.2, 5.3, 5.4_
 
-- [ ] 8. Integrate Analysis Pipeline
-- [ ] 8.1 Wire all components into the analyzer run function
+- [x] 8. Integrate Analysis Pipeline
+- [x] 8.1 Wire all components into the analyzer run function
   - Integrate inject detector with struct detector
   - Connect field analyzer to constructor generator
   - Wire code formatter to suggested fix builder
@@ -145,13 +145,13 @@ This plan implements the Constructor Auto-Generation feature for braider, enabli
   - Depends on: Tasks 1.1, 2.1, 2.2, 3.1, 4.1, 4.2, 5.1, 6.1, 7.1, 7.2
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2, 4.3, 4.4, 4.5, 5.1, 5.2, 5.3, 5.4, 6.1, 6.2, 6.4_
 
-- [ ] 8.2 Verify go vet -fix integration
+- [x] 8.2 Verify go vet -fix integration
   - Ensure SuggestedFix applies correctly via `go vet -fix`
   - Verify generated code is written to source files
   - _Requirements: 3.3_
 
-- [ ] 9. Integration and Golden File Tests
-- [ ] 9.1 Create golden file test fixtures
+- [x] 9. Integration and Golden File Tests
+- [x] 9.1 Create golden file test fixtures
   - Create simple struct test case with single dependency
   - Create multi-field struct test case
   - Create interface-typed field test case
@@ -159,20 +159,20 @@ This plan implements the Constructor Auto-Generation feature for braider, enabli
   - Create aliased import test case
   - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 6.1, 6.2_
 
-- [ ] 9.2 Create existing constructor replacement test fixtures
+- [x] 9.2 Create existing constructor replacement test fixtures
   - Create test case for constructor replacement with additional fields
   - Create test case for constructor replacement with removed fields
   - Verify TextEdit correctly handles line count differences
   - _Requirements: 3.5_
 
-- [ ] 9.3 Create negative test cases
+- [x] 9.3 Create negative test cases
   - Create struct without Inject embedding (should be skipped)
   - Create struct with named Inject field (should be skipped)
   - Create struct with Inject-only fields (should be skipped)
   - Create struct with wrong package Inject (should be skipped)
   - _Requirements: 1.4, 6.4_
 
-- [ ] 9.4 Run integration tests with analysistest
+- [x] 9.4 Run integration tests with analysistest
   - Execute all golden file tests with RunWithSuggestedFixes
   - Verify diagnostic messages match expected format
   - Verify generated constructor code matches golden files

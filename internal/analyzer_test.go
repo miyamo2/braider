@@ -9,5 +9,7 @@ import (
 
 func TestAnalyzer(t *testing.T) {
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, internal.Analyzer, "example")
+
+	// Run with suggested fixes to verify code generation
+	analysistest.RunWithSuggestedFixes(t, testdata, internal.Analyzer, "constructorgen")
 }
