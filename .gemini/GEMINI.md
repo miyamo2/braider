@@ -85,7 +85,7 @@ braider analyzes struct dependencies and generates wiring code that:
 - Follow [Conventional Commits](https://www.conventionalcommits.org/v1.0.0/) specification
 - Format: `<type>(<scope>): <description>`
 - When Gemini CLI commits, please add the following `Co-authored-by trailer` to the end of the commit message to indicate which AI agent performed the work.
-  `Co-Authored-By: gemini-cli <79917704+gemini-cli@users.noreply.github.com>`
+  `Co-Authored-By: gemini-cli <218195315+gemini-cli@users.noreply.github.com>`
 
 #### Types
 - `feat`: New feature
