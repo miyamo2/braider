@@ -84,6 +84,8 @@ braider analyzes struct dependencies and generates wiring code that:
 ### Commit Messages
 - Follow [Conventional Commits](https://www.conventionalcommits.org/v1.0.0/) specification
 - Format: `<type>(<scope>): <description>`
+- When Copilot commits, please add the following `Co-authored-by trailer` to the end of the commit message to indicate which AI agent performed the work.
+  `Co-authored-by: Copilot <175728472+Copilot@users.noreply.github.com>`
 
 #### Types
 - `feat`: New feature
