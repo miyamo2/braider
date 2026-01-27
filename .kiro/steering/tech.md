@@ -64,6 +64,9 @@ Code generation is implemented via `analysis.SuggestedFix` rather than separate 
 - IDE integration (fixes appear as quick actions)
 - Atomic application of related changes
 
+### Component-Based Architecture
+The analyzer uses composable components (detectors, generators, reporters) instantiated in `analyzer.go`. Each component has a single responsibility and is testable in isolation.
+
 ### AST Inspector Pattern
 Uses `inspect.Analyzer` as a dependency for efficient AST traversal, following the recommended pattern for go/analysis tools.
 

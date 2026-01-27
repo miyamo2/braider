@@ -52,6 +52,14 @@ import (
 
 ## Code Organization Principles
 
+### Component-Based Architecture
+The analyzer is built from composable components with clear responsibilities:
+- **Detectors**: Find DI patterns (`InjectDetector`, `StructDetector`, `FieldAnalyzer`)
+- **Generators**: Produce code (`ConstructorGenerator`)
+- **Reporters**: Emit diagnostics (`SuggestedFixBuilder`, `DiagnosticEmitter`)
+
+Components are instantiated in `analyzer.go` and orchestrated through a phased pipeline.
+
 ### Single Analyzer Pattern
 The project exposes one `analysis.Analyzer` variable from the internal package, following the standard pattern for go/analysis tools.
 
@@ -61,11 +69,16 @@ Only the CLI entry point (`cmd/braider/main.go`) is user-facing. All implementat
 ### Test Data Isolation
 Test fixtures live in `testdata/src/` following analysistest conventions. Each test case is a separate Go package that can be analyzed independently.
 
-### Future Growth
-As complexity grows, internal package may be split into:
-- `internal/detect/` - Detection logic for DI patterns
-- `internal/generate/` - Code generation logic
-- `internal/graph/` - Dependency graph resolution
+### Internal Package Organization
+The internal package is split into focused subpackages:
+- `internal/detect/` - Detection logic for DI patterns (inject markers, struct candidates, fields)
+- `internal/generate/` - Code generation logic (constructors, formatting)
+- `internal/report/` - Diagnostic and suggested fix building
+
+### Public API (`pkg/`)
+**Location**: `pkg/annotation/`
+**Purpose**: Public annotation types for users to mark DI targets
+**Pattern**: Minimal marker types (e.g., `Inject` struct) that users embed in their structs
 
 ---
 _Document patterns, not file trees. New files following patterns should not require updates_

@@ -4,7 +4,7 @@
 
 ## Core Capabilities
 
-- **DI Binding Detection**: Static analysis of Go code to identify dependency injection patterns and struct dependencies
+- **DI Binding Detection**: Static analysis of Go code to identify structs embedding `annotation.Inject` marker
 - **Wiring Code Generation**: Automatic generation of constructor functions and initialization code via `analysis.SuggestedFix`
 - **Go Vet Integration**: Works as a standard go vet tool, enabling `go vet -fix` workflow for applying suggested fixes
 - **Dependency Graph Resolution**: Analyzes dependency relationships and generates initialization code in topological order
