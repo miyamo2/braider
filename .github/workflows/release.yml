@@ -1,4 +1,4 @@
-name: Release (Root)
+name: Release
 
 on:
   push:
