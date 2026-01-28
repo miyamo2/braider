@@ -95,26 +95,36 @@ runs:
           echo "previous-tag-date=" >> $GITHUB_OUTPUT
         fi
 
-    - name: Create and push tag
-      id: create-tag
+    - name: Build tag name
+      id: build-tag
       shell: bash
       run: |
         TAG_PREFIX="${{ inputs.tag_prefix }}"
         VERSION="${{ steps.extract-version.outputs.version }}"
         TAG="${TAG_PREFIX}v${VERSION}"
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        echo "Built tag name: $TAG"
+
+    - name: Validate tag
+      id: validate-tag
+      uses: ./.github/actions/validate-tag
+      with:
+        tag: ${{ steps.build-tag.outputs.tag }}
+        allow_overwrite: 'false'
+
+    - name: Create and push tag
+      id: create-tag
+      shell: bash
+      run: |
+        TAG="${{ steps.build-tag.outputs.tag }}"
 
         echo "tag=$TAG" >> $GITHUB_OUTPUT
         echo "Creating tag: $TAG"
 
-        # Check if tag already exists
-        if git rev-parse "$TAG" >/dev/null 2>&1; then
-          echo "Tag $TAG already exists, skipping tag creation"
-        else
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Release $TAG"
-          git push origin "$TAG"
-        fi
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a "$TAG" -m "Release $TAG"
+        git push origin "$TAG"
 
     - name: Create GitHub Release
       id: create-release
