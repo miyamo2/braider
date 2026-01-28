@@ -52,11 +52,12 @@ runs:
         echo "Extracted version: $VERSION"
 
         # Extract notes (content between first ## and next ##)
-        awk '/^## v/{flag=1; next} /^## /{flag=0} flag' "$CHANGELOG_PATH" > /tmp/release-notes.md
+        NOTES_FILE="${RUNNER_TEMP}/release-notes-${GITHUB_RUN_ID}.md"
+        awk '/^## v/{flag=1; next} /^## /{flag=0} flag' "$CHANGELOG_PATH" > "$NOTES_FILE"
 
         # Save notes to a file for later use
-        cat /tmp/release-notes.md
-        echo "notes-file=/tmp/release-notes.md" >> $GITHUB_OUTPUT
+        cat "$NOTES_FILE"
+        echo "notes-file=$NOTES_FILE" >> $GITHUB_OUTPUT
 
     - name: Find previous tag
       id: previous-tag
@@ -71,13 +72,14 @@ runs:
         # Find the most recent tag with the same prefix (excluding the current one)
         if [ -n "$TAG_PREFIX" ]; then
           PATTERN="${TAG_PREFIX}v*"
+          # Get all matching tags, sorted by version
+          PREV_TAG=$(git tag -l "$PATTERN" | grep -v "^${TAG_PREFIX}v${CURRENT_VERSION}$" | sort -V | tail -n 1)
         else
-          # For root, match tags that start with v but not pkg/v
+          # For root, match tags that start with v but exclude tags with /
           PATTERN="v*"
+          # Get all matching tags, sorted by version, excluding any with /
+          PREV_TAG=$(git tag -l "$PATTERN" | grep -v "/" | grep -v "^v${CURRENT_VERSION}$" | sort -V | tail -n 1)
         fi
-
-        # Get all matching tags, sorted by version
-        PREV_TAG=$(git tag -l "$PATTERN" | grep -v "^${TAG_PREFIX}v${CURRENT_VERSION}$" | sort -V | tail -n 1)
 
         if [ -n "$PREV_TAG" ]; then
           echo "previous-tag=$PREV_TAG" >> $GITHUB_OUTPUT
@@ -104,10 +106,15 @@ runs:
         echo "tag=$TAG" >> $GITHUB_OUTPUT
         echo "Creating tag: $TAG"
 
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git tag -a "$TAG" -m "Release $TAG"
-        git push origin "$TAG"
+        # Check if tag already exists
+        if git rev-parse "$TAG" >/dev/null 2>&1; then
+          echo "Tag $TAG already exists, skipping tag creation"
+        else
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+        fi
 
     - name: Create GitHub Release
       id: create-release
@@ -154,12 +161,11 @@ runs:
           }
 
           // Build diff URL
+          // Note: GitHub's compare view doesn't support path filtering via query parameters
+          // The URL will show all changes; users need to manually filter by path in the UI
           let diffUrl;
           if (previousTag) {
             diffUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/compare/${previousTag}...${tag}`;
-            if (pathFilter) {
-              diffUrl += `?path=${pathFilter}`;
-            }
           } else {
             diffUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/tree/${tag}`;
             if (pathFilter) {
@@ -179,16 +185,45 @@ runs:
           body += '\n\n## Diff\n\n';
           body += diffUrl;
 
-          // Create the release
-          const release = await github.rest.repos.createRelease({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            tag_name: tag,
-            name: tag,
-            body: body,
-            draft: false,
-            prerelease: false,
-          });
+          // Create or update the release
+          let release;
+          try {
+            // Check if release already exists
+            const existingRelease = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: tag,
+            });
+
+            // If release exists, update it
+            console.log(`Release for tag ${tag} already exists, updating...`);
+            release = await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: existingRelease.data.id,
+              tag_name: tag,
+              name: tag,
+              body: body,
+              draft: false,
+              prerelease: false,
+            });
+          } catch (error) {
+            if (error.status === 404) {
+              // Release doesn't exist, create it
+              console.log(`Creating new release for tag ${tag}...`);
+              release = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: tag,
+                name: tag,
+                body: body,
+                draft: false,
+                prerelease: false,
+              });
+            } else {
+              throw error;
+            }
+          }
 
           core.setOutput('tag', tag);
           core.setOutput('release_url', release.data.html_url);
