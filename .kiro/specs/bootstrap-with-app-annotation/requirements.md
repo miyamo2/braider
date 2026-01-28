@@ -37,6 +37,10 @@ The generated bootstrap code creates a `dependency` variable containing an anony
 2. When a constructor parameter type matches an `annotation.Inject` struct, the Analyzer shall add a dependency edge from the parameter type to the struct being constructed.
 3. When constructor parameters include non-injectable types (primitives, external types), the Analyzer shall exclude them from the dependency graph.
 4. When a constructor returns multiple values, the Analyzer shall use the first return value as the provided type.
+5. When a constructor parameter is an interface type, the Analyzer shall find an `annotation.Inject` struct that implements that interface and add it as a dependency edge.
+6. When multiple `annotation.Inject` structs implement the same interface required by a constructor parameter, the Analyzer shall report an error diagnostic listing the ambiguous implementations.
+7. When no `annotation.Inject` struct implements a required interface parameter, the Analyzer shall exclude that parameter from the dependency graph (treated as external dependency).
+8. When resolving interface implementations, the Analyzer shall search across all packages in the module via Facts.
 
 ### Requirement 4: Circular Dependency Detection
 **Objective:** As a developer, I want braider to detect circular dependencies, so that I can fix invalid dependency graphs before runtime.
@@ -60,7 +64,7 @@ The generated bootstrap code creates a `dependency` variable containing an anony
 #### Acceptance Criteria
 1. When an `annotation.App(main)` is detected and the dependency graph is valid, the Analyzer shall generate a SuggestedFix containing the bootstrap code.
 2. The generated bootstrap code shall define a package-level variable named `dependency` that initializes all injectable structs.
-3. The generated bootstrap code shall include `_ = dependency` inside the main function body to ensure the dependency variable is referenced.
+3. When the `dependency` variable is not referenced in the main function body, the generated bootstrap code shall include `_ = dependency` inside the main function body to ensure the dependency variable is referenced. When the `dependency` variable is already referenced in the main function body, the Analyzer shall not add `_ = dependency`.
 4. When applying the SuggestedFix, the generated code shall be valid Go code that compiles without errors.
 5. When the bootstrap code already exists and is up-to-date, the Analyzer shall not report a diagnostic (idempotent behavior).
 6. If the bootstrap code exists but is outdated (dependency graph changed), the Analyzer shall report a diagnostic with a SuggestedFix to update the bootstrap code.
