@@ -24,8 +24,6 @@ jobs:
         uses: ./.github/actions/release-common
         with:
           changelog_path: CHANGELOG.md
-          tag_prefix: ''
-          path_filter: ''
           branch: main
 
       - name: Output Release Info

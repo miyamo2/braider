@@ -135,29 +135,47 @@ runs:
           // Read release notes
           const releaseNotes = fs.readFileSync(notesFile, 'utf8').trim();
 
-          // Collect contributors
+          // Collect contributors using git log with path filtering
           let contributors = [];
-          if (previousTagDate) {
-            const options = {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              since: previousTagDate,
-            };
+          if (previousTag) {
+            const { execSync } = require('child_process');
 
+            // Build git log command with path filter
+            let gitCmd = `git log ${previousTag}..HEAD --format=%aN`;
             if (pathFilter) {
-              options.path = pathFilter;
+              gitCmd += ` -- ${pathFilter}`;
             }
 
-            const commits = await github.paginate(github.rest.repos.listCommits, options);
+            try {
+              const output = execSync(gitCmd, { encoding: 'utf8' });
+              const authorNames = new Set(output.split('\n').filter(line => line.trim()));
 
-            // Extract unique author logins
-            const authorLogins = new Set();
-            for (const commit of commits) {
-              if (commit.author && commit.author.login) {
-                authorLogins.add(commit.author.login);
+              // For each author name, try to find their GitHub login
+              // We'll use the GitHub API to map commit authors to logins
+              for (const authorName of authorNames) {
+                // Search commits for this author to get their login
+                const searchCmd = `git log ${previousTag}..HEAD --author="${authorName}" --format=%H -1`;
+                const commitSha = execSync(searchCmd, { encoding: 'utf8' }).trim();
+
+                if (commitSha) {
+                  try {
+                    const commit = await github.rest.repos.getCommit({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      ref: commitSha,
+                    });
+                    if (commit.data.author && commit.data.author.login) {
+                      contributors.push(commit.data.author.login);
+                    }
+                  } catch (error) {
+                    console.log(`Could not fetch GitHub login for ${authorName}`);
+                  }
+                }
               }
+              contributors = Array.from(new Set(contributors)).sort();
+            } catch (error) {
+              console.log('Error collecting contributors:', error.message);
             }
-            contributors = Array.from(authorLogins).sort();
           }
 
           // Build diff URL
