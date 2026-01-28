@@ -1,0 +1,36 @@
+name: Release (Root)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'CHANGELOG.md'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create Release
+        id: release
+        uses: ./.github/actions/release-common
+        with:
+          changelog_path: CHANGELOG.md
+          tag_prefix: ''
+          path_filter: ''
+          branch: main
+
+      - name: Output Release Info
+        run: |
+          echo "Created release:"
+          echo "  Tag: ${{ steps.release.outputs.tag }}"
+          echo "  Version: ${{ steps.release.outputs.version }}"
+          echo "  URL: ${{ steps.release.outputs.release_url }}"

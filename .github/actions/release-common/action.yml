@@ -1,0 +1,197 @@
+name: 'Release Common'
+description: 'Common release automation logic for creating tags and GitHub releases from changelog'
+inputs:
+  changelog_path:
+    description: 'Path to the CHANGELOG.md file (e.g., CHANGELOG.md or pkg/CHANGELOG.md)'
+    required: true
+  tag_prefix:
+    description: 'Prefix for the tag (e.g., "" for root, "pkg/" for package)'
+    required: false
+    default: ''
+  path_filter:
+    description: 'Path filter for git operations (e.g., "" for root, "pkg" for package)'
+    required: false
+    default: ''
+  branch:
+    description: 'Branch to work on'
+    required: false
+    default: 'main'
+outputs:
+  tag:
+    description: 'The created tag name'
+    value: ${{ steps.create-release.outputs.tag }}
+  version:
+    description: 'The version extracted from changelog'
+    value: ${{ steps.extract-version.outputs.version }}
+  release_url:
+    description: 'URL of the created GitHub release'
+    value: ${{ steps.create-release.outputs.release_url }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Extract version and notes from changelog
+      id: extract-version
+      shell: bash
+      run: |
+        CHANGELOG_PATH="${{ inputs.changelog_path }}"
+
+        if [ ! -f "$CHANGELOG_PATH" ]; then
+          echo "Error: Changelog file not found at $CHANGELOG_PATH"
+          exit 1
+        fi
+
+        # Extract the first version header (## v1.2.3 - 2026-01-28)
+        VERSION=$(grep -m 1 '^## v' "$CHANGELOG_PATH" | sed 's/^## v\([^ ]*\).*/\1/')
+
+        if [ -z "$VERSION" ]; then
+          echo "Error: No version found in changelog"
+          exit 1
+        fi
+
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Extracted version: $VERSION"
+
+        # Extract notes (content between first ## and next ##)
+        awk '/^## v/{flag=1; next} /^## /{flag=0} flag' "$CHANGELOG_PATH" > /tmp/release-notes.md
+
+        # Save notes to a file for later use
+        cat /tmp/release-notes.md
+        echo "notes-file=/tmp/release-notes.md" >> $GITHUB_OUTPUT
+
+    - name: Find previous tag
+      id: previous-tag
+      shell: bash
+      run: |
+        TAG_PREFIX="${{ inputs.tag_prefix }}"
+        CURRENT_VERSION="${{ steps.extract-version.outputs.version }}"
+
+        # Fetch all tags
+        git fetch --tags --force
+
+        # Find the most recent tag with the same prefix (excluding the current one)
+        if [ -n "$TAG_PREFIX" ]; then
+          PATTERN="${TAG_PREFIX}v*"
+        else
+          # For root, match tags that start with v but not pkg/v
+          PATTERN="v*"
+        fi
+
+        # Get all matching tags, sorted by version
+        PREV_TAG=$(git tag -l "$PATTERN" | grep -v "^${TAG_PREFIX}v${CURRENT_VERSION}$" | sort -V | tail -n 1)
+
+        if [ -n "$PREV_TAG" ]; then
+          echo "previous-tag=$PREV_TAG" >> $GITHUB_OUTPUT
+          echo "Found previous tag: $PREV_TAG"
+
+          # Get the date of the previous tag
+          TAG_DATE=$(git log -1 --format=%ai "$PREV_TAG")
+          echo "previous-tag-date=$TAG_DATE" >> $GITHUB_OUTPUT
+          echo "Previous tag date: $TAG_DATE"
+        else
+          echo "No previous tag found"
+          echo "previous-tag=" >> $GITHUB_OUTPUT
+          echo "previous-tag-date=" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create and push tag
+      id: create-tag
+      shell: bash
+      run: |
+        TAG_PREFIX="${{ inputs.tag_prefix }}"
+        VERSION="${{ steps.extract-version.outputs.version }}"
+        TAG="${TAG_PREFIX}v${VERSION}"
+
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        echo "Creating tag: $TAG"
+
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a "$TAG" -m "Release $TAG"
+        git push origin "$TAG"
+
+    - name: Create GitHub Release
+      id: create-release
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+
+          const tagPrefix = '${{ inputs.tag_prefix }}';
+          const pathFilter = '${{ inputs.path_filter }}';
+          const version = '${{ steps.extract-version.outputs.version }}';
+          const tag = '${{ steps.create-tag.outputs.tag }}';
+          const previousTag = '${{ steps.previous-tag.outputs.previous-tag }}';
+          const previousTagDate = '${{ steps.previous-tag.outputs.previous-tag-date }}';
+          const notesFile = '${{ steps.extract-version.outputs.notes-file }}';
+
+          // Read release notes
+          const releaseNotes = fs.readFileSync(notesFile, 'utf8').trim();
+
+          // Collect contributors
+          let contributors = [];
+          if (previousTagDate) {
+            const options = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              since: previousTagDate,
+            };
+
+            if (pathFilter) {
+              options.path = pathFilter;
+            }
+
+            const commits = await github.paginate(github.rest.repos.listCommits, options);
+
+            // Extract unique author logins
+            const authorLogins = new Set();
+            for (const commit of commits) {
+              if (commit.author && commit.author.login) {
+                authorLogins.add(commit.author.login);
+              }
+            }
+            contributors = Array.from(authorLogins).sort();
+          }
+
+          // Build diff URL
+          let diffUrl;
+          if (previousTag) {
+            diffUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/compare/${previousTag}...${tag}`;
+            if (pathFilter) {
+              diffUrl += `?path=${pathFilter}`;
+            }
+          } else {
+            diffUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/tree/${tag}`;
+            if (pathFilter) {
+              diffUrl += `/${pathFilter}`;
+            }
+          }
+
+          // Build release body
+          let body = '## Changes\n\n';
+          body += releaseNotes;
+          body += '\n\n## Contributors\n\n';
+          if (contributors.length > 0) {
+            body += contributors.map(login => `- @${login}`).join('\n');
+          } else {
+            body += '- (none)';
+          }
+          body += '\n\n## Diff\n\n';
+          body += diffUrl;
+
+          // Create the release
+          const release = await github.rest.repos.createRelease({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            tag_name: tag,
+            name: tag,
+            body: body,
+            draft: false,
+            prerelease: false,
+          });
+
+          core.setOutput('tag', tag);
+          core.setOutput('release_url', release.data.html_url);
+          core.setOutput('version', version);
+
+          console.log(`Created release: ${release.data.html_url}`);
