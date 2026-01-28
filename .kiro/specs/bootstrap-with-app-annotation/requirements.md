@@ -39,7 +39,7 @@ The generated bootstrap code creates a `dependency` variable containing an anony
 4. When a constructor returns multiple values, the Analyzer shall use the first return value as the provided type.
 5. When a constructor parameter is an interface type, the Analyzer shall find an `annotation.Inject` struct that implements that interface and add it as a dependency edge.
 6. When multiple `annotation.Inject` structs implement the same interface required by a constructor parameter, the Analyzer shall report an error diagnostic listing the ambiguous implementations.
-7. When no `annotation.Inject` struct implements a required interface parameter, the Analyzer shall exclude that parameter from the dependency graph (treated as external dependency).
+7. When no `annotation.Inject` struct implements a required interface parameter, the Analyzer shall report an error diagnostic indicating the unresolved interface dependency.
 8. When resolving interface implementations, the Analyzer shall search across all packages in the module via Facts.
 
 ### Requirement 4: Circular Dependency Detection
