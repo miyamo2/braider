@@ -57,7 +57,7 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - _Requirements: 9.2_
 
 - [ ] 3. Implement Dependency Analyzer
-- [ ] 3.1 Create DependencyAnalyzer as primary analyzer for struct detection
+- [x] 3.1 Create DependencyAnalyzer as primary analyzer for struct detection
   - Define analyzer with proper name, documentation, and dependencies on inspect.Analyzer
   - Implement run function that processes each package
   - Detect both Inject-annotated structs for constructor generation and Provide-annotated structs for registry
@@ -66,7 +66,7 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Mark package as scanned via GlobalPackageTracker upon completion
   - _Requirements: 2.1, 2.2, 9.1, 9.2_
 
-- [ ] 3.2 Implement constructor validation for Provide-annotated structs
+- [x] 3.2 Implement constructor validation for Provide-annotated structs
   - Verify each Provide struct has corresponding New<TypeName> constructor function
   - Report error diagnostic when constructor is missing
   - Extract constructor parameter types as dependency information
@@ -185,7 +185,7 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - _Requirements: 6.1, 6.6_
 
 - [ ] 8. Implement Multichecker CLI Integration
-- [ ] 8.1 Update CLI entry point to use multichecker with both analyzers
+- [x] 8.1 Update CLI entry point to use multichecker with both analyzers
   - Replace singlechecker.Main with multichecker.Main
   - Register both DependencyAnalyzer and AppAnalyzer
   - Ensure proper analyzer ordering and execution
