@@ -30,7 +30,7 @@ type MyService struct {
 
 type Repository interface{}
 `,
-			pkgs:          map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg},
+			pkgs:          map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectedCount: 1,
 			expectedNames: []string{"MyService"},
 		},
@@ -53,7 +53,7 @@ type ServiceB struct {
 type Repository interface{}
 type Logger interface{}
 `,
-			pkgs:          map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg},
+			pkgs:          map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectedCount: 2,
 			expectedNames: []string{"ServiceA", "ServiceB"},
 		},
@@ -75,7 +75,7 @@ type ServiceB struct {
 type Repository interface{}
 type Logger interface{}
 `,
-			pkgs:          map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg},
+			pkgs:          map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectedCount: 1,
 			expectedNames: []string{"ServiceA"},
 		},
@@ -108,7 +108,7 @@ type Repository interface {
 	Find() error
 }
 `,
-			pkgs:          map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg},
+			pkgs:          map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectedCount: 1,
 			expectedNames: []string{"MyService"},
 		},
@@ -165,7 +165,7 @@ func NewMyService(repo Repository) *MyService {
 type Repository interface{}
 `,
 			structName:  "MyService",
-			pkgs:        map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg},
+			pkgs:        map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectFound: true,
 		},
 		{
@@ -182,7 +182,7 @@ type MyService struct {
 type Repository interface{}
 `,
 			structName:  "MyService",
-			pkgs:        map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg},
+			pkgs:        map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectFound: false,
 		},
 		{
@@ -203,7 +203,7 @@ func CreateMyService(repo Repository) *MyService {
 type Repository interface{}
 `,
 			structName:  "MyService",
-			pkgs:        map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg},
+			pkgs:        map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectFound: false,
 		},
 		{
@@ -226,7 +226,7 @@ func NewMyService(repo Repository) *OtherService {
 type Repository interface{}
 `,
 			structName:  "MyService",
-			pkgs:        map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg},
+			pkgs:        map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectFound: false,
 		},
 		{
@@ -247,7 +247,7 @@ func NewMyService(repo Repository) MyService {
 type Repository interface{}
 `,
 			structName:  "MyService",
-			pkgs:        map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg},
+			pkgs:        map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectFound: false,
 		},
 	}
@@ -293,7 +293,7 @@ type ServiceB struct {
 type Repository interface{}
 type Logger interface{}
 `
-	pkgs := map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg}
+	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 	pass, _ := mockPass(t, src, pkgs)
 
 	detector := detect.NewStructDetector(detect.NewInjectDetector())
@@ -326,5 +326,185 @@ type Logger interface{}
 	}
 	if serviceB.ExistingConstructor != nil {
 		t.Error("ServiceB should not have existing constructor")
+	}
+}
+
+func TestStructDetector_FindExistingConstructor_WithoutTypesInfo(t *testing.T) {
+	// Test AST fallback path (isPointerToStructAST) when TypesInfo.TypeOf returns nil
+	tests := []struct {
+		name        string
+		src         string
+		structName  string
+		expectFound bool
+	}{
+		{
+			name: "finds constructor via AST fallback - correct return type",
+			src: `package test
+
+type MyService struct {
+	repo Repository
+}
+
+func NewMyService(repo Repository) *MyService {
+	return &MyService{repo: repo}
+}
+
+type Repository interface{}
+`,
+			structName:  "MyService",
+			expectFound: true,
+		},
+		{
+			name: "rejects constructor with wrong return type via AST",
+			src: `package test
+
+type MyService struct {
+	repo Repository
+}
+
+type OtherService struct{}
+
+func NewMyService(repo Repository) *OtherService {
+	return &OtherService{}
+}
+
+type Repository interface{}
+`,
+			structName:  "MyService",
+			expectFound: false,
+		},
+		{
+			name: "rejects constructor with non-pointer return via AST",
+			src: `package test
+
+type MyService struct {
+	repo Repository
+}
+
+func NewMyService(repo Repository) MyService {
+	return MyService{repo: repo}
+}
+
+type Repository interface{}
+`,
+			structName:  "MyService",
+			expectFound: false,
+		},
+		{
+			name: "no constructor defined",
+			src: `package test
+
+type MyService struct {
+	repo Repository
+}
+
+type Repository interface{}
+`,
+			structName:  "MyService",
+			expectFound: false,
+		},
+		{
+			name: "method is not constructor",
+			src: `package test
+
+type MyService struct {
+	repo Repository
+}
+
+func (s *MyService) NewMyService() *MyService {
+	return &MyService{}
+}
+
+type Repository interface{}
+`,
+			structName:  "MyService",
+			expectFound: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass, _ := mockPassWithoutTypesInfo(t, tt.src)
+
+			detector := detect.NewStructDetector(detect.NewInjectDetector())
+			fn := detector.FindExistingConstructor(pass, tt.structName)
+
+			if tt.expectFound && fn == nil {
+				t.Error("FindExistingConstructor() = nil, want non-nil")
+			}
+			if !tt.expectFound && fn != nil {
+				t.Errorf("FindExistingConstructor() = %v, want nil", fn.Name.Name)
+			}
+		})
+	}
+}
+
+func TestStructDetector_DetectCandidates_WithInspector(t *testing.T) {
+	annotationPkg := createAnnotationPackage()
+
+	tests := []struct {
+		name          string
+		src           string
+		pkgs          map[string]*types.Package
+		expectedCount int
+		expectedNames []string
+	}{
+		{
+			name: "single struct with Inject via Inspector",
+			src: `package test
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+type MyService struct {
+	annotation.Inject
+	repo Repository
+}
+
+type Repository interface{}
+`,
+			pkgs:          map[string]*types.Package{detect.AnnotationPath: annotationPkg},
+			expectedCount: 1,
+			expectedNames: []string{"MyService"},
+		},
+		{
+			name: "multiple structs with Inject via Inspector",
+			src: `package test
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+type ServiceA struct {
+	annotation.Inject
+}
+
+type ServiceB struct {
+	annotation.Inject
+}
+`,
+			pkgs:          map[string]*types.Package{detect.AnnotationPath: annotationPkg},
+			expectedCount: 2,
+			expectedNames: []string{"ServiceA", "ServiceB"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass, _ := mockPassWithInspector(t, tt.src, tt.pkgs)
+
+			detector := detect.NewStructDetector(detect.NewInjectDetector())
+			candidates := detector.DetectCandidates(pass)
+
+			if len(candidates) != tt.expectedCount {
+				t.Errorf("DetectCandidates() with Inspector returned %d candidates, want %d", len(candidates), tt.expectedCount)
+			}
+
+			for i, name := range tt.expectedNames {
+				if i >= len(candidates) {
+					break
+				}
+				if candidates[i].TypeSpec.Name.Name != name {
+					t.Errorf("candidate[%d].Name = %s, want %s", i, candidates[i].TypeSpec.Name.Name, name)
+				}
+			}
+		})
 	}
 }

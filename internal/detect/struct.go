@@ -157,6 +157,11 @@ func (d *structDetector) returnsPointerToStruct(pass *analysis.Pass, fn *ast.Fun
 	// Check the first return type (we only care about single return for constructors)
 	result := fn.Type.Results.List[0]
 
+	// Fallback to AST if TypesInfo is not available
+	if pass.TypesInfo == nil {
+		return d.isPointerToStructAST(result.Type, structName)
+	}
+
 	// Get the type from the type checker
 	t := pass.TypesInfo.TypeOf(result.Type)
 	if t == nil {

@@ -14,8 +14,48 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-// mockPass creates a mock analysis.Pass for testing.
-func mockPass(t *testing.T, src string, additionalPkgs map[string]*types.Package) (*analysis.Pass, *ast.File) {
+// createAnnotationPackageWithProvide creates a fake annotation package with both Inject and Provide types.
+func createAnnotationPackageWithProvide() *types.Package {
+	annotationPkg := types.NewPackage(detect.AnnotationPath, "annotation")
+
+	// Create the Inject struct type
+	injectStruct := types.NewStruct(nil, nil)
+	injectNamed := types.NewNamed(
+		types.NewTypeName(token.NoPos, annotationPkg, detect.InjectTypeName, nil),
+		injectStruct,
+		nil,
+	)
+	annotationPkg.Scope().Insert(injectNamed.Obj())
+
+	// Create the Provide struct type
+	provideStruct := types.NewStruct(nil, nil)
+	provideNamed := types.NewNamed(
+		types.NewTypeName(token.NoPos, annotationPkg, detect.ProvideTypeName, nil),
+		provideStruct,
+		nil,
+	)
+	annotationPkg.Scope().Insert(provideNamed.Obj())
+
+	annotationPkg.MarkComplete()
+	return annotationPkg
+}
+
+// createWrongAnnotationPackageWithProvide creates a fake annotation package with wrong path.
+func createWrongAnnotationPackageWithProvide() *types.Package {
+	wrongPkg := types.NewPackage("github.com/other/annotation", "annotation")
+	provideStruct := types.NewStruct(nil, nil)
+	provideNamed := types.NewNamed(
+		types.NewTypeName(token.NoPos, wrongPkg, detect.ProvideTypeName, nil),
+		provideStruct,
+		nil,
+	)
+	wrongPkg.Scope().Insert(provideNamed.Obj())
+	wrongPkg.MarkComplete()
+	return wrongPkg
+}
+
+// mockPassForProvide creates a mock analysis.Pass for testing Provide detection.
+func mockPassForProvide(t *testing.T, src string, additionalPkgs map[string]*types.Package) (*analysis.Pass, *ast.File) {
 	t.Helper()
 
 	fset := token.NewFileSet()
@@ -25,7 +65,7 @@ func mockPass(t *testing.T, src string, additionalPkgs map[string]*types.Package
 	}
 
 	conf := types.Config{
-		Importer: &fakeImporter{
+		Importer: &fakeProvideImporter{
 			packages: additionalPkgs,
 			fallback: importer.Default(),
 		},
@@ -52,27 +92,8 @@ func mockPass(t *testing.T, src string, additionalPkgs map[string]*types.Package
 	return pass, file
 }
 
-// mockPassWithoutTypesInfo creates a mock analysis.Pass without TypesInfo for testing AST fallback paths.
-func mockPassWithoutTypesInfo(t *testing.T, src string) (*analysis.Pass, *ast.File) {
-	t.Helper()
-
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "test.go", src, parser.ParseComments)
-	if err != nil {
-		t.Fatalf("failed to parse test source: %v", err)
-	}
-
-	pass := &analysis.Pass{
-		Fset:      fset,
-		Files:     []*ast.File{file},
-		TypesInfo: nil, // TypesInfo is nil to force AST fallback
-	}
-
-	return pass, file
-}
-
-// mockPassWithInspector creates a mock analysis.Pass with Inspector for testing optimized paths.
-func mockPassWithInspector(t *testing.T, src string, additionalPkgs map[string]*types.Package) (*analysis.Pass, *ast.File) {
+// mockPassWithInspectorForProvide creates a mock analysis.Pass with Inspector for testing Provide detection optimized paths.
+func mockPassWithInspectorForProvide(t *testing.T, src string, additionalPkgs map[string]*types.Package) (*analysis.Pass, *ast.File) {
 	t.Helper()
 
 	fset := token.NewFileSet()
@@ -82,7 +103,7 @@ func mockPassWithInspector(t *testing.T, src string, additionalPkgs map[string]*
 	}
 
 	conf := types.Config{
-		Importer: &fakeImporter{
+		Importer: &fakeProvideImporter{
 			packages: additionalPkgs,
 			fallback: importer.Default(),
 		},
@@ -107,7 +128,7 @@ func mockPassWithInspector(t *testing.T, src string, additionalPkgs map[string]*
 		Files:     []*ast.File{file},
 		Pkg:       pkg,
 		TypesInfo: info,
-		ResultOf: map[*analysis.Analyzer]interface{}{
+		ResultOf: map[*analysis.Analyzer]any{
 			inspect.Analyzer: insp,
 		},
 	}
@@ -115,12 +136,12 @@ func mockPassWithInspector(t *testing.T, src string, additionalPkgs map[string]*
 	return pass, file
 }
 
-type fakeImporter struct {
+type fakeProvideImporter struct {
 	packages map[string]*types.Package
 	fallback types.Importer
 }
 
-func (i *fakeImporter) Import(path string) (*types.Package, error) {
+func (i *fakeProvideImporter) Import(path string) (*types.Package, error) {
 	if pkg, ok := i.packages[path]; ok {
 		return pkg, nil
 	}
@@ -130,38 +151,9 @@ func (i *fakeImporter) Import(path string) (*types.Package, error) {
 	return nil, nil
 }
 
-// createAnnotationPackage creates a fake annotation package for testing.
-func createAnnotationPackage() *types.Package {
-	annotationPkg := types.NewPackage(detect.AnnotationPath, "annotation")
-	// Create the Inject struct type - pass nil for underlying, NewNamed will set it
-	injectStruct := types.NewStruct(nil, nil)
-	injectNamed := types.NewNamed(
-		types.NewTypeName(token.NoPos, annotationPkg, detect.InjectTypeName, nil),
-		injectStruct,
-		nil,
-	)
-	annotationPkg.Scope().Insert(injectNamed.Obj())
-	annotationPkg.MarkComplete()
-	return annotationPkg
-}
-
-// createWrongAnnotationPackage creates a fake annotation package with wrong path.
-func createWrongAnnotationPackage() *types.Package {
-	wrongPkg := types.NewPackage("github.com/other/annotation", "annotation")
-	injectStruct := types.NewStruct(nil, nil)
-	injectNamed := types.NewNamed(
-		types.NewTypeName(token.NoPos, wrongPkg, detect.InjectTypeName, nil),
-		injectStruct,
-		nil,
-	)
-	wrongPkg.Scope().Insert(injectNamed.Obj())
-	wrongPkg.MarkComplete()
-	return wrongPkg
-}
-
-func TestInjectDetector_HasInjectAnnotation(t *testing.T) {
-	annotationPkg := createAnnotationPackage()
-	wrongPkg := createWrongAnnotationPackage()
+func TestProvideDetector_HasProvideAnnotation(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithProvide()
+	wrongPkg := createWrongAnnotationPackageWithProvide()
 
 	tests := []struct {
 		name     string
@@ -170,185 +162,174 @@ func TestInjectDetector_HasInjectAnnotation(t *testing.T) {
 		expected bool
 	}{
 		{
-			name: "standard annotation.Inject embedding",
+			name: "standard annotation.Provide embedding",
 			src: `package test
 
 import "github.com/miyamo2/braider/pkg/annotation"
 
-type MyService struct {
-	annotation.Inject
-	repo Repository
+type MyRepository struct {
+	annotation.Provide
 }
-
-type Repository interface{}
 `,
 			pkgs:     map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expected: true,
 		},
 		{
-			name: "no Inject embedding",
+			name: "no Provide embedding",
 			src: `package test
 
-type MyService struct {
-	repo Repository
+type MyRepository struct {
+	name string
 }
-
-type Repository interface{}
 `,
 			pkgs:     nil,
 			expected: false,
 		},
 		{
-			name: "named Inject field (not embedded)",
+			name: "named Provide field (not embedded)",
 			src: `package test
 
 import "github.com/miyamo2/braider/pkg/annotation"
 
-type MyService struct {
-	inject annotation.Inject
-	repo   Repository
+type MyRepository struct {
+	provide annotation.Provide
 }
-
-type Repository interface{}
 `,
 			pkgs:     map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expected: false,
 		},
 		{
-			name: "Inject embedding at end of struct",
+			name: "Provide embedding at end of struct",
 			src: `package test
 
 import "github.com/miyamo2/braider/pkg/annotation"
 
-type MyService struct {
-	repo Repository
-	annotation.Inject
+type MyRepository struct {
+	name string
+	annotation.Provide
 }
-
-type Repository interface{}
 `,
 			pkgs:     map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expected: true,
 		},
 		{
-			name: "Inject from wrong package (should be ignored)",
+			name: "Provide from wrong package (should be ignored)",
 			src: `package test
 
 import "github.com/other/annotation"
 
-type MyService struct {
-	annotation.Inject
-	repo Repository
+type MyRepository struct {
+	annotation.Provide
 }
-
-type Repository interface{}
 `,
 			pkgs:     map[string]*types.Package{"github.com/other/annotation": wrongPkg},
+			expected: false,
+		},
+		{
+			name: "Inject embedding (not Provide)",
+			src: `package test
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+type MyService struct {
+	annotation.Inject
+}
+`,
+			pkgs:     map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expected: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pass, file := mockPass(t, tt.src, tt.pkgs)
+			pass, file := mockPassForProvide(t, tt.src, tt.pkgs)
 
-			// Find the struct type
+			// Find the first struct type
 			var structType *ast.StructType
 			ast.Inspect(file, func(n ast.Node) bool {
 				if ts, ok := n.(*ast.TypeSpec); ok {
 					if st, ok := ts.Type.(*ast.StructType); ok {
-						if ts.Name.Name == "MyService" {
-							structType = st
-							return false
-						}
+						structType = st
+						return false
 					}
 				}
 				return true
 			})
 
 			if structType == nil {
-				t.Fatal("MyService struct not found")
+				t.Fatal("struct not found")
 			}
 
-			detector := detect.NewInjectDetector()
-			result := detector.HasInjectAnnotation(pass, structType)
+			detector := detect.NewProvideDetector()
+			result := detector.HasProvideAnnotation(pass, structType)
 
 			if result != tt.expected {
-				t.Errorf("HasInjectAnnotation() = %v, want %v", result, tt.expected)
+				t.Errorf("HasProvideAnnotation() = %v, want %v", result, tt.expected)
 			}
 		})
 	}
 }
 
-func TestInjectDetector_FindInjectField(t *testing.T) {
-	annotationPkg := createAnnotationPackage()
+func TestProvideDetector_FindProvideField(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithProvide()
 
 	tests := []struct {
 		name          string
 		src           string
 		pkgs          map[string]*types.Package
 		expectNil     bool
-		expectedIndex int // index of the field in struct (for non-nil case)
+		expectedIndex int
 	}{
 		{
-			name: "finds embedded Inject field at start",
+			name: "finds embedded Provide field at start",
 			src: `package test
 
 import "github.com/miyamo2/braider/pkg/annotation"
 
-type MyService struct {
-	annotation.Inject
-	repo Repository
+type MyRepository struct {
+	annotation.Provide
+	name string
 }
-
-type Repository interface{}
 `,
 			pkgs:          map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectNil:     false,
 			expectedIndex: 0,
 		},
 		{
-			name: "finds embedded Inject field at end",
+			name: "finds embedded Provide field at end",
 			src: `package test
 
 import "github.com/miyamo2/braider/pkg/annotation"
 
-type MyService struct {
-	repo Repository
-	annotation.Inject
+type MyRepository struct {
+	name string
+	annotation.Provide
 }
-
-type Repository interface{}
 `,
 			pkgs:          map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectNil:     false,
 			expectedIndex: 1,
 		},
 		{
-			name: "returns nil when no Inject embedding",
+			name: "returns nil when no Provide embedding",
 			src: `package test
 
-type MyService struct {
-	repo Repository
+type MyRepository struct {
+	name string
 }
-
-type Repository interface{}
 `,
 			pkgs:      nil,
 			expectNil: true,
 		},
 		{
-			name: "returns nil for named Inject field",
+			name: "returns nil for named Provide field",
 			src: `package test
 
 import "github.com/miyamo2/braider/pkg/annotation"
 
-type MyService struct {
-	inject annotation.Inject
-	repo   Repository
+type MyRepository struct {
+	provide annotation.Provide
 }
-
-type Repository interface{}
 `,
 			pkgs:      map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectNil: true,
@@ -357,42 +338,40 @@ type Repository interface{}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pass, file := mockPass(t, tt.src, tt.pkgs)
+			pass, file := mockPassForProvide(t, tt.src, tt.pkgs)
 
-			// Find the struct type
+			// Find the first struct type
 			var structType *ast.StructType
 			ast.Inspect(file, func(n ast.Node) bool {
 				if ts, ok := n.(*ast.TypeSpec); ok {
 					if st, ok := ts.Type.(*ast.StructType); ok {
-						if ts.Name.Name == "MyService" {
-							structType = st
-							return false
-						}
+						structType = st
+						return false
 					}
 				}
 				return true
 			})
 
 			if structType == nil {
-				t.Fatal("MyService struct not found")
+				t.Fatal("struct not found")
 			}
 
-			detector := detect.NewInjectDetector()
-			field := detector.FindInjectField(pass, structType)
+			detector := detect.NewProvideDetector()
+			field := detector.FindProvideField(pass, structType)
 
 			if tt.expectNil {
 				if field != nil {
-					t.Errorf("FindInjectField() = %v, want nil", field)
+					t.Errorf("FindProvideField() = %v, want nil", field)
 				}
 			} else {
 				if field == nil {
-					t.Fatal("FindInjectField() = nil, want non-nil")
+					t.Fatal("FindProvideField() = nil, want non-nil")
 				}
 				// Verify it's the correct field by index
 				if tt.expectedIndex < len(structType.Fields.List) {
 					expectedField := structType.Fields.List[tt.expectedIndex]
 					if field != expectedField {
-						t.Errorf("FindInjectField() returned wrong field")
+						t.Errorf("FindProvideField() returned wrong field")
 					}
 				}
 			}
@@ -400,21 +379,17 @@ type Repository interface{}
 	}
 }
 
-func TestInjectDetector_FindInjectField_TypeOfFallback(t *testing.T) {
+func TestProvideDetector_FindProvideField_TypeOfFallback(t *testing.T) {
 	// Test the TypeOf fallback path when Types map doesn't contain the expression.
 	// This happens when type checking fails or is incomplete.
 
-	// Create a pass with empty Types map but with Uses map populated
 	src := `package test
 
 import "github.com/miyamo2/braider/pkg/annotation"
 
-type MyService struct {
-	annotation.Inject
-	repo Repository
+type MyRepository struct {
+	annotation.Provide
 }
-
-type Repository interface{}
 `
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "test.go", src, parser.ParseComments)
@@ -440,72 +415,65 @@ type Repository interface{}
 	ast.Inspect(file, func(n ast.Node) bool {
 		if ts, ok := n.(*ast.TypeSpec); ok {
 			if st, ok := ts.Type.(*ast.StructType); ok {
-				if ts.Name.Name == "MyService" {
-					structType = st
-					return false
-				}
+				structType = st
+				return false
 			}
 		}
 		return true
 	})
 
 	if structType == nil {
-		t.Fatal("MyService struct not found")
+		t.Fatal("struct not found")
 	}
 
-	// When Types map is empty and TypeOf returns nil, should return nil (no inject found)
-	detector := detect.NewInjectDetector()
-	field := detector.FindInjectField(pass, structType)
+	// When Types map is empty and TypeOf returns nil, should return nil (no provide found)
+	detector := detect.NewProvideDetector()
+	field := detector.FindProvideField(pass, structType)
 
 	// Should return nil because type information is not available
 	if field != nil {
-		t.Errorf("FindInjectField() should return nil when type info is incomplete, got field")
+		t.Errorf("FindProvideField() should return nil when type info is incomplete, got field")
 	}
 }
 
-func TestInjectDetector_AliasedImport(t *testing.T) {
-	annotationPkg := createAnnotationPackage()
+func TestProvideDetector_AliasedImport(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithProvide()
 
 	src := `package test
 
 import ann "github.com/miyamo2/braider/pkg/annotation"
 
-type MyService struct {
-	ann.Inject
-	repo Repository
+type MyRepository struct {
+	ann.Provide
 }
-
-type Repository interface{}
 `
 	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
-	pass, file := mockPass(t, src, pkgs)
+	pass, file := mockPassForProvide(t, src, pkgs)
 
 	// Find the struct type
 	var structType *ast.StructType
 	ast.Inspect(file, func(n ast.Node) bool {
 		if ts, ok := n.(*ast.TypeSpec); ok {
 			if st, ok := ts.Type.(*ast.StructType); ok {
-				if ts.Name.Name == "MyService" {
-					structType = st
-					return false
-				}
+				structType = st
+				return false
 			}
 		}
 		return true
 	})
 
 	if structType == nil {
-		t.Fatal("MyService struct not found")
+		t.Fatal("struct not found")
 	}
 
-	detector := detect.NewInjectDetector()
+	detector := detect.NewProvideDetector()
 
-	if !detector.HasInjectAnnotation(pass, structType) {
-		t.Error("HasInjectAnnotation() = false, want true for aliased import")
+	if !detector.HasProvideAnnotation(pass, structType) {
+		t.Error("HasProvideAnnotation() = false, want true for aliased import")
 	}
 
-	field := detector.FindInjectField(pass, structType)
+	field := detector.FindProvideField(pass, structType)
 	if field == nil {
-		t.Error("FindInjectField() = nil, want non-nil for aliased import")
+		t.Error("FindProvideField() = nil, want non-nil for aliased import")
 	}
 }

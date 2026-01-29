@@ -31,7 +31,7 @@ type MyService struct {
 
 type Repository interface{}
 `,
-			pkgs:           map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg},
+			pkgs:           map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectedCount:  1,
 			expectedFields: []string{"repo"},
 		},
@@ -52,7 +52,7 @@ type Repository interface{}
 type Logger interface{}
 type Config struct{}
 `,
-			pkgs:           map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg},
+			pkgs:           map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectedCount:  3,
 			expectedFields: []string{"repo", "logger", "config"},
 		},
@@ -71,7 +71,7 @@ type MyService struct {
 type Repository interface{}
 type Logger interface{}
 `,
-			pkgs:           map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg},
+			pkgs:           map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectedCount:  2,
 			expectedFields: []string{"repo", "logger"},
 		},
@@ -90,7 +90,7 @@ type MyService struct {
 type Repository interface{}
 type Logger interface{}
 `,
-			pkgs:           map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg},
+			pkgs:           map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectedCount:  2,
 			expectedFields: []string{"Repo", "logger"},
 		},
@@ -104,7 +104,7 @@ type MyService struct {
 	annotation.Inject
 }
 `,
-			pkgs:           map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg},
+			pkgs:           map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectedCount:  0,
 			expectedFields: []string{},
 		},
@@ -173,7 +173,7 @@ type Repository interface{}
 type Logger struct{}
 type Config struct{}
 `
-	pkgs := map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg}
+	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 	pass, file := mockPass(t, src, pkgs)
 
 	var structType *ast.StructType
@@ -300,7 +300,7 @@ type Beta interface{}
 type Gamma interface{}
 type Delta interface{}
 `
-	pkgs := map[string]*types.Package{detect.InjectAnnotationPath: annotationPkg}
+	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 	pass, file := mockPass(t, src, pkgs)
 
 	var structType *ast.StructType
@@ -331,5 +331,130 @@ type Delta interface{}
 		if fields[i].Name != name {
 			t.Errorf("field order mismatch at %d: got %s, want %s", i, fields[i].Name, name)
 		}
+	}
+}
+
+func TestFieldAnalyzer_AnalyzeFields_WithoutTypesInfo(t *testing.T) {
+	// Test AST fallback path (isPointerAST) when TypesInfo is nil
+	tests := []struct {
+		name            string
+		src             string
+		expectedCount   int
+		expectedNames   []string
+		expectedPointer []bool
+	}{
+		{
+			name: "detects pointer types via AST fallback",
+			src: `package test
+
+type MyService struct {
+	repo   *Repository
+	logger Logger
+	config *Config
+}
+
+type Repository struct{}
+type Logger interface{}
+type Config struct{}
+`,
+			expectedCount:   3,
+			expectedNames:   []string{"repo", "logger", "config"},
+			expectedPointer: []bool{true, false, true},
+		},
+		{
+			name: "handles non-pointer types via AST fallback",
+			src: `package test
+
+type MyService struct {
+	name    string
+	count   int
+	handler Handler
+}
+
+type Handler struct{}
+`,
+			expectedCount:   3,
+			expectedNames:   []string{"name", "count", "handler"},
+			expectedPointer: []bool{false, false, false},
+		},
+		{
+			name: "handles mixed pointer and non-pointer types",
+			src: `package test
+
+type MyService struct {
+	first  *First
+	second Second
+	third  *Third
+	fourth Fourth
+}
+
+type First struct{}
+type Second struct{}
+type Third struct{}
+type Fourth struct{}
+`,
+			expectedCount:   4,
+			expectedNames:   []string{"first", "second", "third", "fourth"},
+			expectedPointer: []bool{true, false, true, false},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass, file := mockPassWithoutTypesInfo(t, tt.src)
+
+			// Find the struct type
+			var structType *ast.StructType
+			ast.Inspect(file, func(n ast.Node) bool {
+				if ts, ok := n.(*ast.TypeSpec); ok {
+					if st, ok := ts.Type.(*ast.StructType); ok {
+						if ts.Name.Name == "MyService" {
+							structType = st
+							return false
+						}
+					}
+				}
+				return true
+			})
+
+			if structType == nil {
+				t.Fatal("MyService struct not found")
+			}
+
+			fieldAnalyzer := detect.NewFieldAnalyzer()
+			// Pass nil for injectField since we're testing without annotation package
+			fields := fieldAnalyzer.AnalyzeFields(pass, structType, nil)
+
+			if len(fields) != tt.expectedCount {
+				t.Errorf("AnalyzeFields() returned %d fields, want %d", len(fields), tt.expectedCount)
+				return
+			}
+
+			for i, name := range tt.expectedNames {
+				if fields[i].Name != name {
+					t.Errorf("fields[%d].Name = %s, want %s", i, fields[i].Name, name)
+				}
+			}
+
+			for i, isPointer := range tt.expectedPointer {
+				if fields[i].IsPointer != isPointer {
+					t.Errorf("fields[%d].IsPointer = %v, want %v (field: %s)", i, fields[i].IsPointer, isPointer, fields[i].Name)
+				}
+			}
+
+			// Verify Type is nil (since TypesInfo is nil)
+			for i, field := range fields {
+				if field.Type != nil {
+					t.Errorf("fields[%d].Type should be nil when TypesInfo is nil, got %v", i, field.Type)
+				}
+			}
+
+			// Verify IsInterface is false (cannot determine from AST alone)
+			for i, field := range fields {
+				if field.IsInterface {
+					t.Errorf("fields[%d].IsInterface should be false when TypesInfo is nil", i)
+				}
+			}
+		})
 	}
 }
