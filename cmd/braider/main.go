@@ -2,9 +2,12 @@ package main
 
 import (
 	"github.com/miyamo2/braider/internal/analyzer"
-	"golang.org/x/tools/go/analysis/singlechecker"
+	"golang.org/x/tools/go/analysis/multichecker"
 )
 
 func main() {
-	singlechecker.Main(analyzer.Analyzer)
+	multichecker.Main(
+		analyzer.DependencyAnalyzer,
+		analyzer.AppAnalyzer,
+	)
 }

@@ -33,6 +33,12 @@ func TestDependencyAnalyzer(t *testing.T) {
 	}
 }
 
+func TestDependencyAnalyzer_SuggestedFixes(t *testing.T) {
+	// Run with suggested fixes to verify code generation
+	// Now using DependencyAnalyzer which includes constructor generation (Phase 1)
+	analysistest.RunWithSuggestedFixes(t, "testdata/constructorgen", DependencyAnalyzer, ".")
+}
+
 func TestDependencyAnalyzer_MissingProvideConstructor(t *testing.T) {
 	// Clear registries before test
 	registry.GlobalProviderRegistry.Clear()

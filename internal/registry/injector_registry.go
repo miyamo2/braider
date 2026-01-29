@@ -25,6 +25,9 @@ type InjectorInfo struct {
 	Dependencies []string
 	// Implements contains fully qualified interface types this struct implements
 	Implements []string
+	// IsPending indicates whether the constructor is being generated in the current pass (true)
+	// or already exists on disk (false). Enables single-pass constructor and bootstrap generation.
+	IsPending bool
 }
 
 // InjectorRegistry stores all discovered injector structs globally.
