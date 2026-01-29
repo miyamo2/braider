@@ -1,7 +1,6 @@
-package internal
+package analyzer
 
 import (
-	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/generate"
 	"github.com/miyamo2/braider/internal/report"
 	"golang.org/x/tools/go/analysis"
@@ -19,22 +18,9 @@ var Analyzer = &analysis.Analyzer{
 
 // Components used by the analyzer
 var (
-	injectDetector       = detect.NewInjectDetector()
-	structDetector       = detect.NewStructDetector(injectDetector)
-	fieldAnalyzer        = detect.NewFieldAnalyzer()
 	constructorGenerator = generate.NewConstructorGenerator()
 	suggestedFixBuilder  = report.NewSuggestedFixBuilder()
-	diagnosticEmitter    = report.NewDiagnosticEmitter()
 )
-
-// passReporter adapts analysis.Pass to report.Reporter interface.
-type passReporter struct {
-	pass *analysis.Pass
-}
-
-func (r *passReporter) Report(d analysis.Diagnostic) {
-	r.pass.Report(d)
-}
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	reporter := &passReporter{pass: pass}

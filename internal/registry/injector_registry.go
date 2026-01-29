@@ -23,6 +23,8 @@ type InjectorInfo struct {
 	ConstructorName string
 	// Dependencies contains fully qualified types of constructor parameters
 	Dependencies []string
+	// Implements contains fully qualified interface types this struct implements
+	Implements []string
 }
 
 // InjectorRegistry stores all discovered injector structs globally.

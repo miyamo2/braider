@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/miyamo2/braider/internal"
+	"github.com/miyamo2/braider/internal/analyzer"
 	"golang.org/x/tools/go/analysis/singlechecker"
 )
 
 func main() {
-	singlechecker.Main(internal.Analyzer)
+	singlechecker.Main(analyzer.Analyzer)
 }

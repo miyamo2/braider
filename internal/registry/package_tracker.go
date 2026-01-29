@@ -124,3 +124,11 @@ func (t *PackageTracker) IsPackageScanned(pkgPath string) bool {
 	defer t.mu.Unlock()
 	return t.scannedPackages[pkgPath]
 }
+
+// Clear removes all scanned packages. Used for testing.
+func (t *PackageTracker) Clear() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.scannedPackages = make(map[string]bool)
+	t.completionChan = nil
+}

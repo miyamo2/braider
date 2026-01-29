@@ -27,6 +27,8 @@ type ProviderInfo struct {
 	ConstructorName string
 	// Dependencies contains fully qualified types of constructor parameters
 	Dependencies []string
+	// Implements contains fully qualified interface types this struct implements
+	Implements []string
 }
 
 // ProviderRegistry stores all discovered provider structs globally.
