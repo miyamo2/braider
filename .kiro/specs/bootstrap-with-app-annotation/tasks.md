@@ -33,8 +33,8 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Include clear method for test isolation
   - _Requirements: 9.2, 9.3_
 
-- [ ] 2. Implement Detection Components
-- [ ] 2.1 (P) Implement Provide annotation detection capability
+- [x] 2. Implement Detection Components
+- [x] 2.1 (P) Implement Provide annotation detection capability
   - Detect structs embedding annotation.Provide marker via AST traversal
   - Extract struct type information and package path
   - Identify constructor function following New<TypeName> naming convention
@@ -42,7 +42,7 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Exclude structs without Provide marker from dependency graph consideration
   - _Requirements: 2.1, 2.2_
 
-- [ ] 2.2 Implement App annotation detection and validation
+- [x] 2.2 Implement App annotation detection and validation
   - Detect var _ = annotation.App(main) declarations in package AST
   - Validate exactly one App annotation exists per package
   - Verify App annotation references the main function specifically
@@ -50,7 +50,7 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Handle aliased imports of annotation package
   - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-- [ ] 2.3 Implement Package Loader for module-wide package enumeration
+- [x] 2.3 Implement Package Loader for module-wide package enumeration
   - Use golang.org/x/tools/go/packages to load all packages in module
   - Return list of package paths for synchronization with PackageTracker
   - Handle module root detection and recursive package discovery
