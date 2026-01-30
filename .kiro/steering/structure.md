@@ -8,20 +8,25 @@ braider follows a **standard Go project layout** with clear separation between p
 
 ### CLI Entry Point
 **Location**: `cmd/braider/`
-**Purpose**: Minimal CLI wrapper that invokes the analyzer via singlechecker
-**Pattern**: Single `main.go` that imports internal analyzer and calls `singlechecker.Main()`
+**Purpose**: CLI wrapper that instantiates components and invokes multiple analyzers
+**Pattern**: Single `main.go` that:
+1. Creates shared registries (provider, injector, package tracker)
+2. Instantiates detectors, generators, and reporters
+3. Constructs `DependencyAnalyzer` and `AppAnalyzer` with dependencies
+4. Calls `multichecker.Main()` with both analyzers
 
 ### Internal Implementation
 **Location**: `internal/`
 **Purpose**: Core analyzer logic, not importable by external packages
-**Pattern**:
-- `analyzer.go` - Main analyzer definition and run function
-- `analyzer_test.go` - Tests using analysistest framework
+**Pattern**: Organized into focused subpackages by responsibility (see Internal Package Organization below)
 
 ### Test Fixtures
-**Location**: `internal/testdata/src/`
+**Location**: `internal/analyzer/testdata/`
 **Purpose**: Go source files used as test inputs for analysistest
-**Pattern**: Each test scenario in its own package directory (e.g., `example/`)
+**Pattern**: Organized by test category:
+- `testdata/src/` - App annotation scenarios (noapp, simpleapp, multipleapp, etc.)
+- `testdata/dependency/` - Dependency analysis scenarios (basic, cross_package, missing_constructor, etc.)
+- `testdata/constructorgen/` - Constructor generation scenarios
 
 ## Naming Conventions
 
@@ -54,14 +59,19 @@ import (
 
 ### Component-Based Architecture
 The analyzer is built from composable components with clear responsibilities:
-- **Detectors**: Find DI patterns (`InjectDetector`, `StructDetector`, `FieldAnalyzer`)
+- **Detectors**: Find DI patterns (`InjectDetector`, `ProvideDetector`, `AppDetector`, `StructDetector`, `FieldAnalyzer`, `ConstructorAnalyzer`)
 - **Generators**: Produce code (`ConstructorGenerator`)
 - **Reporters**: Emit diagnostics (`SuggestedFixBuilder`, `DiagnosticEmitter`)
+- **Registries**: Track state (`ProviderRegistry`, `InjectorRegistry`, `PackageTracker`)
 
-Components are instantiated in `analyzer.go` and orchestrated through a phased pipeline.
+Components are instantiated in `main.go` and passed to analyzer constructors via dependency injection.
 
-### Single Analyzer Pattern
-The project exposes one `analysis.Analyzer` variable from the internal package, following the standard pattern for go/analysis tools.
+### Multi-Analyzer Pattern
+The project exposes two coordinated analyzers from `internal/analyzer/`:
+- **DependencyAnalyzer**: First pass to register all `Provide` and `Inject` structs
+- **AppAnalyzer**: Second pass to generate bootstrap code using registered dependencies
+
+Both analyzers share state through global registries, enabling cross-package dependency resolution.
 
 ### Minimal Public API
 Only the CLI entry point (`cmd/braider/main.go`) is user-facing. All implementation details are in `internal/` to prevent accidental external dependencies.
@@ -71,14 +81,23 @@ Test fixtures live in `testdata/src/` following analysistest conventions. Each t
 
 ### Internal Package Organization
 The internal package is split into focused subpackages:
-- `internal/detect/` - Detection logic for DI patterns (inject markers, struct candidates, fields)
-- `internal/generate/` - Code generation logic (constructors, formatting)
+- `internal/analyzer/` - Analyzer definitions (`DependencyAnalyzer`, `AppAnalyzer`) and orchestration
+- `internal/detect/` - Detection logic for DI patterns (inject, provide, app annotations, struct analysis, field analysis, constructor detection)
+- `internal/generate/` - Code generation logic (constructors, bootstrap code formatting)
 - `internal/report/` - Diagnostic and suggested fix building
+- `internal/registry/` - Global state management (provider registry, injector registry, package tracker)
+- `internal/graph/` - Dependency resolution (dependency graph, interface registry, topological sort)
+- `internal/loader/` - Package loading utilities
 
 ### Public API (`pkg/`)
 **Location**: `pkg/annotation/`
-**Purpose**: Public annotation types for users to mark DI targets
-**Pattern**: Minimal marker types (e.g., `Inject` struct) that users embed in their structs
+**Purpose**: Public annotation types and functions for users to mark DI targets
+**Pattern**: Three annotation mechanisms:
+- `Inject` struct - Embed in structs to mark for constructor generation and DI registration
+- `Provide` struct - Embed in structs to mark as providers (local variables in bootstrap IIFE)
+- `App(main)` function - Call in main package to mark entry point for bootstrap code generation
 
 ---
 _Document patterns, not file trees. New files following patterns should not require updates_
+
+_Updated: 2026-01-30 - Added multi-analyzer pattern, expanded internal package organization, updated testdata structure, added App and Provide annotations_

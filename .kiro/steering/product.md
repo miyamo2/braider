@@ -4,10 +4,11 @@
 
 ## Core Capabilities
 
-- **DI Binding Detection**: Static analysis of Go code to identify structs embedding `annotation.Inject` marker
-- **Wiring Code Generation**: Automatic generation of constructor functions and initialization code via `analysis.SuggestedFix`
-- **Go Vet Integration**: Works as a standard go vet tool, enabling `go vet -fix` workflow for applying suggested fixes
+- **DI Binding Detection**: Static analysis of Go code to identify structs with annotation markers (`Inject`, `Provide`, `App`)
+- **Constructor Generation**: Auto-generate constructor functions for structs with injectable dependencies
+- **Bootstrap Code Generation**: Generate main function IIFE wiring code with `App` annotation
 - **Dependency Graph Resolution**: Analyzes dependency relationships and generates initialization code in topological order
+- **Go Vet Integration**: Works as a standard go vet tool, enabling `go vet -fix` workflow for applying suggested fixes
 
 ## Target Use Cases
 
@@ -25,3 +26,5 @@ Unlike runtime DI frameworks, braider provides:
 
 ---
 _Focus on patterns and purpose, not exhaustive feature lists_
+
+_Updated: 2026-01-30 - Added Provide and App annotations, expanded core capabilities_
