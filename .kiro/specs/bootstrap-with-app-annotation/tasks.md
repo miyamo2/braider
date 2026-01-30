@@ -56,7 +56,7 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Handle module root detection and recursive package discovery
   - _Requirements: 9.2_
 
-- [ ] 3. Implement Dependency Analyzer
+- [x] 3. Implement Dependency Analyzer
 - [x] 3.1 Create DependencyAnalyzer as primary analyzer for struct detection
   - Define analyzer with proper name, documentation, and dependencies on inspect.Analyzer
   - Implement run function that processes each package
@@ -73,7 +73,7 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Use first return value as the provided type
   - _Requirements: 2.4, 3.4_
 
-- [ ] 4. Implement Graph Construction Components
+- [x] 4. Implement Graph Construction Components
 - [x] 4.1 (P) Implement Interface Registry for interface-to-implementation mapping
   - Build mapping from interface types to implementing provider and injector structs
   - Use go/types.Implements for both value and pointer receivers
