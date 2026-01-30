@@ -74,7 +74,7 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - _Requirements: 2.4, 3.4_
 
 - [ ] 4. Implement Graph Construction Components
-- [ ] 4.1 (P) Implement Interface Registry for interface-to-implementation mapping
+- [x] 4.1 (P) Implement Interface Registry for interface-to-implementation mapping
   - Build mapping from interface types to implementing provider and injector structs
   - Use go/types.Implements for both value and pointer receivers
   - Detect and report ambiguous implementations when multiple structs implement same interface
@@ -82,7 +82,7 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Support cross-package interface resolution
   - _Requirements: 3.5, 3.6, 3.7, 3.8_
 
-- [ ] 4.2 Implement Dependency Graph builder
+- [x] 4.2 Implement Dependency Graph builder
   - Construct graph nodes from registered providers and injectors
   - Parse constructor signatures to extract parameter types as dependencies
   - Create dependency edges from parameter types to struct being constructed
@@ -92,7 +92,7 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Validate all constructor parameters are resolvable and halt with error if not
   - _Requirements: 2.4, 3.1, 3.2, 3.3_
 
-- [ ] 4.3 Implement Topological Sort with cycle detection
+- [x] 4.3 Implement Topological Sort with cycle detection
   - Implement Kahn's algorithm for ordering dependency initialization
   - Apply alphabetical tie-breaking for deterministic output when multiple valid orderings exist
   - Detect circular dependencies via non-zero in-degree nodes after sort completion
@@ -223,14 +223,14 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Test handling of aliased annotation imports
   - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-- [ ] 9.5 (P) Add unit tests for InterfaceRegistry
+- [x] 9.5 (P) Add unit tests for InterfaceRegistry
   - Test building interface-to-implementation mapping
   - Test single implementation resolution
   - Test ambiguous implementation detection
   - Test unresolved interface error
   - _Requirements: 3.5, 3.6, 3.7, 3.8_
 
-- [ ] 9.6 (P) Add unit tests for DependencyGraph
+- [x] 9.6 (P) Add unit tests for DependencyGraph
   - Test graph construction with providers and injectors
   - Test edge creation from constructor parameters
   - Test IsInject flag handling for Inject vs Provide distinction
