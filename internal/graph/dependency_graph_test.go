@@ -17,7 +17,7 @@ func TestDependencyGraph_BuildGraph(t *testing.T) {
 		name      string
 		providers []*registry.ProviderInfo
 		injectors []*registry.InjectorInfo
-		wantNodes map[string]bool // type names that should be in graph
+		wantNodes map[string]bool     // type names that should be in graph
 		wantEdges map[string][]string // from -> []to
 		wantErr   bool
 	}{
@@ -43,7 +43,7 @@ func TestDependencyGraph_BuildGraph(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "single injector with no dependencies",
+			name:      "single injector with no dependencies",
 			providers: nil,
 			injectors: []*registry.InjectorInfo{
 				{
@@ -86,11 +86,11 @@ func TestDependencyGraph_BuildGraph(t *testing.T) {
 				},
 			},
 			wantNodes: map[string]bool{
-				"example.com/repo.UserRepository":   true,
+				"example.com/repo.UserRepository": true,
 				"example.com/service.UserService": true,
 			},
 			wantEdges: map[string][]string{
-				"example.com/repo.UserRepository":   {},
+				"example.com/repo.UserRepository": {},
 				"example.com/service.UserService": {"example.com/repo.UserRepository"},
 			},
 			wantErr: false,
@@ -126,13 +126,13 @@ func TestDependencyGraph_BuildGraph(t *testing.T) {
 				},
 			},
 			wantNodes: map[string]bool{
-				"example.com/repo.UserRepository":     true,
-				"example.com/service.UserService":   true,
+				"example.com/repo.UserRepository": true,
+				"example.com/service.UserService": true,
 				"example.com/handler.UserHandler": true,
 			},
 			wantEdges: map[string][]string{
-				"example.com/repo.UserRepository":     {},
-				"example.com/service.UserService":   {"example.com/repo.UserRepository"},
+				"example.com/repo.UserRepository": {},
+				"example.com/service.UserService": {"example.com/repo.UserRepository"},
 				"example.com/handler.UserHandler": {"example.com/service.UserService"},
 			},
 			wantErr: false,
@@ -171,8 +171,8 @@ func TestDependencyGraph_BuildGraph(t *testing.T) {
 				},
 			},
 			wantNodes: map[string]bool{
-				"example.com/repo.UserRepository":    true,
-				"example.com/repo.OrderRepository":   true,
+				"example.com/repo.UserRepository":  true,
+				"example.com/repo.OrderRepository": true,
 				"example.com/service.OrderService": true,
 			},
 			wantEdges: map[string][]string{
@@ -312,7 +312,7 @@ func TestDependencyGraph_IsInject(t *testing.T) {
 				},
 			},
 			wantFlags: map[string]bool{
-				"example.com/repo.UserRepository":   false,
+				"example.com/repo.UserRepository": false,
 				"example.com/service.UserService": true,
 			},
 		},
@@ -375,13 +375,13 @@ func TestDependencyGraph_InterfaceResolution(t *testing.T) {
 				},
 			},
 			wantEdges: map[string][]string{
-				"example.com/repo.UserRepository":   {},
+				"example.com/repo.UserRepository": {},
 				"example.com/service.UserService": {"example.com/repo.UserRepository"},
 			},
 			wantErr: false,
 		},
 		{
-			name: "interface resolved to injector",
+			name:      "interface resolved to injector",
 			providers: nil,
 			injectors: []*registry.InjectorInfo{
 				{
@@ -403,7 +403,7 @@ func TestDependencyGraph_InterfaceResolution(t *testing.T) {
 				},
 			},
 			wantEdges: map[string][]string{
-				"example.com/repo.UserRepository":   {},
+				"example.com/repo.UserRepository": {},
 				"example.com/service.UserService": {"example.com/repo.UserRepository"},
 			},
 			wantErr: false,

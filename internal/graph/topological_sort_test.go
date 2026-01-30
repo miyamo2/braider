@@ -73,8 +73,8 @@ func TestTopologicalSort_Sort(t *testing.T) {
 					},
 				},
 				Edges: map[string][]string{
-					"example.com/repo.UserRepository":     {},
-					"example.com/service.UserService":   {"example.com/repo.UserRepository"},
+					"example.com/repo.UserRepository": {},
+					"example.com/service.UserService": {"example.com/repo.UserRepository"},
 					"example.com/handler.UserHandler": {"example.com/service.UserService"},
 				},
 			},

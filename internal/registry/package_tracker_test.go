@@ -254,9 +254,11 @@ func TestPackageTracker_ThreadSafety(t *testing.T) {
 }
 
 func TestGlobalPackageTracker(t *testing.T) {
-	GlobalPackageTracker.MarkPackageScanned("example.com/test")
+	pt := NewPackageTracker()
 
-	if !GlobalPackageTracker.IsPackageScanned("example.com/test") {
+	pt.MarkPackageScanned("example.com/test")
+
+	if !pt.IsPackageScanned("example.com/test") {
 		t.Error("GlobalPackageTracker.IsPackageScanned() returned false")
 	}
 }

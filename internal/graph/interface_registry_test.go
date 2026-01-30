@@ -14,12 +14,12 @@ import (
 // TestInterfaceRegistry_Build tests the Build method for constructing the interface registry.
 func TestInterfaceRegistry_Build(t *testing.T) {
 	tests := []struct {
-		name          string
-		providers     []*registry.ProviderInfo
-		injectors     []*registry.InjectorInfo
-		src           string
+		name           string
+		providers      []*registry.ProviderInfo
+		injectors      []*registry.InjectorInfo
+		src            string
 		wantInterfaces map[string]string // interface type -> implementation type
-		wantErr       bool
+		wantErr        bool
 	}{
 		{
 			name: "single provider implements interface",
@@ -51,7 +51,7 @@ func (r *UserRepository) FindByID(id string) string {
 			wantErr: false,
 		},
 		{
-			name: "single injector implements interface",
+			name:      "single injector implements interface",
 			providers: nil,
 			injectors: []*registry.InjectorInfo{
 				{

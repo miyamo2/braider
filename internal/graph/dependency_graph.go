@@ -7,19 +7,19 @@ import (
 
 // Graph represents the dependency graph.
 type Graph struct {
-	Nodes map[string]*Node   // Keyed by fully qualified type name
+	Nodes map[string]*Node    // Keyed by fully qualified type name
 	Edges map[string][]string // Dependencies: from -> []to
 }
 
 // Node represents an injectable type in the graph.
 type Node struct {
-	TypeName        string // Fully qualified type name
-	PackagePath     string // Import path
-	LocalName       string // Type name without package
-	ConstructorName string // New<TypeName>
+	TypeName        string   // Fully qualified type name
+	PackagePath     string   // Import path
+	LocalName       string   // Type name without package
+	ConstructorName string   // New<TypeName>
 	Dependencies    []string // Types this depends on
-	InDegree        int // For Kahn's algorithm
-	IsInject        bool // True for Inject structs (fields), false for Provide structs (local vars)
+	InDegree        int      // For Kahn's algorithm
+	IsInject        bool     // True for Inject structs (fields), false for Provide structs (local vars)
 }
 
 // DependencyGraphBuilder builds the dependency graph for injectable types.

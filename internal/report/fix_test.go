@@ -255,4 +255,3 @@ type MyService struct{}
 		t.Errorf("NewText should start with blank line, got: %q", newText[:min(10, len(newText))])
 	}
 }
-

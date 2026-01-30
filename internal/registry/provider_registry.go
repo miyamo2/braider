@@ -9,11 +9,6 @@ import (
 	"sync"
 )
 
-// GlobalProviderRegistry is the singleton instance used by all analyzers.
-// DependencyAnalyzer registers discovered providers; AppAnalyzer retrieves
-// them for bootstrap generation.
-var GlobalProviderRegistry = NewProviderRegistry()
-
 // ProviderInfo contains information about a Provide struct.
 // These are dependency providers that become local variables in the bootstrap IIFE.
 type ProviderInfo struct {

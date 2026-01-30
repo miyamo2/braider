@@ -264,6 +264,8 @@ func TestInjectorRegistry_ThreadSafety(t *testing.T) {
 }
 
 func TestGlobalInjectorRegistry(t *testing.T) {
+	r := NewInjectorRegistry()
+
 	info := &InjectorInfo{
 		TypeName:        "example.com/service.TestService",
 		PackagePath:     "example.com/service",
@@ -271,9 +273,9 @@ func TestGlobalInjectorRegistry(t *testing.T) {
 		ConstructorName: "NewTestService",
 	}
 
-	GlobalInjectorRegistry.Register(info)
+	r.Register(info)
 
-	got := GlobalInjectorRegistry.Get("example.com/service.TestService")
+	got := r.Get("example.com/service.TestService")
 	if got == nil {
 		t.Fatal("GlobalInjectorRegistry.Get() returned nil")
 	}

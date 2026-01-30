@@ -5,11 +5,6 @@ import (
 	"sync"
 )
 
-// GlobalInjectorRegistry is the singleton instance used by all analyzers.
-// DependencyAnalyzer registers discovered injectors; AppAnalyzer retrieves
-// them for bootstrap generation.
-var GlobalInjectorRegistry = NewInjectorRegistry()
-
 // InjectorInfo contains information about an Inject struct.
 // These are constructor generation targets that become fields in the dependency struct.
 type InjectorInfo struct {

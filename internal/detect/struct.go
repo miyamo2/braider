@@ -11,11 +11,11 @@ import (
 
 // ConstructorCandidate represents a struct requiring constructor generation.
 type ConstructorCandidate struct {
-	TypeSpec            *ast.TypeSpec    // The struct type specification
-	StructType          *ast.StructType  // The struct type node
-	GenDecl             *ast.GenDecl     // Parent declaration (for positioning)
-	InjectField         *ast.Field       // The embedded annotation.Inject field
-	ExistingConstructor *ast.FuncDecl    // Existing constructor to replace (nil if none)
+	TypeSpec            *ast.TypeSpec   // The struct type specification
+	StructType          *ast.StructType // The struct type node
+	GenDecl             *ast.GenDecl    // Parent declaration (for positioning)
+	InjectField         *ast.Field      // The embedded annotation.Inject field
+	ExistingConstructor *ast.FuncDecl   // Existing constructor to replace (nil if none)
 }
 
 // StructDetector identifies structs requiring constructor generation.
@@ -199,4 +199,3 @@ func (d *structDetector) isPointerToStructAST(expr ast.Expr, structName string) 
 
 	return ident.Name == structName
 }
-

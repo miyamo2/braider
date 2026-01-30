@@ -264,6 +264,8 @@ func TestProviderRegistry_ThreadSafety(t *testing.T) {
 }
 
 func TestGlobalProviderRegistry(t *testing.T) {
+	r := NewProviderRegistry()
+
 	info := &ProviderInfo{
 		TypeName:        "example.com/repo.TestRepository",
 		PackagePath:     "example.com/repo",
@@ -271,9 +273,9 @@ func TestGlobalProviderRegistry(t *testing.T) {
 		ConstructorName: "NewTestRepository",
 	}
 
-	GlobalProviderRegistry.Register(info)
+	r.Register(info)
 
-	got := GlobalProviderRegistry.Get("example.com/repo.TestRepository")
+	got := r.Get("example.com/repo.TestRepository")
 	if got == nil {
 		t.Fatal("GlobalProviderRegistry.Get() returned nil")
 	}

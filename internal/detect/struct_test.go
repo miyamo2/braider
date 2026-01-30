@@ -11,11 +11,11 @@ func TestStructDetector_DetectCandidates(t *testing.T) {
 	annotationPkg := createAnnotationPackage()
 
 	tests := []struct {
-		name           string
-		src            string
-		pkgs           map[string]*types.Package
-		expectedCount  int
-		expectedNames  []string
+		name          string
+		src           string
+		pkgs          map[string]*types.Package
+		expectedCount int
+		expectedNames []string
 	}{
 		{
 			name: "single struct with Inject",

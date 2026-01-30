@@ -8,11 +8,6 @@ import (
 	"time"
 )
 
-// GlobalPackageTracker is the singleton instance used by all analyzers.
-// DependencyAnalyzer marks packages as scanned; AppAnalyzer waits for all
-// packages to complete before generating bootstrap code.
-var GlobalPackageTracker = NewPackageTracker()
-
 // DefaultTimeout is the default timeout for waiting for all packages.
 const DefaultTimeout = 30 * time.Second
 

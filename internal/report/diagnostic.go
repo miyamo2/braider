@@ -40,6 +40,12 @@ type DiagnosticEmitter interface {
 
 	// EmitMissingConstructorError reports Provide struct without constructor.
 	EmitMissingConstructorError(reporter Reporter, pos token.Pos, typeName string)
+
+	// EmitMultipleAppError reports multiple annotation.App declarations.
+	EmitMultipleAppError(reporter Reporter, positions []token.Pos)
+
+	// EmitNonMainAppError reports App referencing non-main function.
+	EmitNonMainAppError(reporter Reporter, pos token.Pos, funcName string)
 }
 
 // diagnosticEmitter is the default implementation of DiagnosticEmitter.
@@ -101,5 +107,24 @@ func (e *diagnosticEmitter) EmitMissingConstructorError(reporter Reporter, pos t
 		Pos:      pos,
 		Category: "constructor",
 		Message:  fmt.Sprintf("Provide struct %s requires a constructor (New%s)", typeName, typeName),
+	})
+}
+
+// EmitMultipleAppError reports multiple annotation.App declarations.
+func (e *diagnosticEmitter) EmitMultipleAppError(reporter Reporter, positions []token.Pos) {
+	// Report on the first position
+	if len(positions) > 0 {
+		reporter.Report(analysis.Diagnostic{
+			Pos:     positions[0],
+			Message: "multiple annotation.App declarations in package",
+		})
+	}
+}
+
+// EmitNonMainAppError reports App referencing non-main function.
+func (e *diagnosticEmitter) EmitNonMainAppError(reporter Reporter, pos token.Pos, funcName string) {
+	reporter.Report(analysis.Diagnostic{
+		Pos:     pos,
+		Message: fmt.Sprintf("annotation.App must reference main function, got %s", funcName),
 	})
 }

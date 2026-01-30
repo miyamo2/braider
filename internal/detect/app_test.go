@@ -22,12 +22,12 @@ func createAnnotationPackageWithApp() *types.Package {
 	emptyStruct := types.NewStruct(nil, nil)
 	funcParam := types.NewSignatureType(nil, nil, nil, nil, nil, false) // func()
 	appSig := types.NewSignatureType(
-		nil,                                                               // receiver
-		nil,                                                               // recv type params
-		nil,                                                               // type params
-		types.NewTuple(types.NewVar(token.NoPos, nil, "", funcParam)),     // params
-		types.NewTuple(types.NewVar(token.NoPos, nil, "", emptyStruct)),   // results
-		false,                                                             // variadic
+		nil, // receiver
+		nil, // recv type params
+		nil, // type params
+		types.NewTuple(types.NewVar(token.NoPos, nil, "", funcParam)),   // params
+		types.NewTuple(types.NewVar(token.NoPos, nil, "", emptyStruct)), // results
+		false, // variadic
 	)
 	appFunc := types.NewFunc(token.NoPos, annotationPkg, detect.AppFuncName, appSig)
 	annotationPkg.Scope().Insert(appFunc)

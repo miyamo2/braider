@@ -11,47 +11,98 @@ import (
 
 // DependencyAnalyzer detects annotation.Provide and annotation.Inject structs
 // across all packages and registers them to global registries.
-var DependencyAnalyzer = &analysis.Analyzer{
-	Name:     "braider_dependency",
-	Doc:      "detects Provide and Inject annotated structs and registers to global registry",
-	Run:      runDependency,
-	Requires: []*analysis.Analyzer{inspect.Analyzer},
+func DependencyAnalyzer(
+	provideRegistry *registry.ProviderRegistry,
+	injectRegistry *registry.InjectorRegistry,
+	packageTracker *registry.PackageTracker,
+	provideDetector detect.ProvideDetector,
+	provideStructDetector detect.ProvideStructDetector,
+	injectDetector detect.InjectDetector,
+	structDetector detect.StructDetector,
+	fieldAnalyzer detect.FieldAnalyzer,
+	constructorAnalyzer detect.ConstructorAnalyzer,
+	constructorGenerator generate.ConstructorGenerator,
+	suggestedFixBuilder report.SuggestedFixBuilder,
+	diagnosticEmitter report.DiagnosticEmitter,
+) *analysis.Analyzer {
+	return &analysis.Analyzer{
+		Name: "braider_dependency",
+		Doc:  "detects Provide and Inject annotated structs and registers to global registry",
+		Run: NewDependencyAnalyzeRunner(
+			provideRegistry,
+			injectRegistry,
+			packageTracker,
+			provideDetector,
+			provideStructDetector,
+			injectDetector,
+			structDetector,
+			fieldAnalyzer,
+			constructorAnalyzer,
+			constructorGenerator,
+			suggestedFixBuilder,
+			diagnosticEmitter,
+		).Run,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	}
 }
 
-// Components used by the dependency analyzer
-var (
-	provideDetector       = detect.NewProvideDetector()
-	provideStructDetector = detect.NewProvideStructDetector(provideDetector)
-	injectDetector        = detect.NewInjectDetector()
-	structDetector        = detect.NewStructDetector(injectDetector)
-	fieldAnalyzer         = detect.NewFieldAnalyzer()
-	constructorAnalyzer   = detect.NewConstructorAnalyzer()
-	constructorGenerator  = generate.NewConstructorGenerator()
-	suggestedFixBuilder   = report.NewSuggestedFixBuilder()
-	diagnosticEmitter     = report.NewDiagnosticEmitter()
-)
-
-// passReporter adapts analysis.Pass to report.Reporter interface.
-type passReporter struct {
-	pass *analysis.Pass
+type DependencyAnalyzeRunner struct {
+	provideRegistry       *registry.ProviderRegistry
+	injectRegistry        *registry.InjectorRegistry
+	packageTracker        *registry.PackageTracker
+	provideDetector       detect.ProvideDetector
+	provideStructDetector detect.ProvideStructDetector
+	injectDetector        detect.InjectDetector
+	structDetector        detect.StructDetector
+	fieldAnalyzer         detect.FieldAnalyzer
+	constructorAnalyzer   detect.ConstructorAnalyzer
+	constructorGenerator  generate.ConstructorGenerator
+	suggestedFixBuilder   report.SuggestedFixBuilder
+	diagnosticEmitter     report.DiagnosticEmitter
 }
 
-func (r *passReporter) Report(d analysis.Diagnostic) {
-	r.pass.Report(d)
+func NewDependencyAnalyzeRunner(
+	provideRegistry *registry.ProviderRegistry,
+	injectRegistry *registry.InjectorRegistry,
+	packageTracker *registry.PackageTracker,
+	provideDetector detect.ProvideDetector,
+	provideStructDetector detect.ProvideStructDetector,
+	injectDetector detect.InjectDetector,
+	structDetector detect.StructDetector,
+	fieldAnalyzer detect.FieldAnalyzer,
+	constructorAnalyzer detect.ConstructorAnalyzer,
+	constructorGenerator generate.ConstructorGenerator,
+	suggestedFixBuilder report.SuggestedFixBuilder,
+	diagnosticEmitter report.DiagnosticEmitter,
+) *DependencyAnalyzeRunner {
+	return &DependencyAnalyzeRunner{
+		provideRegistry:       provideRegistry,
+		injectRegistry:        injectRegistry,
+		packageTracker:        packageTracker,
+		provideDetector:       provideDetector,
+		provideStructDetector: provideStructDetector,
+		injectDetector:        injectDetector,
+		structDetector:        structDetector,
+		fieldAnalyzer:         fieldAnalyzer,
+		constructorAnalyzer:   constructorAnalyzer,
+		constructorGenerator:  constructorGenerator,
+		suggestedFixBuilder:   suggestedFixBuilder,
+		diagnosticEmitter:     diagnosticEmitter,
+	}
 }
 
-func runDependency(pass *analysis.Pass) (interface{}, error) {
+func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 	reporter := &passReporter{pass: pass}
 
 	// Phase 1: Constructor Generation for Inject structs
 	// Detect Inject structs that need constructors and generate them via SuggestedFix
-	injectCandidates := structDetector.DetectCandidates(pass)
+	injectCandidates := r.structDetector.DetectCandidates(pass)
 	for _, candidate := range injectCandidates {
 		// Analyze fields (excluding annotation.Inject)
-		fields := fieldAnalyzer.AnalyzeFields(pass, candidate.StructType, candidate.InjectField)
+		fields := r.fieldAnalyzer.AnalyzeFields(pass, candidate.StructType, candidate.InjectField)
 
 		// Skip if no injectable fields
-		if !fieldAnalyzer.HasInjectableFields(fields) {
+		if !r.fieldAnalyzer.HasInjectableFields(fields) {
 			continue
 		}
 
@@ -66,7 +117,7 @@ func runDependency(pass *analysis.Pass) (interface{}, error) {
 			}
 
 			// Extract actual dependencies from existing constructor
-			actualDeps := constructorAnalyzer.ExtractDependencies(pass, candidate.ExistingConstructor)
+			actualDeps := r.constructorAnalyzer.ExtractDependencies(pass, candidate.ExistingConstructor)
 
 			// If dependencies match, skip (constructor is up-to-date)
 			if dependenciesMatch(expectedDeps, actualDeps) {
@@ -75,9 +126,9 @@ func runDependency(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Generate constructor code
-		constructor, err := constructorGenerator.GenerateConstructor(candidate, fields)
+		constructor, err := r.constructorGenerator.GenerateConstructor(candidate, fields)
 		if err != nil {
-			diagnosticEmitter.EmitGenerationError(
+			r.diagnosticEmitter.EmitGenerationError(
 				reporter,
 				candidate.TypeSpec.Pos(),
 				candidate.TypeSpec.Name.Name,
@@ -87,12 +138,12 @@ func runDependency(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Build suggested fix
-		fix := suggestedFixBuilder.BuildConstructorFix(pass, candidate, constructor)
+		fix := r.suggestedFixBuilder.BuildConstructorFix(pass, candidate, constructor)
 
 		// Emit diagnostic with suggested fix
 		if candidate.ExistingConstructor != nil {
 			// Existing constructor needs to be updated
-			diagnosticEmitter.EmitExistingConstructorFix(
+			r.diagnosticEmitter.EmitExistingConstructorFix(
 				reporter,
 				candidate.ExistingConstructor.Pos(),
 				constructor.StructName,
@@ -100,7 +151,7 @@ func runDependency(pass *analysis.Pass) (interface{}, error) {
 			)
 		} else {
 			// New constructor needs to be created
-			diagnosticEmitter.EmitConstructorFix(
+			r.diagnosticEmitter.EmitConstructorFix(
 				reporter,
 				candidate.TypeSpec.Pos(),
 				constructor.StructName,
@@ -110,11 +161,11 @@ func runDependency(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	// Phase 2: Detect and register Provide structs
-	providers := provideStructDetector.DetectProviders(pass)
+	providers := r.provideStructDetector.DetectProviders(pass)
 	for _, provider := range providers {
 		// Task 3.2: Validate constructor existence
 		if provider.ExistingConstructor == nil {
-			diagnosticEmitter.EmitMissingConstructorError(
+			r.diagnosticEmitter.EmitMissingConstructorError(
 				reporter,
 				provider.TypeSpec.Pos(),
 				provider.TypeSpec.Name.Name,
@@ -123,23 +174,25 @@ func runDependency(pass *analysis.Pass) (interface{}, error) {
 		}
 
 		// Extract dependencies from constructor parameters
-		dependencies := constructorAnalyzer.ExtractDependencies(pass, provider.ExistingConstructor)
+		dependencies := r.constructorAnalyzer.ExtractDependencies(pass, provider.ExistingConstructor)
 
 		// Register to GlobalProviderRegistry
-		registry.GlobalProviderRegistry.Register(&registry.ProviderInfo{
-			TypeName:        pass.Pkg.Path() + "." + provider.TypeSpec.Name.Name,
-			PackagePath:     pass.Pkg.Path(),
-			LocalName:       provider.TypeSpec.Name.Name,
-			ConstructorName: provider.ExistingConstructor.Name.Name,
-			Dependencies:    dependencies,
-			Implements:      provider.Implements,
-			IsPending:       false, // Provide structs must have existing constructors
-		})
+		r.provideRegistry.Register(
+			&registry.ProviderInfo{
+				TypeName:        pass.Pkg.Path() + "." + provider.TypeSpec.Name.Name,
+				PackagePath:     pass.Pkg.Path(),
+				LocalName:       provider.TypeSpec.Name.Name,
+				ConstructorName: provider.ExistingConstructor.Name.Name,
+				Dependencies:    dependencies,
+				Implements:      provider.Implements,
+				IsPending:       false, // Provide structs must have existing constructors
+			},
+		)
 	}
 
 	// Phase 3: Detect and register Inject structs with IsPending flag
 	// Re-detect injectors to include state after constructor generation
-	injectors := structDetector.DetectCandidates(pass)
+	injectors := r.structDetector.DetectCandidates(pass)
 	for _, injector := range injectors {
 		var dependencies []string
 		var isPending bool
@@ -147,11 +200,11 @@ func runDependency(pass *analysis.Pass) (interface{}, error) {
 		// Determine IsPending flag and extract dependencies
 		if injector.ExistingConstructor != nil {
 			// Constructor exists on disk
-			dependencies = constructorAnalyzer.ExtractDependencies(pass, injector.ExistingConstructor)
+			dependencies = r.constructorAnalyzer.ExtractDependencies(pass, injector.ExistingConstructor)
 			isPending = false
 		} else {
 			// Constructor generated in this pass (pending)
-			fields := fieldAnalyzer.AnalyzeFields(pass, injector.StructType, injector.InjectField)
+			fields := r.fieldAnalyzer.AnalyzeFields(pass, injector.StructType, injector.InjectField)
 			for _, field := range fields {
 				if field.Type != nil {
 					dependencies = append(dependencies, field.Type.String())
@@ -163,23 +216,25 @@ func runDependency(pass *analysis.Pass) (interface{}, error) {
 		// Detect implemented interfaces
 		var implements []string
 		if injector.TypeSpec != nil {
-			implements = provideStructDetector.DetectImplementedInterfaces(pass, injector.TypeSpec)
+			implements = r.provideStructDetector.DetectImplementedInterfaces(pass, injector.TypeSpec)
 		}
 
 		// Register to GlobalInjectorRegistry with IsPending flag
-		registry.GlobalInjectorRegistry.Register(&registry.InjectorInfo{
-			TypeName:        pass.Pkg.Path() + "." + injector.TypeSpec.Name.Name,
-			PackagePath:     pass.Pkg.Path(),
-			LocalName:       injector.TypeSpec.Name.Name,
-			ConstructorName: getConstructorName(injector),
-			Dependencies:    dependencies,
-			Implements:      implements,
-			IsPending:       isPending,
-		})
+		r.injectRegistry.Register(
+			&registry.InjectorInfo{
+				TypeName:        pass.Pkg.Path() + "." + injector.TypeSpec.Name.Name,
+				PackagePath:     pass.Pkg.Path(),
+				LocalName:       injector.TypeSpec.Name.Name,
+				ConstructorName: getConstructorName(injector),
+				Dependencies:    dependencies,
+				Implements:      implements,
+				IsPending:       isPending,
+			},
+		)
 	}
 
 	// Phase 4: Mark package as scanned
-	registry.GlobalPackageTracker.MarkPackageScanned(pass.Pkg.Path())
+	r.packageTracker.MarkPackageScanned(pass.Pkg.Path())
 
 	return nil, nil
 }
@@ -214,4 +269,13 @@ func dependenciesMatch(expected, actual []string) bool {
 	}
 
 	return true
+}
+
+// passReporter adapts analysis.Pass to report.Reporter interface.
+type passReporter struct {
+	pass *analysis.Pass
+}
+
+func (r *passReporter) Report(d analysis.Diagnostic) {
+	r.pass.Report(d)
 }
