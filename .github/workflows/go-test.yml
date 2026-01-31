@@ -43,5 +43,3 @@ jobs:
         uses: k1LoW/octocov-action@v1.3.0
         with:
           github-token: ${{ steps.generate-token.outputs.token }}
-        env:
-          OCTOCOV_CENTRAL_REPOSITORY: miyamo2/octocov-central
