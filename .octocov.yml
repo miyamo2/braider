@@ -20,8 +20,6 @@ report:
   if: is_default_branch
   datastores:
     - github://miyamo2/octocov-central
-central:
-  repository: miyamo2/octocov-central
 body:
   if: is_pull_request
 summary:
