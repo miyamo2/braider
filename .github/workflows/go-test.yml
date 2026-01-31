@@ -31,6 +31,9 @@ jobs:
 
       - name: Run octocov
         uses: k1LoW/octocov-action@v1.3.0
+        env:
+          OCTOCOV_CENTRAL_REPOSITORY: miyamo2/octocov-central
+          OCTOCOV_GITHUB_TOKEN: ${{ secrets.OCTOCOV_GITHUB_TOKEN || github.token }}
 
       - name: Upload coverage badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

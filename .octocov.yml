@@ -19,3 +19,5 @@ report:
   if: is_default_branch
   datastores:
     - artifact://${GITHUB_REPOSITORY}
+central:
+  repository: miyamo2/octocov-central
