@@ -1,0 +1,6 @@
+coverage:
+  paths:
+    - coverage.out
+
+badge:
+  path: coverage.svg
