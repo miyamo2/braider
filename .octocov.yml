@@ -1,6 +1,7 @@
 coverage:
   paths:
     - coverage.out
+  acceptable: 70%
 codeToTestRatio:
   code:
     - '**/*.go'
