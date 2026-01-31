@@ -22,3 +22,7 @@ report:
     - artifact://${GITHUB_REPOSITORY}
 central:
   repository: miyamo2/octocov-central
+body:
+  if: is_pull_request
+summary:
+  if: true
