@@ -20,6 +20,7 @@ type AppAnnotation struct {
 	GenDecl  *ast.GenDecl  // The var declaration containing the call
 	MainFunc *ast.Ident    // The main function identifier argument
 	Pos      token.Pos     // Position for diagnostics
+	File     *ast.File     // The file containing this annotation
 }
 
 // AppDetector detects annotation.App calls in packages.
@@ -29,19 +30,22 @@ type AppDetector interface {
 	DetectAppAnnotations(pass *analysis.Pass) []*AppAnnotation
 
 	// ValidateAppAnnotations validates all detected App annotations.
-	// Returns nil if exactly one valid App annotation referencing main exists.
-	// Returns appropriate error for multiple annotations or non-main references.
+	// Multiple App annotations are allowed (e.g., in multi-main packages).
+	// Each annotation must reference the main function.
+	// Returns error if any annotation references a non-main function.
 	ValidateAppAnnotations(pass *analysis.Pass, apps []*AppAnnotation) error
+
+	// DeduplicateAppsByFile returns the first App annotation from each file.
+	// If multiple App annotations exist in the same file, only the first is returned.
+	DeduplicateAppsByFile(apps []*AppAnnotation) []*AppAnnotation
 }
 
 // AppValidationErrorType represents types of App validation errors.
 type AppValidationErrorType int
 
 const (
-	// MultipleAppAnnotations indicates multiple annotation.App declarations.
-	MultipleAppAnnotations AppValidationErrorType = iota
 	// NonMainReference indicates App references a non-main function.
-	NonMainReference
+	NonMainReference AppValidationErrorType = iota
 )
 
 // AppValidationError represents validation errors for App annotations.
@@ -53,8 +57,6 @@ type AppValidationError struct {
 
 func (e *AppValidationError) Error() string {
 	switch e.Type {
-	case MultipleAppAnnotations:
-		return "multiple annotation.App declarations in package"
 	case NonMainReference:
 		return fmt.Sprintf("annotation.App must reference main function, got %s", e.FuncName)
 	default:
@@ -90,14 +92,16 @@ func (d *appDetector) DetectAppAnnotations(pass *analysis.Pass) []*AppAnnotation
 
 		insp.Preorder(nodeFilter, func(n ast.Node) {
 			genDecl := n.(*ast.GenDecl)
-			apps = d.processGenDecl(pass, genDecl, apps)
+			// Find the file containing this declaration
+			file := d.findFileForNode(pass, genDecl)
+			apps = d.processGenDecl(pass, genDecl, apps, file)
 		})
 	} else {
 		// Fallback: iterate files manually
 		for _, file := range pass.Files {
 			for _, decl := range file.Decls {
 				if genDecl, ok := decl.(*ast.GenDecl); ok {
-					apps = d.processGenDecl(pass, genDecl, apps)
+					apps = d.processGenDecl(pass, genDecl, apps, file)
 				}
 			}
 		}
@@ -107,7 +111,7 @@ func (d *appDetector) DetectAppAnnotations(pass *analysis.Pass) []*AppAnnotation
 }
 
 // processGenDecl processes a GenDecl node and adds AppAnnotation if found.
-func (d *appDetector) processGenDecl(pass *analysis.Pass, genDecl *ast.GenDecl, apps []*AppAnnotation) []*AppAnnotation {
+func (d *appDetector) processGenDecl(pass *analysis.Pass, genDecl *ast.GenDecl, apps []*AppAnnotation, file *ast.File) []*AppAnnotation {
 	// Only process var declarations
 	if genDecl.Tok != token.VAR {
 		return apps
@@ -141,6 +145,7 @@ func (d *appDetector) processGenDecl(pass *analysis.Pass, genDecl *ast.GenDecl, 
 			CallExpr: callExpr,
 			GenDecl:  genDecl,
 			Pos:      callExpr.Pos(),
+			File:     file,
 		}
 
 		// Extract the argument (should be main function identifier)
@@ -154,6 +159,17 @@ func (d *appDetector) processGenDecl(pass *analysis.Pass, genDecl *ast.GenDecl, 
 	}
 
 	return apps
+}
+
+// findFileForNode finds the file containing the given node.
+func (d *appDetector) findFileForNode(pass *analysis.Pass, node ast.Node) *ast.File {
+	pos := node.Pos()
+	for _, file := range pass.Files {
+		if file.Pos() <= pos && pos <= file.End() {
+			return file
+		}
+	}
+	return nil
 }
 
 // isAppCall checks if the call expression is annotation.App.
@@ -194,59 +210,78 @@ func (d *appDetector) ValidateAppAnnotations(pass *analysis.Pass, apps []*AppAnn
 		return nil // No App annotation, skip bootstrap generation
 	}
 
-	if len(apps) > 1 {
-		positions := make([]token.Pos, len(apps))
-		for i, app := range apps {
-			positions[i] = app.Pos
+	// Validate each App annotation independently (multiple Apps are now allowed)
+	for _, app := range apps {
+		// Validate that the argument is the main function
+		if app.MainFunc == nil {
+			return &AppValidationError{
+				Type:      NonMainReference,
+				Positions: []token.Pos{app.Pos},
+				FuncName:  "<unknown>",
+			}
 		}
-		return &AppValidationError{
-			Type:      MultipleAppAnnotations,
-			Positions: positions,
+
+		// Verify the identifier resolves to the main function
+		obj := pass.TypesInfo.Uses[app.MainFunc]
+		if obj == nil {
+			// Check Defs in case it's a forward reference
+			obj = pass.TypesInfo.Defs[app.MainFunc]
 		}
-	}
 
-	app := apps[0]
-
-	// Validate that the argument is the main function
-	if app.MainFunc == nil {
-		return &AppValidationError{
-			Type:      NonMainReference,
-			Positions: []token.Pos{app.Pos},
-			FuncName:  "<unknown>",
+		if obj == nil {
+			return &AppValidationError{
+				Type:      NonMainReference,
+				Positions: []token.Pos{app.Pos},
+				FuncName:  app.MainFunc.Name,
+			}
 		}
-	}
 
-	// Verify the identifier resolves to the main function
-	obj := pass.TypesInfo.Uses[app.MainFunc]
-	if obj == nil {
-		// Check Defs in case it's a forward reference
-		obj = pass.TypesInfo.Defs[app.MainFunc]
-	}
-
-	if obj == nil {
-		return &AppValidationError{
-			Type:      NonMainReference,
-			Positions: []token.Pos{app.Pos},
-			FuncName:  app.MainFunc.Name,
+		fn, ok := obj.(*types.Func)
+		if !ok {
+			return &AppValidationError{
+				Type:      NonMainReference,
+				Positions: []token.Pos{app.Pos},
+				FuncName:  app.MainFunc.Name,
+			}
 		}
-	}
 
-	fn, ok := obj.(*types.Func)
-	if !ok {
-		return &AppValidationError{
-			Type:      NonMainReference,
-			Positions: []token.Pos{app.Pos},
-			FuncName:  app.MainFunc.Name,
-		}
-	}
-
-	if fn.Name() != "main" {
-		return &AppValidationError{
-			Type:      NonMainReference,
-			Positions: []token.Pos{app.Pos},
-			FuncName:  fn.Name(),
+		if fn.Name() != "main" {
+			return &AppValidationError{
+				Type:      NonMainReference,
+				Positions: []token.Pos{app.Pos},
+				FuncName:  fn.Name(),
+			}
 		}
 	}
 
 	return nil
+}
+
+// DeduplicateAppsByFile returns the first App annotation from each file.
+// If multiple App annotations exist in the same file, only the first is returned.
+// The order of returned annotations matches the input order.
+func (d *appDetector) DeduplicateAppsByFile(apps []*AppAnnotation) []*AppAnnotation {
+	if len(apps) <= 1 {
+		return apps
+	}
+
+	// Track first App per file
+	fileToApp := make(map[*ast.File]*AppAnnotation)
+	var result []*AppAnnotation
+
+	for _, app := range apps {
+		if app.File == nil {
+			// Fallback: file not set, include app
+			result = append(result, app)
+			continue
+		}
+
+		if _, exists := fileToApp[app.File]; !exists {
+			fileToApp[app.File] = app
+			result = append(result, app)
+		}
+		// else: duplicate in same file, skip
+	}
+
+	return result
 }

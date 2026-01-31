@@ -247,16 +247,16 @@ func TestDependencyGraph_BuildGraph(t *testing.T) {
 	}
 }
 
-// TestDependencyGraph_IsInject tests the IsInject flag in nodes.
-func TestDependencyGraph_IsInject(t *testing.T) {
+// TestDependencyGraph_IsField tests the IsField flag in nodes.
+func TestDependencyGraph_IsField(t *testing.T) {
 	tests := []struct {
 		name      string
 		providers []*registry.ProviderInfo
 		injectors []*registry.InjectorInfo
-		wantFlags map[string]bool // type name -> IsInject
+		wantFlags map[string]bool // type name -> IsField
 	}{
 		{
-			name: "provider has IsInject=false",
+			name: "provider has IsField=false",
 			providers: []*registry.ProviderInfo{
 				{
 					TypeName:        "example.com/repo.UserRepository",
@@ -273,7 +273,7 @@ func TestDependencyGraph_IsInject(t *testing.T) {
 			},
 		},
 		{
-			name:      "injector has IsInject=true",
+			name:      "injector has IsField=true",
 			providers: nil,
 			injectors: []*registry.InjectorInfo{
 				{
@@ -328,14 +328,14 @@ func TestDependencyGraph_IsInject(t *testing.T) {
 				t.Fatalf("BuildGraph() error = %v", err)
 			}
 
-			for typeName, wantIsInject := range tt.wantFlags {
+			for typeName, wantIsField := range tt.wantFlags {
 				node, ok := graph.Nodes[typeName]
 				if !ok {
 					t.Errorf("BuildGraph() missing node %s", typeName)
 					continue
 				}
-				if node.IsInject != wantIsInject {
-					t.Errorf("BuildGraph() node %s IsInject = %v, want %v", typeName, node.IsInject, wantIsInject)
+				if node.IsField != wantIsField {
+					t.Errorf("BuildGraph() node %s IsField = %v, want %v", typeName, node.IsField, wantIsField)
 				}
 			}
 		})

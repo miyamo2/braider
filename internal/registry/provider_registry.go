@@ -32,8 +32,9 @@ type ProviderInfo struct {
 
 // ProviderRegistry stores all discovered provider structs globally.
 // Thread-safe for potential parallel analyzer execution.
+// Uses RWMutex to allow concurrent reads for improved performance.
 type ProviderRegistry struct {
-	mu        sync.Mutex
+	mu        sync.RWMutex
 	providers map[string]*ProviderInfo
 }
 
@@ -56,8 +57,8 @@ func (r *ProviderRegistry) Register(info *ProviderInfo) {
 // The returned slice is sorted alphabetically by TypeName for deterministic output.
 // Returns a copy of the slice to prevent external mutation.
 func (r *ProviderRegistry) GetAll() []*ProviderInfo {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	result := make([]*ProviderInfo, 0, len(r.providers))
 	for _, info := range r.providers {
@@ -77,14 +78,7 @@ func (r *ProviderRegistry) GetAll() []*ProviderInfo {
 // Get retrieves a provider by fully qualified type name.
 // Returns nil if not found.
 func (r *ProviderRegistry) Get(typeName string) *ProviderInfo {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return r.providers[typeName]
-}
-
-// Clear removes all entries. Used for testing.
-func (r *ProviderRegistry) Clear() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.providers = make(map[string]*ProviderInfo)
 }

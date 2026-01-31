@@ -3,7 +3,6 @@ package registry
 import (
 	"context"
 	"fmt"
-	"maps"
 	"sync"
 	"time"
 )
@@ -11,8 +10,21 @@ import (
 // DefaultTimeout is the default timeout for waiting for all packages.
 const DefaultTimeout = 30 * time.Second
 
+// PackageStatusPollInterval is the interval for checking package scan status.
+const PackageStatusPollInterval = 10 * time.Millisecond
+
 // PackageTracker tracks scanned packages and provides synchronization.
 // Thread-safe for parallel analyzer execution.
+//
+// Concurrency safety:
+//   - All public methods are protected by mutex to prevent race conditions
+//   - MarkPackageScanned can be called concurrently from multiple DependencyAnalyzer runs
+//   - WaitForAllPackagesWithContext uses polling to handle channel recreation safely
+//   - Channel notifications are best-effort; the polling mechanism ensures correctness
+//
+// The polling mechanism (PackageStatusPollInterval) ensures that even if channel
+// notifications are lost during channel recreation, the waiting goroutine will
+// eventually detect completion by periodically checking scannedPackages.
 type PackageTracker struct {
 	mu              sync.Mutex
 	scannedPackages map[string]bool
@@ -85,6 +97,9 @@ func (t *PackageTracker) WaitForAllPackagesWithContext(ctx context.Context, expe
 	}
 
 	// Ensure channel has sufficient capacity for expected packages
+	// Note: Channel recreation here is safe even if MarkPackageScanned is called
+	// concurrently, because we have a polling mechanism (time.After) that periodically
+	// rechecks the scannedPackages map regardless of channel notifications.
 	t.mu.Lock()
 	if t.completionChan == nil || cap(t.completionChan) < len(expectedPkgs) {
 		t.completionChan = make(chan struct{}, len(expectedPkgs))
@@ -92,9 +107,15 @@ func (t *PackageTracker) WaitForAllPackagesWithContext(ctx context.Context, expe
 	t.mu.Unlock()
 
 	for {
-		// Check if all packages are already scanned
+		// Check if all expected packages are scanned (subset check)
 		t.mu.Lock()
-		allScanned := maps.Equal(t.scannedPackages, expected)
+		allScanned := true
+		for pkg := range expected {
+			if !t.scannedPackages[pkg] {
+				allScanned = false
+				break
+			}
+		}
 		t.mu.Unlock()
 
 		if allScanned {
@@ -107,7 +128,7 @@ func (t *PackageTracker) WaitForAllPackagesWithContext(ctx context.Context, expe
 			return fmt.Errorf("waiting for packages: %w", ctx.Err())
 		case <-t.completionChan:
 			// A package was scanned, check again
-		case <-time.After(10 * time.Millisecond):
+		case <-time.After(PackageStatusPollInterval):
 			// Poll interval to check status
 		}
 	}
@@ -118,12 +139,4 @@ func (t *PackageTracker) IsPackageScanned(pkgPath string) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.scannedPackages[pkgPath]
-}
-
-// Clear removes all scanned packages. Used for testing.
-func (t *PackageTracker) Clear() {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.scannedPackages = make(map[string]bool)
-	t.completionChan = nil
 }

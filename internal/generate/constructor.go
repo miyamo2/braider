@@ -9,7 +9,6 @@ import (
 	"go/printer"
 	"go/token"
 	"strings"
-	"unicode"
 
 	"github.com/miyamo2/braider/internal/detect"
 )
@@ -189,112 +188,17 @@ func DeriveParamName(fieldName string) string {
 	}
 
 	// Convert to lowercase - handle all-caps names like "DB" -> "db"
-	paramName := toLowerCamelCase(fieldName)
+	paramName := ToLowerCamelCase(fieldName)
 
 	// Check for keyword conflicts
-	if goKeywords[paramName] {
+	if IsGoKeyword(paramName) {
 		return paramName + "_"
 	}
 
 	// Check for builtin conflicts
-	if goBuiltins[paramName] {
+	if IsGoBuiltin(paramName) {
 		return paramName + "Param"
 	}
 
 	return paramName
-}
-
-// toLowerCamelCase converts a name to lowerCamelCase.
-// Examples: "DB" -> "db", "UserID" -> "userID", "Repo" -> "repo"
-func toLowerCamelCase(name string) string {
-	if name == "" {
-		return ""
-	}
-
-	runes := []rune(name)
-
-	// Find the index where we should stop lowercasing
-	// For "DB" -> lowercase all
-	// For "DBConnection" -> "dbConnection"
-	// For "UserID" -> "userID"
-	i := 0
-	for i < len(runes) && unicode.IsUpper(runes[i]) {
-		i++
-	}
-
-	if i == 0 {
-		// Already starts with lowercase
-		return name
-	}
-
-	if i == len(runes) {
-		// All uppercase: convert all to lowercase
-		return strings.ToLower(name)
-	}
-
-	if i == 1 {
-		// Single leading uppercase: just lowercase first char
-		runes[0] = unicode.ToLower(runes[0])
-		return string(runes)
-	}
-
-	// Multiple leading uppercase: lowercase all but the last
-	// "DBConnection" -> "dbConnection"
-	for j := 0; j < i-1; j++ {
-		runes[j] = unicode.ToLower(runes[j])
-	}
-	return string(runes)
-}
-
-// goKeywords is the set of Go keywords.
-var goKeywords = map[string]bool{
-	"break":       true,
-	"case":        true,
-	"chan":        true,
-	"const":       true,
-	"continue":    true,
-	"default":     true,
-	"defer":       true,
-	"else":        true,
-	"fallthrough": true,
-	"for":         true,
-	"func":        true,
-	"go":          true,
-	"goto":        true,
-	"if":          true,
-	"import":      true,
-	"interface":   true,
-	"map":         true,
-	"package":     true,
-	"range":       true,
-	"return":      true,
-	"select":      true,
-	"struct":      true,
-	"switch":      true,
-	"type":        true,
-	"var":         true,
-}
-
-// goBuiltins is the set of Go builtins.
-var goBuiltins = map[string]bool{
-	"append":  true,
-	"cap":     true,
-	"close":   true,
-	"complex": true,
-	"copy":    true,
-	"delete":  true,
-	"imag":    true,
-	"len":     true,
-	"make":    true,
-	"new":     true,
-	"panic":   true,
-	"print":   true,
-	"println": true,
-	"real":    true,
-	"recover": true,
-	"error":   true,
-	"true":    true,
-	"false":   true,
-	"iota":    true,
-	"nil":     true,
 }

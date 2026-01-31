@@ -25,6 +25,13 @@ func NewInterfaceRegistry() *InterfaceRegistry {
 	}
 }
 
+// Clear clears the registry for reuse.
+func (r *InterfaceRegistry) Clear() {
+	for k := range r.interfaces {
+		delete(r.interfaces, k)
+	}
+}
+
 // Build constructs the registry from all registered providers and injectors.
 // It uses the Implements field from ProviderInfo and InjectorInfo which is
 // populated by DependencyAnalyzer using go/types.Implements().

@@ -1,4 +1,4 @@
-module nonmainapp
+module samefileapp
 
 go 1.24
 

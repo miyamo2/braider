@@ -27,8 +27,9 @@ type InjectorInfo struct {
 
 // InjectorRegistry stores all discovered injector structs globally.
 // Thread-safe for potential parallel analyzer execution.
+// Uses RWMutex to allow concurrent reads for improved performance.
 type InjectorRegistry struct {
-	mu        sync.Mutex
+	mu        sync.RWMutex
 	injectors map[string]*InjectorInfo
 }
 
@@ -51,8 +52,8 @@ func (r *InjectorRegistry) Register(info *InjectorInfo) {
 // The returned slice is sorted alphabetically by TypeName for deterministic output.
 // Returns a copy of the slice to prevent external mutation.
 func (r *InjectorRegistry) GetAll() []*InjectorInfo {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	result := make([]*InjectorInfo, 0, len(r.injectors))
 	for _, info := range r.injectors {
@@ -72,14 +73,7 @@ func (r *InjectorRegistry) GetAll() []*InjectorInfo {
 // Get retrieves an injector by fully qualified type name.
 // Returns nil if not found.
 func (r *InjectorRegistry) Get(typeName string) *InjectorInfo {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return r.injectors[typeName]
-}
-
-// Clear removes all entries. Used for testing.
-func (r *InjectorRegistry) Clear() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.injectors = make(map[string]*InjectorInfo)
 }

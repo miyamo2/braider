@@ -88,10 +88,18 @@ func (s *TopologicalSorter) findZeroInDegreeNodes(inDegrees map[string]int) []st
 }
 
 // insertSorted inserts a node into a sorted slice maintaining alphabetical order.
+//
+// Performance note: This operation is O(n) due to the slice copy operation.
+// For large dependency graphs with many nodes at the same depth level,
+// this could become a bottleneck during topological sort.
+//
+// TODO: Consider using a heap-based priority queue (container/heap) for better
+// performance with large graphs. A min-heap would provide O(log n) insertion
+// while maintaining alphabetical ordering.
 func (s *TopologicalSorter) insertSorted(slice []string, node string) []string {
-	// Find insertion position
+	// Find insertion position (O(log n) binary search)
 	pos := sort.SearchStrings(slice, node)
-	// Insert at position
+	// Insert at position (O(n) due to copy)
 	slice = append(slice, "")
 	copy(slice[pos+1:], slice[pos:])
 	slice[pos] = node
@@ -131,13 +139,16 @@ func (s *TopologicalSorter) dfsFindCycle(
 	path []string,
 	inDegrees map[string]int,
 ) []string {
-	// Add current to path
-	path = append(path, current)
+	// Create a copy for this branch to avoid slice sharing
+	newPath := make([]string, len(path), len(path)+1)
+	copy(newPath, path)
+	newPath = append(newPath, current)
+
 	visited[current] = true
 
 	// Build path index for O(1) lookup
-	pathIndex := make(map[string]int, len(path))
-	for i, node := range path {
+	pathIndex := make(map[string]int, len(newPath))
+	for i, node := range newPath {
 		pathIndex[node] = i
 	}
 
@@ -152,13 +163,13 @@ func (s *TopologicalSorter) dfsFindCycle(
 			// Check if we've found a cycle (dep is in current path)
 			if cycleStart, inPath := pathIndex[dep]; inPath {
 				// Extract the cycle from path and add dep to complete the cycle
-				cycle := append(path[cycleStart:], dep)
+				cycle := append(newPath[cycleStart:], dep)
 				return cycle
 			}
 
 			// If not visited, continue DFS
 			if !visited[dep] {
-				result := s.dfsFindCycle(graph, dep, visited, path, inDegrees)
+				result := s.dfsFindCycle(graph, dep, visited, newPath, inDegrees)
 				if len(result) > 0 {
 					return result
 				}

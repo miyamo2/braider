@@ -41,11 +41,26 @@ type DiagnosticEmitter interface {
 	// EmitMissingConstructorError reports Provide struct without constructor.
 	EmitMissingConstructorError(reporter Reporter, pos token.Pos, typeName string)
 
-	// EmitMultipleAppError reports multiple annotation.App declarations.
-	EmitMultipleAppError(reporter Reporter, positions []token.Pos)
-
 	// EmitNonMainAppError reports App referencing non-main function.
 	EmitNonMainAppError(reporter Reporter, pos token.Pos, funcName string)
+
+	// EmitBootstrapFix reports a diagnostic for missing bootstrap code.
+	EmitBootstrapFix(reporter Reporter, pos token.Pos, fix analysis.SuggestedFix)
+
+	// EmitBootstrapUpdateFix reports a diagnostic for outdated bootstrap code.
+	EmitBootstrapUpdateFix(reporter Reporter, pos token.Pos, fix analysis.SuggestedFix)
+
+	// EmitDuplicateAppWarning reports duplicate annotation.App.
+	EmitDuplicateAppWarning(reporter Reporter, pos token.Pos)
+
+	// EmitPackageLoadWarning reports a warning when package loading fails.
+	EmitPackageLoadWarning(reporter Reporter, pos token.Pos, reason string)
+
+	// EmitPackageWaitWarning reports a warning when waiting for packages times out.
+	EmitPackageWaitWarning(reporter Reporter, pos token.Pos, reason string)
+
+	// EmitGraphBuildError reports a dependency graph construction error.
+	EmitGraphBuildError(reporter Reporter, pos token.Pos, reason string)
 }
 
 // diagnosticEmitter is the default implementation of DiagnosticEmitter.
@@ -63,11 +78,13 @@ func (e *diagnosticEmitter) EmitConstructorFix(
 	structName string,
 	fix analysis.SuggestedFix,
 ) {
-	reporter.Report(analysis.Diagnostic{
-		Pos:            pos,
-		Message:        fmt.Sprintf("missing constructor for %s", structName),
-		SuggestedFixes: []analysis.SuggestedFix{fix},
-	})
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:            pos,
+			Message:        fmt.Sprintf("missing constructor for %s", structName),
+			SuggestedFixes: []analysis.SuggestedFix{fix},
+		},
+	)
 }
 
 // EmitExistingConstructorFix reports a diagnostic for replacing an existing constructor.
@@ -77,54 +94,115 @@ func (e *diagnosticEmitter) EmitExistingConstructorFix(
 	structName string,
 	fix analysis.SuggestedFix,
 ) {
-	reporter.Report(analysis.Diagnostic{
-		Pos:            pos,
-		Message:        fmt.Sprintf("outdated constructor for %s", structName),
-		SuggestedFixes: []analysis.SuggestedFix{fix},
-	})
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:            pos,
+			Message:        fmt.Sprintf("outdated constructor for %s", structName),
+			SuggestedFixes: []analysis.SuggestedFix{fix},
+		},
+	)
 }
 
 // EmitCircularDependency reports a circular dependency error.
 func (e *diagnosticEmitter) EmitCircularDependency(reporter Reporter, pos token.Pos, cycle []string) {
 	cyclePath := strings.Join(cycle, " -> ")
-	reporter.Report(analysis.Diagnostic{
-		Pos:     pos,
-		Message: fmt.Sprintf("circular dependency detected: %s", cyclePath),
-	})
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:     pos,
+			Message: fmt.Sprintf("circular dependency detected: %s", cyclePath),
+		},
+	)
 }
 
 // EmitGenerationError reports a constructor generation failure.
 func (e *diagnosticEmitter) EmitGenerationError(reporter Reporter, pos token.Pos, structName string, reason string) {
-	reporter.Report(analysis.Diagnostic{
-		Pos:     pos,
-		Message: fmt.Sprintf("failed to generate constructor for %s: %s", structName, reason),
-	})
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:     pos,
+			Message: fmt.Sprintf("failed to generate constructor for %s: %s", structName, reason),
+		},
+	)
 }
 
 // EmitMissingConstructorError reports Provide struct without constructor.
 func (e *diagnosticEmitter) EmitMissingConstructorError(reporter Reporter, pos token.Pos, typeName string) {
-	reporter.Report(analysis.Diagnostic{
-		Pos:      pos,
-		Category: "constructor",
-		Message:  fmt.Sprintf("Provide struct %s requires a constructor (New%s)", typeName, typeName),
-	})
-}
-
-// EmitMultipleAppError reports multiple annotation.App declarations.
-func (e *diagnosticEmitter) EmitMultipleAppError(reporter Reporter, positions []token.Pos) {
-	// Report on the first position
-	if len(positions) > 0 {
-		reporter.Report(analysis.Diagnostic{
-			Pos:     positions[0],
-			Message: "multiple annotation.App declarations in package",
-		})
-	}
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:      pos,
+			Category: "constructor",
+			Message:  fmt.Sprintf("Provide struct %s requires a constructor (New%s)", typeName, typeName),
+		},
+	)
 }
 
 // EmitNonMainAppError reports App referencing non-main function.
 func (e *diagnosticEmitter) EmitNonMainAppError(reporter Reporter, pos token.Pos, funcName string) {
-	reporter.Report(analysis.Diagnostic{
-		Pos:     pos,
-		Message: fmt.Sprintf("annotation.App must reference main function, got %s", funcName),
-	})
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:     pos,
+			Message: fmt.Sprintf("annotation.App must reference main function, got %s", funcName),
+		},
+	)
+}
+
+// EmitBootstrapFix reports a diagnostic for missing bootstrap code.
+func (e *diagnosticEmitter) EmitBootstrapFix(reporter Reporter, pos token.Pos, fix analysis.SuggestedFix) {
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:            pos,
+			Message:        "bootstrap code is missing",
+			SuggestedFixes: []analysis.SuggestedFix{fix},
+		},
+	)
+}
+
+// EmitBootstrapUpdateFix reports a diagnostic for outdated bootstrap code.
+func (e *diagnosticEmitter) EmitBootstrapUpdateFix(reporter Reporter, pos token.Pos, fix analysis.SuggestedFix) {
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:            pos,
+			Message:        "bootstrap code is outdated",
+			SuggestedFixes: []analysis.SuggestedFix{fix},
+		},
+	)
+}
+
+// EmitDuplicateAppWarning reports duplicate annotation.App in the same package.
+func (e *diagnosticEmitter) EmitDuplicateAppWarning(reporter Reporter, pos token.Pos) {
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:     pos,
+			Message: "another annotation.App in the same package is being applied",
+		},
+	)
+}
+
+// EmitPackageLoadWarning reports a warning when package loading fails.
+func (e *diagnosticEmitter) EmitPackageLoadWarning(reporter Reporter, pos token.Pos, reason string) {
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:     pos,
+			Message: fmt.Sprintf("warning: failed to load module packages: %s (bootstrap may be incomplete)", reason),
+		},
+	)
+}
+
+// EmitPackageWaitWarning reports a warning when waiting for packages times out.
+func (e *diagnosticEmitter) EmitPackageWaitWarning(reporter Reporter, pos token.Pos, reason string) {
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:     pos,
+			Message: fmt.Sprintf("warning: timeout waiting for package analysis: %s (bootstrap may be incomplete)", reason),
+		},
+	)
+}
+
+// EmitGraphBuildError reports a dependency graph construction error.
+func (e *diagnosticEmitter) EmitGraphBuildError(reporter Reporter, pos token.Pos, reason string) {
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:     pos,
+			Message: fmt.Sprintf("failed to build dependency graph: %s", reason),
+		},
+	)
 }

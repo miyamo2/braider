@@ -109,7 +109,7 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Skip bootstrap generation when no App annotation present
   - _Requirements: 1.1, 1.3, 9.2, 9.3_
 
-- [ ] 5.2 Implement bootstrap generation orchestration in AppAnalyzer
+- [x] 5.2 Implement bootstrap generation orchestration in AppAnalyzer
   - Build dependency graph from retrieved providers and injectors
   - Execute topological sort and handle cycle errors
   - Detect existing bootstrap code and check if current via hash comparison
@@ -117,8 +117,8 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Emit appropriate diagnostics with SuggestedFix
   - _Requirements: 6.1, 6.5, 6.6_
 
-- [ ] 6. Implement Bootstrap Code Generation
-- [ ] 6.1 Implement Bootstrap Generator for IIFE code synthesis
+- [x] 6. Implement Bootstrap Code Generation
+- [x] 6.1 Implement Bootstrap Generator for IIFE code synthesis
   - Generate immediately-invoked function expression returning anonymous struct
   - Place Inject structs as fields in returned dependency struct
   - Place Provide structs as local variables only within IIFE
@@ -126,40 +126,40 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Use field names as intermediate variable names
   - _Requirements: 6.2, 7.1, 7.3_
 
-- [ ] 6.2 Implement field name derivation and naming rules
+- [x] 6.2 Implement field name derivation and naming rules
   - Convert type names to lowerCamelCase for field and variable names
   - Handle all-caps abbreviations appropriately
   - Resolve naming conflicts by appending numeric suffix
   - Ensure consistent naming across generated code
   - _Requirements: 7.2_
 
-- [ ] 6.3 Implement import collection for cross-package dependencies
+- [x] 6.3 Implement import collection for cross-package dependencies
   - Track external package paths required by dependency types
   - Generate appropriate import statements for bootstrap code
   - Handle package aliases when necessary
   - _Requirements: 7.4_
 
-- [ ] 6.4 Implement bootstrap code formatting and validation
+- [x] 6.4 Implement bootstrap code formatting and validation
   - Format generated code according to gofmt standards
   - Ensure generated code is valid and compilable Go
   - Apply consistent indentation and spacing
   - _Requirements: 6.4, 7.5_
 
-- [ ] 6.5 Implement idempotency detection via hash comparison
+- [x] 6.5 Implement idempotency detection via hash comparison
   - Compute deterministic hash from ordered type names and dependencies
   - Store hash as comment marker above dependency variable declaration
   - Compare hashes to determine if regeneration needed
   - Skip diagnostic emission when bootstrap is current
   - _Requirements: 6.5_
 
-- [ ] 6.6 Implement dependency reference detection in main function
+- [x] 6.6 Implement dependency reference detection in main function
   - Walk main function body to detect existing references to dependency variable
   - Distinguish between blank identifier assignments and actual usage
   - Determine whether to add _ = dependency statement to main
   - _Requirements: 6.3_
 
-- [ ] 7. Implement Diagnostic and Reporting Components
-- [ ] 7.1 (P) Extend DiagnosticEmitter with bootstrap-specific error methods
+- [x] 7. Implement Diagnostic and Reporting Components
+- [x] 7.1 (P) Extend DiagnosticEmitter with bootstrap-specific error methods
   - Add method for reporting multiple App annotation errors
   - Add method for reporting non-main App reference errors
   - Add method for reporting missing constructor errors
@@ -171,27 +171,27 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Provide descriptive messages explaining issue and resolution
   - _Requirements: 8.1, 8.2_
 
-- [ ] 7.2 (P) Extend SuggestedFixBuilder with bootstrap-specific fix methods
+- [x] 7.2 (P) Extend SuggestedFixBuilder with bootstrap-specific fix methods
   - Add method for building bootstrap insertion fix
   - Add method for building bootstrap replacement fix for outdated code
   - Add method for building main function reference fix
   - Provide clear descriptions of what each fix accomplishes
   - _Requirements: 8.3_
 
-- [ ] 7.3 Implement bootstrap diagnostic emission in AppAnalyzer
+- [x] 7.3 Implement bootstrap diagnostic emission in AppAnalyzer
   - Emit diagnostic with SuggestedFix for new bootstrap generation
   - Emit diagnostic with SuggestedFix for bootstrap updates
   - Skip emission when bootstrap is current (idempotent behavior)
   - _Requirements: 6.1, 6.6_
 
-- [ ] 8. Implement Multichecker CLI Integration
+- [x] 8. Implement Multichecker CLI Integration
 - [x] 8.1 Update CLI entry point to use multichecker with both analyzers
   - Replace singlechecker.Main with multichecker.Main
   - Register both DependencyAnalyzer and AppAnalyzer
   - Ensure proper analyzer ordering and execution
   - _Requirements: 9.1, 9.2_
 
-- [ ] 9. Implement Unit Tests
+- [x] 9. Implement Unit Tests
 - [x] 9.1 (P) Add unit tests for ProviderRegistry
   - Test registration of provider information
   - Test retrieval of all providers
@@ -216,7 +216,7 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Test clear method for isolation
   - _Requirements: 9.2, 9.3_
 
-- [ ] 9.4 (P) Add unit tests for AppDetector
+- [x] 9.4 (P) Add unit tests for AppDetector
   - Test detection of valid App annotation
   - Test validation with multiple App annotations
   - Test validation with non-main function reference
@@ -238,14 +238,14 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Test missing constructor validation
   - _Requirements: 2.4, 3.1, 3.2, 3.3, 3.4_
 
-- [ ] 9.7 (P) Add unit tests for TopologicalSort
+- [x] 9.7 (P) Add unit tests for TopologicalSort
   - Test ordering with various graph topologies
   - Test alphabetical tie-breaking for determinism
   - Test cycle detection and path reconstruction
   - Test empty graph handling
   - _Requirements: 4.1, 4.2, 4.3, 5.1, 5.2, 5.3_
 
-- [ ] 9.8 (P) Add unit tests for BootstrapGenerator
+- [x] 9.8 (P) Add unit tests for BootstrapGenerator
   - Test IIFE generation with anonymous struct
   - Test field name derivation including conflict handling
   - Test idempotency check via hash comparison
@@ -254,25 +254,25 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - _Requirements: 6.2, 6.3, 6.5, 7.1, 7.2, 7.3_
 
 - [ ] 10. Implement Integration Tests
-- [ ] 10.1 Add integration test for basic bootstrap generation
+- [x] 10.1 Add integration test for basic bootstrap generation
   - Test package with valid App annotation triggers bootstrap
   - Test Inject structs appear as dependency struct fields
   - Test Provide structs appear as local variables only
   - Verify generated code compiles and follows expected structure
   - _Requirements: 1.1, 6.1, 6.2, 7.1_
 
-- [ ] 10.2 Add integration test for no App annotation scenario
+- [x] 10.2 Add integration test for no App annotation scenario
   - Test package without App annotation skips bootstrap generation
   - Verify no diagnostics emitted for packages without App marker
   - _Requirements: 1.3_
 
-- [ ] 10.3 Add integration test for App annotation validation errors
+- [x] 10.3 Add integration test for App annotation validation errors
   - Test multiple App annotations produce error diagnostic
   - Test non-main function reference produces error diagnostic
   - Verify error messages include position and description
   - _Requirements: 1.2, 1.4, 8.1, 8.2_
 
-- [ ] 10.4 Add integration test for cross-package dependency discovery
+- [x] 10.4 Add integration test for cross-package dependency discovery
   - Test providers and injectors registered from all packages via global registries
   - Test bootstrap includes dependencies from multiple packages
   - Verify import statements generated for external package types
@@ -318,7 +318,7 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Verify error message suggests adding annotation.Provide
   - _Requirements: 3.7_
 
-- [ ] 10.13 Add integration test for single-pass constructor and bootstrap generation
+- [x] 10.13 Add integration test for single-pass constructor and bootstrap generation
   - Test both constructor and bootstrap generated in single go vet -fix invocation
   - Verify channel synchronization ensures all packages scanned
   - _Requirements: 9.2, 9.3_

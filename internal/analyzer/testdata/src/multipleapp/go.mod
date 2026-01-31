@@ -2,6 +2,6 @@ module multipleapp
 
 go 1.24
 
-replace github.com/miyamo2/braider/pkg/annotation => ./../github.com/miyamo2/braider/pkg/annotation
+replace github.com/miyamo2/braider/pkg/annotation => ./../../../../../pkg/annotation
 
 require github.com/miyamo2/braider/pkg/annotation v0.0.0-00010101000000-000000000000

@@ -267,7 +267,7 @@ func main() {}
 			expectError: false,
 		},
 		{
-			name: "multiple annotations - returns error",
+			name: "multiple annotations - now allowed",
 			src: `package main
 
 import "github.com/miyamo2/braider/pkg/annotation"
@@ -278,8 +278,7 @@ var _ = annotation.App(main)
 func main() {}
 `,
 			pkgs:        map[string]*types.Package{detect.AnnotationPath: annotationPkg},
-			expectError: true,
-			errorType:   detect.MultipleAppAnnotations,
+			expectError: false,
 		},
 		{
 			name: "non-main reference - returns error",
@@ -334,14 +333,6 @@ func TestAppValidationError_Error(t *testing.T) {
 		err      *detect.AppValidationError
 		expected string
 	}{
-		{
-			name: "multiple app annotations",
-			err: &detect.AppValidationError{
-				Type:      detect.MultipleAppAnnotations,
-				Positions: []token.Pos{1, 2},
-			},
-			expected: "multiple annotation.App declarations in package",
-		},
 		{
 			name: "non-main reference",
 			err: &detect.AppValidationError{
