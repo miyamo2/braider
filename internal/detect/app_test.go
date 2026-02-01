@@ -146,10 +146,9 @@ func main() {}
 			detector := detect.NewAppDetector()
 			apps := detector.DetectAppAnnotations(pass)
 
-			// Ensure we actually detected something before validating
-			if len(apps) == 0 {
-				// In the invalid case, it should still be detected as a call to annotation.App
-				t.Fatalf("DetectAppAnnotations() failed to find annotation, cannot test validation")
+			// Ensure we detected exactly one App annotation
+			if len(apps) != 1 {
+				t.Fatalf("DetectAppAnnotations() returned %d apps, want 1", len(apps))
 			}
 
 			err := detector.ValidateAppAnnotations(pass, apps)
