@@ -137,7 +137,7 @@ func (b *DependencyGraphBuilder) buildEdgesFromProviders(
 ) error {
 	for _, provider := range providers {
 		node := graph.Nodes[provider.TypeName]
-		edges := []string{}
+		edges := make([]string, 0, len(provider.Dependencies))
 		for _, dep := range provider.Dependencies {
 			// Resolve dependency (may be interface type)
 			resolvedDep, err := b.resolveDependency(graph, dep)
@@ -166,7 +166,7 @@ func (b *DependencyGraphBuilder) buildEdgesFromInjectors(
 ) error {
 	for _, injector := range injectors {
 		node := graph.Nodes[injector.TypeName]
-		edges := []string{}
+		edges := make([]string, 0, len(injector.Dependencies))
 		for _, dep := range injector.Dependencies {
 			// Resolve dependency (may be interface type)
 			resolvedDep, err := b.resolveDependency(graph, dep)
