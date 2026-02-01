@@ -22,6 +22,38 @@ type Inject struct{}
 // within the bootstrap function and are not exposed externally.
 type Provide struct{}
 
+// ProvideFunc marks a function as a dependency provider.
+//
+// When a function is annotated with ProvideFunc, braider registers it in the
+// provider registry and generates a local variable in the bootstrap IIFE.
+// The function is expected to return an instance of the provided dependency.
+//
+// Example:
+//
+//	package repository
+//
+//	import "github.com/miyamo2/braider/pkg/annotation"
+//
+//	var _ MyRepository = (*myRepository)(nil)
+//
+//	type MyRepository interface {
+//	    GetData(id string) (string, error)
+//	}
+//
+//	type myRepository struct{}
+//
+//	func (r *myRepository) GetData(id string) (string, error) { ... }
+//
+//	var _ = annotation.ProvideFunc(NewMyRepository)
+//
+//	func NewMyRepository() *MyRepository {
+//	    return &myRepository{}
+//	}
+func ProvideFunc(providerFunc any) struct{} {
+	_ = providerFunc
+	return struct{}{}
+}
+
 // App marks a struct as the top-level dependency injection target.
 //
 // When a struct is annotated with App, braider generates the main function
