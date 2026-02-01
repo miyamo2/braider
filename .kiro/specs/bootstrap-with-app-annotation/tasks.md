@@ -343,32 +343,32 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - _Requirements: 2.4_
 
 - [ ] 11. Create Golden File Test Fixtures
-- [ ] 11.1 Create test fixtures for basic single-package bootstrap
+- [x] 11.1 Create test fixtures for basic single-package bootstrap
   - Create main.go with App annotation
   - Create service package with Inject struct and constructor
   - Create expected golden file with generated bootstrap code
   - _Requirements: 6.1, 7.1_
 
-- [ ] 11.2 Create test fixtures for multi-type cross-package bootstrap
+- [x] 11.2 Create test fixtures for multi-type cross-package bootstrap
   - Create main package with App annotation
   - Create repository package with Provide structs
   - Create service package with Inject structs depending on repositories
   - Create expected golden file showing proper field vs local variable placement
   - _Requirements: 6.2, 7.3_
 
-- [ ] 11.3 Create test fixtures for interface dependency scenario
+- [x] 11.3 Create test fixtures for interface dependency scenario
   - Create domain package with interface definition
   - Create repository package with Provide struct implementing interface
   - Create service package with Inject struct depending on interface
   - Create expected golden file showing interface resolution
   - _Requirements: 3.5_
 
-- [ ] 11.4 Create test fixtures for dependency already used scenario
+- [x] 11.4 Create test fixtures for dependency already used scenario
   - Create main.go with existing dependency.field usage
   - Verify golden file does not add _ = dependency statement
   - _Requirements: 6.3_
 
-- [ ] 11.5 Create test fixtures for error cases
+- [x] 11.5 Create test fixtures for error cases
   - Create circular dependency scenario
   - Create multiple App annotation scenario
   - Create ambiguous interface implementation scenario

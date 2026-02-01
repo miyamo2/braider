@@ -141,8 +141,8 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 		NewText: []byte(dependencyText),
 	})
 
-	// Add main reference if dependency is not referenced
-	if mainFunc != nil && !generate.IsDependencyReferenced(mainFunc) {
+	// Add main reference if dependency is not referenced and _ = dependency doesn't already exist
+	if mainFunc != nil && !generate.IsDependencyReferenced(mainFunc) && !generate.HasBlankDependencyAssignment(mainFunc) {
 		mainRefPos := b.findMainReferenceInsertionPoint(mainFunc)
 		mainRefText := "\t" + bootstrap.MainReference + "\n"
 		edits = append(edits, analysis.TextEdit{
@@ -175,8 +175,8 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 		NewText: []byte(bootstrap.DependencyVar),
 	})
 
-	// Update main reference if needed
-	if mainFunc != nil && !generate.IsDependencyReferenced(mainFunc) {
+	// Update main reference if needed (only if not referenced and _ = dependency doesn't exist)
+	if mainFunc != nil && !generate.IsDependencyReferenced(mainFunc) && !generate.HasBlankDependencyAssignment(mainFunc) {
 		mainRefPos := b.findMainReferenceInsertionPoint(mainFunc)
 		mainRefText := "\t" + bootstrap.MainReference + "\n"
 		edits = append(edits, analysis.TextEdit{

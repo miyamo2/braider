@@ -1,0 +1,27 @@
+package main
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+var _ = annotation.App(main) // want "bootstrap code is missing"
+
+// braider:hash:e182e75e68094f9b
+var dependency = func() struct {
+	orderService OrderService
+	userService  UserService
+} {
+	orderRepository := NewOrderRepository()
+	userRepository := NewUserRepository()
+	orderService := NewOrderService(orderRepository)
+	userService := NewUserService(userRepository)
+	return struct {
+		orderService OrderService
+		userService  UserService
+	}{
+		orderService: orderService,
+		userService:  userService,
+	}
+}()
+
+func main() {
+	_ = dependency
+}

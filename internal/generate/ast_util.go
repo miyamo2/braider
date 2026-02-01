@@ -80,6 +80,33 @@ func buildParentMap(root ast.Node) map[ast.Node]ast.Node {
 	return parentMap
 }
 
+// HasBlankDependencyAssignment checks if "_ = dependency" already exists in the main function.
+// Returns true if found, meaning we should NOT add another one.
+func HasBlankDependencyAssignment(mainFunc *ast.FuncDecl) bool {
+	if mainFunc == nil || mainFunc.Body == nil {
+		return false
+	}
+
+	parentMap := buildParentMap(mainFunc.Body)
+
+	found := false
+	ast.Inspect(mainFunc.Body, func(n ast.Node) bool {
+		ident, ok := n.(*ast.Ident)
+		if !ok || ident.Name != "dependency" {
+			return true
+		}
+
+		if isBlankAssignment(ident, parentMap) {
+			found = true
+			return false // Stop traversal
+		}
+
+		return true
+	})
+
+	return found
+}
+
 // isBlankAssignment checks if the identifier is part of "_ = dependency" pattern.
 func isBlankAssignment(ident *ast.Ident, parentMap map[ast.Node]ast.Node) bool {
 	parent := parentMap[ident]

@@ -712,3 +712,386 @@ func TestAppAnalyzer_MissingConstructor(t *testing.T) {
 	)
 	analysistest.Run(t, "testdata/src/missingctor", analyzer, ".")
 }
+
+// Golden File Tests (Task 11.1-11.5)
+
+// TestGoldenFile_BasicSinglePackage tests basic single-package bootstrap generation.
+// Task 11.1: Create test fixtures for basic single-package bootstrap
+func TestGoldenFile_BasicSinglePackage(t *testing.T) {
+	providerRegistry, injectorRegistry, packageLoader, packageTracker, appDetector, graphBuilder, sorter,
+		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+
+	// Register Inject struct from service package
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/basic/service.UserService",
+			PackagePath:     "example.com/basic/service",
+			LocalName:       "UserService",
+			ConstructorName: "NewUserService",
+			Dependencies:    []string{},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	packageTracker.MarkPackageScanned("example.com/basic")
+
+	analyzer := createAppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
+		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+	)
+	analysistest.RunWithSuggestedFixes(t, "testdata/src/basic", analyzer, ".")
+}
+
+// TestGoldenFile_MultiTypeCrossPackage tests multi-type cross-package bootstrap with Inject/Provide distinction.
+// Task 11.2: Create test fixtures for multi-type cross-package bootstrap
+func TestGoldenFile_MultiTypeCrossPackage(t *testing.T) {
+	providerRegistry, injectorRegistry, packageLoader, packageTracker, appDetector, graphBuilder, sorter,
+		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+
+	// Register Provide-annotated structs (local variables in bootstrap)
+	providerRegistry.Register(
+		&registry.ProviderInfo{
+			TypeName:        "example.com/multitype/repository.UserRepository",
+			PackagePath:     "example.com/multitype/repository",
+			LocalName:       "UserRepository",
+			ConstructorName: "NewUserRepository",
+			Dependencies:    []string{},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	providerRegistry.Register(
+		&registry.ProviderInfo{
+			TypeName:        "example.com/multitype/repository.OrderRepository",
+			PackagePath:     "example.com/multitype/repository",
+			LocalName:       "OrderRepository",
+			ConstructorName: "NewOrderRepository",
+			Dependencies:    []string{},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	// Register Inject-annotated structs (fields in dependency struct)
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/multitype/service.UserService",
+			PackagePath:     "example.com/multitype/service",
+			LocalName:       "UserService",
+			ConstructorName: "NewUserService",
+			Dependencies:    []string{"example.com/multitype/repository.UserRepository"},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/multitype/service.OrderService",
+			PackagePath:     "example.com/multitype/service",
+			LocalName:       "OrderService",
+			ConstructorName: "NewOrderService",
+			Dependencies:    []string{"example.com/multitype/repository.OrderRepository"},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	packageTracker.MarkPackageScanned("example.com/multitype")
+
+	analyzer := createAppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
+		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+	)
+	analysistest.RunWithSuggestedFixes(t, "testdata/src/multitype", analyzer, ".")
+}
+
+// TestGoldenFile_InterfaceDependency tests interface dependency resolution.
+// Task 11.3: Create test fixtures for interface dependency scenario
+func TestGoldenFile_InterfaceDependency(t *testing.T) {
+	providerRegistry, injectorRegistry, packageLoader, packageTracker, appDetector, graphBuilder, sorter,
+		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+
+	// Register Provide struct implementing interface
+	providerRegistry.Register(
+		&registry.ProviderInfo{
+			TypeName:        "example.com/ifacedep/repository.UserRepository",
+			PackagePath:     "example.com/ifacedep/repository",
+			LocalName:       "UserRepository",
+			ConstructorName: "NewUserRepository",
+			Dependencies:    []string{},
+			Implements:      []string{"example.com/ifacedep/domain.IUserRepository"},
+			IsPending:       false,
+		},
+	)
+
+	// Register Inject struct depending on interface
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/ifacedep/service.UserService",
+			PackagePath:     "example.com/ifacedep/service",
+			LocalName:       "UserService",
+			ConstructorName: "NewUserService",
+			Dependencies:    []string{"example.com/ifacedep/domain.IUserRepository"},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	packageTracker.MarkPackageScanned("example.com/ifacedep")
+
+	analyzer := createAppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
+		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+	)
+	analysistest.RunWithSuggestedFixes(t, "testdata/src/ifacedep", analyzer, ".")
+}
+
+// TestGoldenFile_DependencyAlreadyUsed tests that _ = dependency is not added when already referenced.
+// Task 11.4: Create test fixtures for dependency already used scenario
+func TestGoldenFile_DependencyAlreadyUsed(t *testing.T) {
+	providerRegistry, injectorRegistry, packageLoader, packageTracker, appDetector, graphBuilder, sorter,
+		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+
+	// Register Inject struct
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/depinuse/service.UserService",
+			PackagePath:     "example.com/depinuse/service",
+			LocalName:       "UserService",
+			ConstructorName: "NewUserService",
+			Dependencies:    []string{},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	packageTracker.MarkPackageScanned("example.com/depinuse")
+
+	analyzer := createAppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
+		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+	)
+	analysistest.RunWithSuggestedFixes(t, "testdata/src/depinuse", analyzer, ".")
+}
+
+// Error Scenario Tests (Task 11.5)
+
+// TestGoldenFile_CircularDependency tests circular dependency error reporting.
+// Task 11.5a: Create test fixtures for circular dependencies
+func TestGoldenFile_CircularDependency(t *testing.T) {
+	providerRegistry, injectorRegistry, packageLoader, packageTracker, appDetector, graphBuilder, sorter,
+		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+
+	// Register circular dependency: ServiceA -> ServiceB -> ServiceA
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/circulardep/service.ServiceA",
+			PackagePath:     "example.com/circulardep/service",
+			LocalName:       "ServiceA",
+			ConstructorName: "NewServiceA",
+			Dependencies:    []string{"example.com/circulardep/service.ServiceB"},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/circulardep/service.ServiceB",
+			PackagePath:     "example.com/circulardep/service",
+			LocalName:       "ServiceB",
+			ConstructorName: "NewServiceB",
+			Dependencies:    []string{"example.com/circulardep/service.ServiceA"},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	packageTracker.MarkPackageScanned("example.com/circulardep")
+
+	analyzer := createAppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
+		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+	)
+	analysistest.Run(t, "testdata/src/circulardep", analyzer, ".")
+}
+
+// TestGoldenFile_MultipleAppAnnotations tests multiple App annotation error reporting.
+// Task 11.5b: Create test fixtures for multiple App annotations
+func TestGoldenFile_MultipleAppAnnotations(t *testing.T) {
+	providerRegistry, injectorRegistry, packageLoader, packageTracker, appDetector, graphBuilder, sorter,
+		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+
+	packageTracker.MarkPackageScanned("example.com/multiapp")
+
+	analyzer := createAppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
+		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+	)
+	analysistest.Run(t, "testdata/src/multiapp", analyzer, ".")
+}
+
+// TestGoldenFile_AmbiguousInterface tests ambiguous interface implementation error reporting.
+// Task 11.5c: Create test fixtures for ambiguous interface implementation
+func TestGoldenFile_AmbiguousInterface(t *testing.T) {
+	providerRegistry, injectorRegistry, packageLoader, packageTracker, appDetector, graphBuilder, sorter,
+		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+
+	// Register two providers implementing the same interface
+	providerRegistry.Register(
+		&registry.ProviderInfo{
+			TypeName:        "example.com/ambiguousiface/repository.UserRepositoryA",
+			PackagePath:     "example.com/ambiguousiface/repository",
+			LocalName:       "UserRepositoryA",
+			ConstructorName: "NewUserRepositoryA",
+			Dependencies:    []string{},
+			Implements:      []string{"example.com/ambiguousiface/domain.IUserRepository"},
+			IsPending:       false,
+		},
+	)
+
+	providerRegistry.Register(
+		&registry.ProviderInfo{
+			TypeName:        "example.com/ambiguousiface/repository.UserRepositoryB",
+			PackagePath:     "example.com/ambiguousiface/repository",
+			LocalName:       "UserRepositoryB",
+			ConstructorName: "NewUserRepositoryB",
+			Dependencies:    []string{},
+			Implements:      []string{"example.com/ambiguousiface/domain.IUserRepository"},
+			IsPending:       false,
+		},
+	)
+
+	// Register Inject struct depending on interface
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/ambiguousiface/service.UserService",
+			PackagePath:     "example.com/ambiguousiface/service",
+			LocalName:       "UserService",
+			ConstructorName: "NewUserService",
+			Dependencies:    []string{"example.com/ambiguousiface/domain.IUserRepository"},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	packageTracker.MarkPackageScanned("example.com/ambiguousiface")
+
+	analyzer := createAppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
+		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+	)
+	analysistest.Run(t, "testdata/src/ambiguousiface", analyzer, ".")
+}
+
+// TestGoldenFile_UnresolvedInterface tests unresolved interface error reporting.
+// Task 11.5d: Create test fixtures for unresolved interface
+func TestGoldenFile_UnresolvedInterface(t *testing.T) {
+	providerRegistry, injectorRegistry, packageLoader, packageTracker, appDetector, graphBuilder, sorter,
+		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+
+	// Register Inject struct with unresolvable interface dependency
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/unresolvedif/writer.MyWriter",
+			PackagePath:     "example.com/unresolvedif/writer",
+			LocalName:       "MyWriter",
+			ConstructorName: "NewMyWriter",
+			Dependencies:    []string{"io.Reader"},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	packageTracker.MarkPackageScanned("example.com/unresolvedif")
+
+	analyzer := createAppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
+		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+	)
+	analysistest.Run(t, "testdata/src/unresolvedif", analyzer, ".")
+}
+
+// TestGoldenFile_UnresolvableParameter tests unresolvable parameter error reporting.
+// Task 11.5e: Create test fixtures for unresolvable parameter
+func TestGoldenFile_UnresolvableParameter(t *testing.T) {
+	providerRegistry, injectorRegistry, packageLoader, packageTracker, appDetector, graphBuilder, sorter,
+		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+
+	// Register Inject struct with unresolvable concrete type dependency
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/unresolvedparam/repository.UserRepository",
+			PackagePath:     "example.com/unresolvedparam/repository",
+			LocalName:       "UserRepository",
+			ConstructorName: "NewUserRepository",
+			Dependencies:    []string{"database/sql.DB"},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/unresolvedparam/service.UserService",
+			PackagePath:     "example.com/unresolvedparam/service",
+			LocalName:       "UserService",
+			ConstructorName: "NewUserService",
+			Dependencies:    []string{"example.com/unresolvedparam/repository.UserRepository"},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	packageTracker.MarkPackageScanned("example.com/unresolvedparam")
+
+	analyzer := createAppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
+		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+	)
+	analysistest.Run(t, "testdata/src/unresolvedparam", analyzer, ".")
+}
+
+// TestGoldenFile_DependencyBlankIdentifier tests that _ = dependency is not duplicated
+// when it already exists in the main function.
+// This test verifies idempotent behavior when the blank identifier assignment is present.
+func TestGoldenFile_DependencyBlankIdentifier(t *testing.T) {
+	providerRegistry, injectorRegistry, packageLoader, packageTracker, appDetector, graphBuilder, sorter,
+		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+
+	// Register Inject structs
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/depblank.UserService",
+			PackagePath:     "example.com/depblank",
+			LocalName:       "UserService",
+			ConstructorName: "NewUserService",
+			Dependencies:    []string{},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/depblank.ItemService",
+			PackagePath:     "example.com/depblank",
+			LocalName:       "ItemService",
+			ConstructorName: "NewItemService",
+			Dependencies:    []string{},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	packageTracker.MarkPackageScanned("example.com/depblank")
+
+	analyzer := createAppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
+		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+	)
+	analysistest.RunWithSuggestedFixes(t, "testdata/src/depblank", analyzer, ".")
+}
