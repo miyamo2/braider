@@ -34,4 +34,4 @@ push:
   if: is_default_branch
   datastores:
     - github://${GITHUB_REPOSITORY}
-  message: "[Skip CI] Update coverage badges"
+  message: "Update coverage badges"
