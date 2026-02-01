@@ -19,7 +19,7 @@ jobs:
 
   test:
     needs: skip-if-closed-without-merging
-    if: ${{ always() && needs.skip-if-closed-without-merging.result == 'skipped' }}
+    if: ${{ always() && needs.skip-if-closed-without-merging.result == 'skipped' && !startsWith(github.event.pull_request.title, '[Skip CI]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
