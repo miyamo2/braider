@@ -23,10 +23,11 @@ braider follows a **standard Go project layout** with clear separation between p
 ### Test Fixtures
 **Location**: `internal/analyzer/testdata/`
 **Purpose**: Go source files used as test inputs for analysistest
-**Pattern**: Organized by test category:
-- `testdata/src/` - App annotation scenarios (noapp, simpleapp, multipleapp, etc.)
-- `testdata/dependency/` - Dependency analysis scenarios (basic, cross_package, missing_constructor, etc.)
+**Pattern**: Organized by test category and analyzer:
+- `testdata/src/` - App annotation scenarios (basic, multiapp, circular, iface, crosspackage, idempotent, etc.)
+- `testdata/dependency/` - Dependency analysis scenarios (basic, abstrct, cross_package, missing_constructor)
 - `testdata/constructorgen/` - Constructor generation scenarios
+- `testdata/example/` - Example integration tests
 
 ## Naming Conventions
 
@@ -83,7 +84,7 @@ Test fixtures live in `testdata/src/` following analysistest conventions. Each t
 The internal package is split into focused subpackages:
 - `internal/analyzer/` - Analyzer definitions (`DependencyAnalyzer`, `AppAnalyzer`) and orchestration
 - `internal/detect/` - Detection logic for DI patterns (inject, provide, app annotations, struct analysis, field analysis, constructor detection)
-- `internal/generate/` - Code generation logic (constructors, bootstrap code formatting)
+- `internal/generate/` - Code generation logic (constructors, bootstrap IIFE, code formatting, import management, hash generation)
 - `internal/report/` - Diagnostic and suggested fix building
 - `internal/registry/` - Global state management (provider registry, injector registry, package tracker)
 - `internal/graph/` - Dependency resolution (dependency graph, interface registry, topological sort)
@@ -100,4 +101,4 @@ The internal package is split into focused subpackages:
 ---
 _Document patterns, not file trees. New files following patterns should not require updates_
 
-_Updated: 2026-01-30 - Added multi-analyzer pattern, expanded internal package organization, updated testdata structure, added App and Provide annotations_
+_Updated: 2026-02-01 - Refined internal/generate package description to include code formatting and hash utilities, updated testdata organization with actual test categories_

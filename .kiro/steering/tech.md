@@ -71,7 +71,7 @@ Code generation is implemented via `analysis.SuggestedFix` rather than separate 
 ### Component-Based Architecture
 The analyzer uses composable components (detectors, generators, reporters) instantiated in `main.go` and passed to analyzer constructors. Each component has a single responsibility and is testable in isolation. Components are organized by concern:
 - **Detectors** (`internal/detect/`): Pattern matching (inject, provide, app, struct, field, constructor)
-- **Generators** (`internal/generate/`): Code generation (constructors)
+- **Generators** (`internal/generate/`): Code generation (constructors, bootstrap IIFE, imports, formatting, hash markers for idempotency)
 - **Reporters** (`internal/report/`): Diagnostic and suggested fix building
 - **Registries** (`internal/registry/`): Global state for cross-package dependency tracking
 - **Graph** (`internal/graph/`): Dependency graph construction, interface resolution, topological sorting
@@ -81,6 +81,9 @@ Uses `inspect.Analyzer` as a dependency for efficient AST traversal, following t
 
 ### Global Registry Pattern
 Uses shared registries (`ProviderRegistry`, `InjectorRegistry`, `PackageTracker`) to accumulate DI information across multiple packages and analyzer passes. This enables cross-package dependency resolution and ensures the `AppAnalyzer` can access all bindings collected by `DependencyAnalyzer`.
+
+### Idempotent Code Generation
+Bootstrap code generation uses hash markers (`// braider:hash:<hash>`) to track dependency graph state. The generator compares current graph hash against existing hash comments to determine if regeneration is needed. This prevents unnecessary rewrites and preserves manual edits in unrelated code sections.
 
 ### Conventional Commits
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/v1.0.0/) specification:
@@ -94,4 +97,4 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 ---
 _Document standards and patterns, not every dependency_
 
-_Updated: 2026-01-30 - Added multi-analyzer architecture, global registry pattern, expanded component organization_
+_Updated: 2026-02-01 - Added idempotent code generation pattern, refined generator component description to include bootstrap IIFE and utilities_
