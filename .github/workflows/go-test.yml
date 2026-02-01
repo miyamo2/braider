@@ -1,11 +1,8 @@
 name: Go Test
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
-    types: [synchronize, reopened, ready_for_review]
+    types: [synchronize, reopened, ready_for_review, closed]
 
 permissions:
   contents: read
@@ -13,7 +10,16 @@ permissions:
   actions: write
 
 jobs:
+  check-closed-without-merging:
+    if: github.event.action == 'closed' && github.event.pull_request.merged == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip tests for closed PR
+        run: echo "Pull request closed without merge; skipping test job."
   test:
+    needs:
+      - check-closed-without-merging
+    if: ${{ always() && needs.check-closed-without-merging.result == 'skipped' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
