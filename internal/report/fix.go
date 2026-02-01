@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"sort"
+	"strings"
 
 	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/generate"
@@ -129,6 +131,43 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 ) analysis.SuggestedFix {
 	var edits []analysis.TextEdit
 
+	// Phase 1: Handle imports (if needed)
+	if len(bootstrap.Imports) > 0 {
+		file := app.File
+		allImportDecls, existingPaths := b.collectAllExistingImports(file)
+
+		// Merge existing + new imports and sort
+		sortedImports := b.mergeAndSortImports(existingPaths, bootstrap.Imports)
+
+		if len(allImportDecls) > 0 {
+			// Case 1: Import exists - replace all import declarations with unified block
+			firstImportStart := allImportDecls[0].Pos()
+			if allImportDecls[0].Doc != nil {
+				firstImportStart = allImportDecls[0].Doc.Pos() // preserve doc comment
+			}
+			lastImportEnd := allImportDecls[len(allImportDecls)-1].End()
+
+			unifiedBlock := b.buildUnifiedImportBlock(sortedImports)
+
+			edits = append(edits, analysis.TextEdit{
+				Pos:     firstImportStart,
+				End:     lastImportEnd,
+				NewText: []byte(unifiedBlock),
+			})
+		} else {
+			// Case 2: Import doesn't exist - insert new import block
+			unifiedBlock := b.buildUnifiedImportBlock(sortedImports)
+			insertPos := b.findImportInsertionPoint(file, nil)
+
+			edits = append(edits, analysis.TextEdit{
+				Pos:     insertPos,
+				End:     insertPos,
+				NewText: []byte("\n\n" + unifiedBlock),
+			})
+		}
+	}
+
+	// Phase 2: Add dependency variable
 	// Find insertion point for dependency variable
 	// Insert after package declaration, before first function
 	insertPos := b.findBootstrapInsertionPoint(pass)
@@ -141,6 +180,7 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 		NewText: []byte(dependencyText),
 	})
 
+	// Phase 3: Add main reference if needed
 	// Add main reference if dependency is not referenced and _ = dependency doesn't already exist
 	if mainFunc != nil && !generate.IsDependencyReferenced(mainFunc) && !generate.HasBlankDependencyAssignment(mainFunc) {
 		mainRefPos := b.findMainReferenceInsertionPoint(mainFunc)
@@ -167,7 +207,58 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 ) analysis.SuggestedFix {
 	var edits []analysis.TextEdit
 
-	// Replace existing dependency variable
+	// Phase 1: Handle imports (if needed)
+	if len(bootstrap.Imports) > 0 {
+		// Find the file containing the existing bootstrap
+		var file *ast.File
+		for _, f := range pass.Files {
+			for _, decl := range f.Decls {
+				if decl == existing {
+					file = f
+					break
+				}
+			}
+			if file != nil {
+				break
+			}
+		}
+
+		if file != nil {
+			allImportDecls, existingPaths := b.collectAllExistingImports(file)
+
+			// Merge existing + new imports and sort
+			sortedImports := b.mergeAndSortImports(existingPaths, bootstrap.Imports)
+
+			if len(allImportDecls) > 0 {
+				// Case 1: Import exists - replace all import declarations with unified block
+				firstImportStart := allImportDecls[0].Pos()
+				if allImportDecls[0].Doc != nil {
+					firstImportStart = allImportDecls[0].Doc.Pos() // preserve doc comment
+				}
+				lastImportEnd := allImportDecls[len(allImportDecls)-1].End()
+
+				unifiedBlock := b.buildUnifiedImportBlock(sortedImports)
+
+				edits = append(edits, analysis.TextEdit{
+					Pos:     firstImportStart,
+					End:     lastImportEnd,
+					NewText: []byte(unifiedBlock),
+				})
+			} else {
+				// Case 2: Import doesn't exist - insert new import block
+				unifiedBlock := b.buildUnifiedImportBlock(sortedImports)
+				insertPos := b.findImportInsertionPoint(file, nil)
+
+				edits = append(edits, analysis.TextEdit{
+					Pos:     insertPos,
+					End:     insertPos,
+					NewText: []byte("\n\n" + unifiedBlock),
+				})
+			}
+		}
+	}
+
+	// Phase 2: Replace existing dependency variable
 	start, end := b.calculateBootstrapReplacementRange(existing)
 	edits = append(edits, analysis.TextEdit{
 		Pos:     start,
@@ -175,6 +266,7 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 		NewText: []byte(bootstrap.DependencyVar),
 	})
 
+	// Phase 3: Update main reference if needed
 	// Update main reference if needed (only if not referenced and _ = dependency doesn't exist)
 	if mainFunc != nil && !generate.IsDependencyReferenced(mainFunc) && !generate.HasBlankDependencyAssignment(mainFunc) {
 		mainRefPos := b.findMainReferenceInsertionPoint(mainFunc)
@@ -270,4 +362,158 @@ func (b *suggestedFixBuilder) findExistingBlankDependencyAssignment(mainFunc *as
 	})
 
 	return found
+}
+
+// findExistingImports scans the file for existing import declarations.
+// Returns the last import GenDecl (for determining insertion position) and a set of existing import paths.
+func (b *suggestedFixBuilder) findExistingImports(file *ast.File) (*ast.GenDecl, map[string]bool) {
+	existingPaths := make(map[string]bool)
+	var lastImportDecl *ast.GenDecl
+
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.IMPORT {
+			continue
+		}
+
+		lastImportDecl = genDecl
+
+		for _, spec := range genDecl.Specs {
+			importSpec, ok := spec.(*ast.ImportSpec)
+			if !ok {
+				continue
+			}
+
+			// Strip quotes from import path
+			path := strings.Trim(importSpec.Path.Value, `"`)
+			existingPaths[path] = true
+		}
+	}
+
+	return lastImportDecl, existingPaths
+}
+
+// collectAllExistingImports scans all import declarations and returns:
+// - allImportDecls: slice of all GenDecl nodes with Tok == token.IMPORT
+// - importPaths: set of all imported package paths (deduplicated)
+func (b *suggestedFixBuilder) collectAllExistingImports(file *ast.File) ([]*ast.GenDecl, map[string]bool) {
+	var allImportDecls []*ast.GenDecl
+	importPaths := make(map[string]bool)
+
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.IMPORT {
+			continue
+		}
+
+		allImportDecls = append(allImportDecls, genDecl)
+
+		for _, spec := range genDecl.Specs {
+			importSpec, ok := spec.(*ast.ImportSpec)
+			if !ok {
+				continue
+			}
+
+			// Strip quotes from import path
+			path := strings.Trim(importSpec.Path.Value, `"`)
+			importPaths[path] = true
+		}
+	}
+
+	return allImportDecls, importPaths
+}
+
+// mergeAndSortImports combines existing and new imports, deduplicates, and sorts.
+func (b *suggestedFixBuilder) mergeAndSortImports(existing map[string]bool, newImports []string) []string {
+	// Merge existing and new imports
+	merged := make(map[string]bool)
+	for path := range existing {
+		merged[path] = true
+	}
+	for _, path := range newImports {
+		merged[path] = true
+	}
+
+	// Convert to slice and sort
+	var sorted []string
+	for path := range merged {
+		sorted = append(sorted, path)
+	}
+	sort.Strings(sorted)
+
+	return sorted
+}
+
+// filterNewImports returns imports that don't already exist in the file.
+func (b *suggestedFixBuilder) filterNewImports(requiredImports []string, existing map[string]bool) []string {
+	var newImports []string
+	for _, imp := range requiredImports {
+		if !existing[imp] {
+			newImports = append(newImports, imp)
+		}
+	}
+	return newImports
+}
+
+// buildImportDeclaration generates gofmt-compliant import declaration.
+// Returns formatted string like:
+//   import "pkg"  (single import)
+//   import (      (multiple imports)
+//       "pkg1"
+//       "pkg2"
+//   )
+func (b *suggestedFixBuilder) buildImportDeclaration(imports []string) string {
+	if len(imports) == 0 {
+		return ""
+	}
+
+	if len(imports) == 1 {
+		return fmt.Sprintf("import %q\n", imports[0])
+	}
+
+	var sb strings.Builder
+	sb.WriteString("import (\n")
+	for _, imp := range imports {
+		fmt.Fprintf(&sb, "\t%q\n", imp)
+	}
+	sb.WriteString(")\n")
+	return sb.String()
+}
+
+// buildUnifiedImportBlock generates a unified import block.
+// Always uses import (...) syntax, even for single import.
+// Imports should be pre-sorted alphabetically.
+func (b *suggestedFixBuilder) buildUnifiedImportBlock(sortedImports []string) string {
+	if len(sortedImports) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("import (\n")
+	for _, imp := range sortedImports {
+		fmt.Fprintf(&sb, "\t%q\n", imp)
+	}
+	sb.WriteString(")\n")
+	return sb.String()
+}
+
+// findImportInsertionPoint determines where to insert new imports.
+// Strategy:
+//   1. If imports exist: append to last import group
+//   2. If no imports: insert after package declaration
+// Returns insertion position.
+func (b *suggestedFixBuilder) findImportInsertionPoint(file *ast.File, lastImport *ast.GenDecl) token.Pos {
+	if lastImport != nil {
+		// Append after last import declaration
+		return lastImport.End()
+	}
+
+	// Insert after package declaration
+	// Find first declaration to insert before it
+	if len(file.Decls) > 0 {
+		return file.Decls[0].Pos()
+	}
+
+	// Empty file (shouldn't happen): use package end
+	return file.Name.End()
 }

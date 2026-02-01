@@ -1095,3 +1095,45 @@ func TestGoldenFile_DependencyBlankIdentifier(t *testing.T) {
 	)
 	analysistest.RunWithSuggestedFixes(t, "testdata/src/depblank", analyzer, ".")
 }
+
+// TestGoldenFile_CrossPackageImports tests that import statements are correctly added
+// when bootstrap code references types from external packages.
+// This test verifies the fix for the import processing issue.
+func TestGoldenFile_CrossPackageImports(t *testing.T) {
+	providerRegistry, injectorRegistry, packageLoader, packageTracker, appDetector, graphBuilder, sorter,
+		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+
+	// Register Provide struct (UserRepository)
+	providerRegistry.Register(
+		&registry.ProviderInfo{
+			TypeName:        "crosspackage/repository.UserRepository",
+			PackagePath:     "crosspackage/repository",
+			LocalName:       "UserRepository",
+			ConstructorName: "NewUserRepository",
+			Dependencies:    []string{},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	// Register Inject struct (UserService) with dependency on UserRepository
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "crosspackage/service.UserService",
+			PackagePath:     "crosspackage/service",
+			LocalName:       "UserService",
+			ConstructorName: "NewUserService",
+			Dependencies:    []string{"crosspackage/repository.UserRepository"},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	packageTracker.MarkPackageScanned("crosspackage")
+
+	analyzer := createAppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
+		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+	)
+	analysistest.RunWithSuggestedFixes(t, "testdata/src/crosspackage", analyzer, ".")
+}

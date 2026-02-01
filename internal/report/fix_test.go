@@ -2,6 +2,7 @@ package report_test
 
 import (
 	"go/ast"
+	"go/format"
 	"go/parser"
 	"go/token"
 	"strings"
@@ -448,5 +449,531 @@ func main() {
 	}
 	if !replacementFound {
 		t.Error("dependency replacement edit not found")
+	}
+}
+
+func TestSuggestedFixBuilder_BuildBootstrapFix_WithImports(t *testing.T) {
+	tests := []struct {
+		name           string
+		src            string
+		imports        []string
+		wantImportEdit bool
+		wantImportText string
+	}{
+		{
+			name: "adds single import when none exist",
+			src: `package main
+
+func main() {}`,
+			imports:        []string{"example.com/pkg"},
+			wantImportEdit: true,
+			wantImportText: `import (
+	"example.com/pkg"
+)`,
+		},
+		{
+			name: "adds multiple imports when none exist",
+			src: `package main
+
+func main() {}`,
+			imports:        []string{"example.com/pkg1", "example.com/pkg2"},
+			wantImportEdit: true,
+			wantImportText: `import (
+	"example.com/pkg1"
+	"example.com/pkg2"
+)`,
+		},
+		{
+			name: "replaces existing imports with unified block",
+			src: `package main
+
+import "fmt"
+
+func main() {}`,
+			imports:        []string{"example.com/pkg"},
+			wantImportEdit: true,
+			wantImportText: `import (
+	"example.com/pkg"
+	"fmt"
+)`,
+		},
+		{
+			name: "replaces existing import even if no new imports",
+			src: `package main
+
+import "example.com/pkg"
+
+func main() {}`,
+			imports:        []string{"example.com/pkg"},
+			wantImportEdit: true,
+			wantImportText: `import (
+	"example.com/pkg"
+)`,
+		},
+		{
+			name: "filters duplicates and merges",
+			src: `package main
+
+import "fmt"
+
+func main() {}`,
+			imports:        []string{"fmt", "example.com/pkg"},
+			wantImportEdit: true,
+			wantImportText: `import (
+	"example.com/pkg"
+	"fmt"
+)`,
+		},
+		{
+			name: "no imports needed",
+			src: `package main
+
+func main() {}`,
+			imports:        []string{},
+			wantImportEdit: false,
+		},
+		{
+			name: "replaces existing import block with merged imports",
+			src: `package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {}`,
+			imports:        []string{"example.com/pkg"},
+			wantImportEdit: true,
+			wantImportText: `import (
+	"example.com/pkg"
+	"fmt"
+	"os"
+)`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fset := token.NewFileSet()
+			file, err := parser.ParseFile(fset, "test.go", tt.src, parser.ParseComments)
+			if err != nil {
+				t.Fatalf("ParseFile() error = %v", err)
+			}
+
+			pass := &analysis.Pass{
+				Fset:  fset,
+				Files: []*ast.File{file},
+			}
+
+			var mainFunc *ast.FuncDecl
+			for _, decl := range file.Decls {
+				if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name.Name == "main" {
+					mainFunc = fn
+					break
+				}
+			}
+
+			app := &detect.AppAnnotation{
+				File: file,
+				Pos:  token.Pos(1),
+			}
+
+			bootstrap := &generate.GeneratedBootstrap{
+				DependencyVar: "var dependency = struct{}{}",
+				MainReference: "_ = dependency",
+				Hash:          "abc123",
+				Imports:       tt.imports,
+			}
+
+			builder := report.NewSuggestedFixBuilder()
+			fix := builder.BuildBootstrapFix(pass, app, bootstrap, mainFunc)
+
+			// Check for import edit
+			importEditFound := false
+			var importEditText string
+			for _, edit := range fix.TextEdits {
+				editText := string(edit.NewText)
+				if strings.Contains(editText, "import") {
+					importEditFound = true
+					importEditText = strings.TrimSpace(editText)
+					break
+				}
+			}
+
+			if tt.wantImportEdit != importEditFound {
+				t.Errorf("import edit presence = %v, want %v", importEditFound, tt.wantImportEdit)
+			}
+
+			if tt.wantImportEdit && tt.wantImportText != "" {
+				if !strings.Contains(importEditText, tt.wantImportText) {
+					t.Errorf("import text mismatch\ngot:  %s\nwant: %s", importEditText, tt.wantImportText)
+				}
+			}
+		})
+	}
+}
+
+func TestSuggestedFixBuilder_BuildBootstrapReplacementFix_WithImports(t *testing.T) {
+	tests := []struct {
+		name           string
+		src            string
+		imports        []string
+		wantImportEdit bool
+		wantImportText string
+	}{
+		{
+			name: "adds imports when updating bootstrap",
+			src: `package main
+
+// braider:hash:abc123
+var dependency = struct{}{}
+
+func main() {}`,
+			imports:        []string{"example.com/pkg"},
+			wantImportEdit: true,
+			wantImportText: `import (
+	"example.com/pkg"
+)`,
+		},
+		{
+			name: "replaces existing import even if no new imports",
+			src: `package main
+
+import "example.com/pkg"
+
+// braider:hash:abc123
+var dependency = struct{}{}
+
+func main() {}`,
+			imports:        []string{"example.com/pkg"},
+			wantImportEdit: true,
+			wantImportText: `import (
+	"example.com/pkg"
+)`,
+		},
+		{
+			name: "adds multiple new imports and merges with existing",
+			src: `package main
+
+import "fmt"
+
+// braider:hash:abc123
+var dependency = struct{}{}
+
+func main() {}`,
+			imports:        []string{"example.com/pkg1", "example.com/pkg2"},
+			wantImportEdit: true,
+			wantImportText: `import (
+	"example.com/pkg1"
+	"example.com/pkg2"
+	"fmt"
+)`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fset := token.NewFileSet()
+			file, err := parser.ParseFile(fset, "test.go", tt.src, parser.ParseComments)
+			if err != nil {
+				t.Fatalf("ParseFile() error = %v", err)
+			}
+
+			pass := &analysis.Pass{
+				Fset:  fset,
+				Files: []*ast.File{file},
+			}
+
+			// Find existing dependency and main function
+			var existingDecl *ast.GenDecl
+			var mainFunc *ast.FuncDecl
+			for _, decl := range file.Decls {
+				if gd, ok := decl.(*ast.GenDecl); ok && gd.Tok == token.VAR {
+					for _, spec := range gd.Specs {
+						if vs, ok := spec.(*ast.ValueSpec); ok {
+							for _, name := range vs.Names {
+								if name.Name == "dependency" {
+									existingDecl = gd
+									break
+								}
+							}
+						}
+					}
+				}
+				if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name.Name == "main" {
+					mainFunc = fn
+				}
+			}
+
+			if existingDecl == nil {
+				t.Fatal("existing dependency declaration not found")
+			}
+
+			bootstrap := &generate.GeneratedBootstrap{
+				DependencyVar: "// braider:hash:def456\nvar dependency = struct{ NewField string }{}",
+				MainReference: "_ = dependency",
+				Hash:          "def456",
+				Imports:       tt.imports,
+			}
+
+			builder := report.NewSuggestedFixBuilder()
+			fix := builder.BuildBootstrapReplacementFix(pass, existingDecl, bootstrap, mainFunc)
+
+			// Check for import edit
+			importEditFound := false
+			var importEditText string
+			for _, edit := range fix.TextEdits {
+				editText := string(edit.NewText)
+				if strings.Contains(editText, "import") {
+					importEditFound = true
+					importEditText = strings.TrimSpace(editText)
+					break
+				}
+			}
+
+			if tt.wantImportEdit != importEditFound {
+				t.Errorf("import edit presence = %v, want %v", importEditFound, tt.wantImportEdit)
+			}
+
+			if tt.wantImportEdit && tt.wantImportText != "" {
+				if !strings.Contains(importEditText, tt.wantImportText) {
+					t.Errorf("import text mismatch\ngot:  %s\nwant: %s", importEditText, tt.wantImportText)
+				}
+			}
+		})
+	}
+}
+
+func TestImportBlockGofmtCompatible(t *testing.T) {
+	builder := report.NewSuggestedFixBuilder()
+
+	tests := []struct {
+		name    string
+		imports []string
+	}{
+		{
+			name:    "single import",
+			imports: []string{"fmt"},
+		},
+		{
+			name:    "multiple imports sorted",
+			imports: []string{"example.com/pkg/a", "example.com/pkg/b", "fmt"},
+		},
+		{
+			name:    "multiple imports unsorted",
+			imports: []string{"pkg/b", "pkg/a", "pkg/c"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Build unified import block
+			fset := token.NewFileSet()
+			file, err := parser.ParseFile(fset, "test.go", "package test", parser.ParseComments)
+			if err != nil {
+				t.Fatalf("ParseFile() error = %v", err)
+			}
+
+			pass := &analysis.Pass{
+				Fset:  fset,
+				Files: []*ast.File{file},
+			}
+
+			app := &detect.AppAnnotation{
+				File: file,
+				Pos:  token.Pos(1),
+			}
+
+			bootstrap := &generate.GeneratedBootstrap{
+				DependencyVar: "var dependency = struct{}{}",
+				MainReference: "_ = dependency",
+				Hash:          "abc123",
+				Imports:       tt.imports,
+			}
+
+			fix := builder.BuildBootstrapFix(pass, app, bootstrap, nil)
+
+			// Extract import text from TextEdit
+			var importText string
+			for _, edit := range fix.TextEdits {
+				editText := string(edit.NewText)
+				if strings.Contains(editText, "import") {
+					importText = strings.TrimSpace(editText)
+					break
+				}
+			}
+
+			if importText == "" {
+				t.Fatal("import text not found in fix")
+			}
+
+			// Build complete source with import block
+			src := "package test\n\n" + importText + "\n\nfunc main() {}"
+
+			// Verify gofmt doesn't change the format
+			formatted, err := format.Source([]byte(src))
+			if err != nil {
+				t.Fatalf("gofmt failed: %v", err)
+			}
+
+			if !strings.Contains(string(formatted), importText) {
+				t.Errorf("gofmt changed import block format\noriginal:\n%s\nformatted:\n%s", src, string(formatted))
+			}
+		})
+	}
+}
+
+func TestBuildBootstrapFix_MultipleImportBlocks(t *testing.T) {
+	src := `package main
+
+import "fmt"
+
+import (
+	"os"
+	"io"
+)
+
+func main() {}`
+
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "test.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("ParseFile() error = %v", err)
+	}
+
+	pass := &analysis.Pass{
+		Fset:  fset,
+		Files: []*ast.File{file},
+	}
+
+	var mainFunc *ast.FuncDecl
+	for _, decl := range file.Decls {
+		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name.Name == "main" {
+			mainFunc = fn
+			break
+		}
+	}
+
+	app := &detect.AppAnnotation{
+		File: file,
+		Pos:  token.Pos(1),
+	}
+
+	bootstrap := &generate.GeneratedBootstrap{
+		DependencyVar: "var dependency = struct{}{}",
+		MainReference: "_ = dependency",
+		Hash:          "abc123",
+		Imports:       []string{"example.com/pkg"},
+	}
+
+	builder := report.NewSuggestedFixBuilder()
+	fix := builder.BuildBootstrapFix(pass, app, bootstrap, mainFunc)
+
+	// Find import edit
+	var importEdit *analysis.TextEdit
+	for i := range fix.TextEdits {
+		editText := string(fix.TextEdits[i].NewText)
+		if strings.Contains(editText, "import") {
+			importEdit = &fix.TextEdits[i]
+			break
+		}
+	}
+
+	if importEdit == nil {
+		t.Fatal("import edit not found")
+	}
+
+	importText := string(importEdit.NewText)
+
+	// Verify all imports are merged
+	if !strings.Contains(importText, `"example.com/pkg"`) {
+		t.Error("missing new import")
+	}
+	if !strings.Contains(importText, `"fmt"`) {
+		t.Error("missing existing import from first block")
+	}
+	if !strings.Contains(importText, `"os"`) {
+		t.Error("missing existing import from second block")
+	}
+	if !strings.Contains(importText, `"io"`) {
+		t.Error("missing existing import from second block")
+	}
+
+	// Verify edit is a replacement (Pos < End)
+	if importEdit.Pos >= importEdit.End {
+		t.Error("expected replacement edit (Pos < End), got insertion")
+	}
+}
+
+func TestBuildBootstrapFix_ImportWithDocComment(t *testing.T) {
+	src := `package main
+
+// This is a doc comment for imports
+import "fmt"
+
+func main() {}`
+
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "test.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("ParseFile() error = %v", err)
+	}
+
+	pass := &analysis.Pass{
+		Fset:  fset,
+		Files: []*ast.File{file},
+	}
+
+	var mainFunc *ast.FuncDecl
+	for _, decl := range file.Decls {
+		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name.Name == "main" {
+			mainFunc = fn
+			break
+		}
+	}
+
+	app := &detect.AppAnnotation{
+		File: file,
+		Pos:  token.Pos(1),
+	}
+
+	bootstrap := &generate.GeneratedBootstrap{
+		DependencyVar: "var dependency = struct{}{}",
+		MainReference: "_ = dependency",
+		Hash:          "abc123",
+		Imports:       []string{"example.com/pkg"},
+	}
+
+	builder := report.NewSuggestedFixBuilder()
+	fix := builder.BuildBootstrapFix(pass, app, bootstrap, mainFunc)
+
+	// Find import edit
+	var importEdit *analysis.TextEdit
+	for i := range fix.TextEdits {
+		editText := string(fix.TextEdits[i].NewText)
+		if strings.Contains(editText, "import") {
+			importEdit = &fix.TextEdits[i]
+			break
+		}
+	}
+
+	if importEdit == nil {
+		t.Fatal("import edit not found")
+	}
+
+	// Find the import declaration in AST
+	var importDecl *ast.GenDecl
+	for _, decl := range file.Decls {
+		if gd, ok := decl.(*ast.GenDecl); ok && gd.Tok == token.IMPORT {
+			importDecl = gd
+			break
+		}
+	}
+
+	// Verify that doc comment position is preserved
+	if importDecl.Doc != nil {
+		if importEdit.Pos != importDecl.Doc.Pos() {
+			t.Error("import edit should start at doc comment position")
+		}
 	}
 }

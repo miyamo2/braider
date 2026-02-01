@@ -1,6 +1,10 @@
 package main
 
-import "github.com/miyamo2/braider/pkg/annotation"
+import (
+	"example.com/multitype/repository"
+	"example.com/multitype/service"
+	"github.com/miyamo2/braider/pkg/annotation"
+)
 
 var _ = annotation.App(main) // want "bootstrap code is missing"
 

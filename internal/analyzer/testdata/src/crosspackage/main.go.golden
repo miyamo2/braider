@@ -1,14 +1,14 @@
 package main
 
 import (
-	"example.com/ifacedep/repository"
-	"example.com/ifacedep/service"
+	"crosspackage/repository"
+	"crosspackage/service"
 	"github.com/miyamo2/braider/pkg/annotation"
 )
 
 var _ = annotation.App(main) // want "bootstrap code is missing"
 
-// braider:hash:dc2e20c9a883d990
+// braider:hash:331d8086ae6b5001
 var dependency = func() struct {
 	userService UserService
 } {
