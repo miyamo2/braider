@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+
 	"github.com/miyamo2/braider/pkg/annotation"
 )
 

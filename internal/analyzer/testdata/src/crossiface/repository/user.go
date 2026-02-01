@@ -1,8 +1,9 @@
 package repository
 
 import (
-	"github.com/miyamo2/braider/pkg/annotation"
 	"crossiface/domain"
+
+	"github.com/miyamo2/braider/pkg/annotation"
 )
 
 type UserRepository struct {

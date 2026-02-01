@@ -505,11 +505,12 @@ func (b *suggestedFixBuilder) filterNewImports(requiredImports []string, existin
 
 // buildImportDeclaration generates gofmt-compliant import declaration.
 // Returns formatted string like:
-//   import "pkg"  (single import)
-//   import (      (multiple imports)
-//       "pkg1"
-//       "pkg2"
-//   )
+//
+//	import "pkg"  (single import)
+//	import (      (multiple imports)
+//	    "pkg1"
+//	    "pkg2"
+//	)
 func (b *suggestedFixBuilder) buildImportDeclaration(imports []string) string {
 	if len(imports) == 0 {
 		return ""
@@ -547,8 +548,9 @@ func (b *suggestedFixBuilder) buildUnifiedImportBlock(sortedImports []string) st
 
 // findImportInsertionPoint determines where to insert new imports.
 // Strategy:
-//   1. If imports exist: append to last import group
-//   2. If no imports: insert after package declaration
+//  1. If imports exist: append to last import group
+//  2. If no imports: insert after package declaration
+//
 // Returns insertion position.
 func (b *suggestedFixBuilder) findImportInsertionPoint(file *ast.File, lastImport *ast.GenDecl) token.Pos {
 	if lastImport != nil {

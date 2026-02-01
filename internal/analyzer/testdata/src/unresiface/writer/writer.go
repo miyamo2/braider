@@ -2,6 +2,7 @@ package writer
 
 import (
 	"io"
+
 	"github.com/miyamo2/braider/pkg/annotation"
 )
 

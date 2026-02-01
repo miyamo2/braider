@@ -1,8 +1,9 @@
 package service
 
 import (
-	"github.com/miyamo2/braider/pkg/annotation"
 	"ambiguous/domain"
+
+	"github.com/miyamo2/braider/pkg/annotation"
 )
 
 type UserService struct {
