@@ -1,12 +1,8 @@
 name: Go Test
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - '!.assets/**'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, closed]
 
 permissions:
   contents: write
@@ -63,6 +59,8 @@ jobs:
 
       - name: Run octocov
         uses: k1LoW/octocov-action@v1
+        env:
+          GITHUB_PULL_REQUEST_NUMBER: ${{ github.event.number }}
         with:
           github-token: ${{ steps.generate-token.outputs.token }}
 
