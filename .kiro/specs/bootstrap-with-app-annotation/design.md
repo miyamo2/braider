@@ -21,7 +21,7 @@
 ### Non-Goals
 
 - Runtime dependency resolution or containers
-- Support for multiple `annotation.App` declarations per package
+- Support for multiple `annotation.App` declarations per package (first one wins; same-file duplicates warn)
 - Support for `annotation.App` with functions other than `main`
 - Lazy initialization or scoped lifetimes
 - Dynamic dependency selection based on configuration
@@ -279,9 +279,10 @@ sequenceDiagram
 flowchart TD
     A[Start AppAnalyzer] --> B{App annotation present?}
     B -->|No| Z[Skip bootstrap generation]
-    B -->|Yes| C{Only one App annotation?}
-    C -->|No| ERR1[Report error: multiple App annotations]
-    C -->|Yes| D{App references main func?}
+    B -->|Yes| C{Multiple App annotations?}
+    C -->|Yes| WARN1[Warn for same-file duplicates; keep first per file]
+    C -->|No| D{App references main func?}
+    WARN1 --> D
     D -->|No| ERR2[Report error: App must reference main]
     D -->|Yes| E[Get all injectables from GlobalRegistry]
     E --> F[Validate all have constructors]
@@ -314,7 +315,7 @@ flowchart TD
 | Requirement | Summary | Components | Interfaces | Flows |
 |-------------|---------|------------|------------|-------|
 | 1.1 | Detect `annotation.App(main)` as bootstrap target | AppDetector | DetectAppAnnotation | Extended Analysis Pipeline |
-| 1.2 | Report error for multiple App annotations | AppDetector, DiagnosticEmitter | ValidateAppCount, EmitMultipleAppError | Bootstrap Generation Detail |
+| 1.2 | Allow multiple App annotations; warn for same-file duplicates | AppDetector, DiagnosticEmitter | DeduplicateAppsByFile, EmitDuplicateAppWarning | Bootstrap Generation Detail |
 | 1.3 | Skip bootstrap when no App annotation | AppDetector | DetectAppAnnotation | Extended Analysis Pipeline |
 | 1.4 | Report error when App references non-main function | AppDetector, DiagnosticEmitter | ValidateMainReference, EmitNonMainError | Bootstrap Generation Detail |
 | 2.1 | Identify structs embedding `annotation.Inject` | InjectDetector | HasInjectAnnotation | Extended Analysis Pipeline |
@@ -378,7 +379,7 @@ flowchart TD
 **Responsibilities and Constraints**
 
 - Traverse AST to find `var _ = annotation.App(main)` declarations
-- Validate that exactly one App annotation exists per package
+- Allow multiple App annotations per package; use the first per file and warn for same-file duplicates
 - Validate that the App annotation references the `main` function
 - Extract position information for diagnostic reporting
 - Boundary: App detection and validation only; does not build dependency graph
@@ -422,7 +423,7 @@ const AppFuncName = "App"
 
 - Preconditions: Pass must have valid AST and TypesInfo
 - Postconditions: Returns AppAnnotation if valid; nil if not present; emits diagnostics for invalid cases
-- Invariants: At most one valid App annotation per package
+- Invariants: App annotations are deduplicated per file; bootstrap generation uses the first detected App annotation
 
 **Implementation Notes**
 
@@ -574,7 +575,7 @@ This ensures consistency between pending constructor parameters and DependencyGr
 - Collect all injectable types (local and imported)
 - Parse constructor function signatures
 - Create edges from dependencies to dependents
-- Filter out non-injectable parameter types (primitives, external types)
+- Treat non-injectable parameter types (primitives, external types) as unresolvable and return a graph build error
 - Validate that all Inject structs have constructors
 - Boundary: Graph construction only; does not sort or detect cycles
 
@@ -592,7 +593,7 @@ This ensures consistency between pending constructor parameters and DependencyGr
 // DependencyGraph builds the dependency graph for injectable types.
 type DependencyGraph interface {
     // BuildGraph constructs the dependency graph from all registered injectables.
-    // Injectables are retrieved from GlobalRegistry.GetAll().
+    // Injectables are retrieved from global injector/provider registries.
     //
     // Returns error if:
     // - An injectable struct lacks both existing and pending constructor (see DD-2)
@@ -603,7 +604,7 @@ type DependencyGraph interface {
     // All errors are returned as UnresolvableTypeError for unified error reporting (see DD-4).
     BuildGraph(
         pass *analysis.Pass,
-        injectables []*InjectableInfo,  // from GlobalRegistry.GetAll()
+        injectables []*InjectableInfo,  // from global injector/provider registries
     ) (*Graph, error)
 }
 
@@ -658,7 +659,7 @@ type Node struct {
 
 **Responsibilities and Constraints**
 
-- Build mapping from interface types to implementing injectable structs
+- Build mapping from interface types to implementing injectable structs using injectable info from global registries
 - Use `types.Implements()` to detect interface implementations
 - Support all injectables from GlobalRegistry
 - Report error when multiple injectables implement the same interface
@@ -678,11 +679,11 @@ type Node struct {
 // InterfaceRegistry maps interface types to their implementing injectable structs.
 type InterfaceRegistry interface {
     // Build constructs the registry from all registered injectables.
-    // Injectables are retrieved from GlobalRegistry.GetAll().
+    // Injectables are retrieved from global injector/provider registries.
     // Uses go/types.Implements() to detect interface implementations.
     Build(
         pass *analysis.Pass,
-        injectables []*InjectableInfo,  // from GlobalRegistry.GetAll()
+        injectables []*InjectableInfo,  // from global injector/provider registries
     ) error
 
     // Resolve finds the injectable struct implementing the given interface.
@@ -925,8 +926,8 @@ Extended `DiagnosticEmitter` with bootstrap-specific methods:
 type DiagnosticEmitter interface {
     // ... existing methods ...
 
-    // EmitMultipleAppError reports multiple annotation.App declarations.
-    EmitMultipleAppError(reporter Reporter, positions []token.Pos)
+// EmitDuplicateAppWarning reports duplicate annotation.App declarations in the same file.
+EmitDuplicateAppWarning(reporter Reporter, pos token.Pos)
 
     // EmitNonMainAppError reports App referencing non-main function.
     EmitNonMainAppError(reporter Reporter, pos token.Pos, funcName string)
@@ -987,7 +988,7 @@ type SuggestedFixBuilder interface {
 
 | Category | Message Template | Example |
 |----------|------------------|---------|
-| Multiple App | `multiple annotation.App declarations in package` | - |
+| Duplicate App (same file) | `another annotation.App in the same package is being applied` | - |
 | Non-main App | `annotation.App must reference main function, got %s` | `annotation.App must reference main function, got init` |
 | Missing constructor | `injectable struct %s requires a constructor (New%s)` | `injectable struct UserService requires a constructor (NewUserService)` |
 | Circular dependency | `circular dependency detected: %s` | `circular dependency detected: A -> B -> C -> A` |
@@ -1055,7 +1056,7 @@ erDiagram
 
 **Business Rules and Invariants**
 
-1. Package must have exactly one `annotation.App(main)` to trigger bootstrap
+1. Package must have at least one `annotation.App(main)` to trigger bootstrap; if multiple exist, the first per file is used
 2. App annotation must reference the `main` function
 3. All injectable structs must have corresponding constructors
 4. Dependency graph must be acyclic
@@ -1107,7 +1108,7 @@ const mainReferenceTemplate = `_ = dependency`
 
 The analyzer follows fail-fast for invalid configurations with graceful degradation for optional features:
 
-1. **Multiple App annotations**: Report error and halt bootstrap generation for package
+1. **Multiple App annotations**: Proceed with bootstrap generation using the first per file; warn for same-file duplicates
 2. **Non-main App reference**: Report error and halt bootstrap generation
 3. **Missing constructor**: Report error for each missing constructor; halt bootstrap if any missing
 4. **Circular dependency**: Report error with cycle path; halt bootstrap generation
@@ -1117,7 +1118,7 @@ The analyzer follows fail-fast for invalid configurations with graceful degradat
 ### Error Categories and Responses
 
 **Configuration Errors (User)**:
-- Multiple App annotations: Report all positions; suggest removing duplicates
+- Multiple App annotations in same file: Report warning positions; suggest removing duplicates
 - Non-main reference: Report position; suggest changing to main function
 - Missing constructor: Report struct position; suggest running with -fix first
 
@@ -1142,9 +1143,9 @@ The analyzer follows fail-fast for invalid configurations with graceful degradat
 Core function testing using standard Go testing:
 
 1. **AppDetector.DetectAppAnnotation**: Valid/invalid App annotation detection
-2. **AppDetector.ValidateAppAnnotation**: Multiple annotations, non-main reference
+2. **AppDetector.ValidateAppAnnotation**: Non-main reference only; duplicates handled via deduplication
 3. **TopologicalSort.Sort**: Various graph topologies, cycle detection
-4. **DependencyGraph.BuildGraph**: Edge construction, non-injectable filtering
+4. **DependencyGraph.BuildGraph**: Edge construction, error on unresolvable non-injectable params
 5. **BootstrapGenerator.DeriveFieldName**: Naming rules, conflict handling
 6. **BootstrapGenerator.CheckBootstrapCurrent**: Idempotency verification
 7. **BootstrapGenerator.IsDependencyReferenced**: Detection of dependency usage in main function (including field access like `dependency.handler`)
@@ -1161,7 +1162,7 @@ Using `analysistest.Run` for analyzer behavior:
 
 1. **App detection**: Package with valid App annotation triggers bootstrap
 2. **No App**: Package without App annotation skips bootstrap
-3. **Multiple App**: Error reported for multiple annotations
+3. **Multiple App**: Warning for same-file duplicates; bootstrap still generated
 4. **Cross-package**: Injectables registered from all packages via GlobalRegistry
 5. **Circular dependency**: Cycle detected and reported with path
 6. **Empty graph**: Empty bootstrap generated when no injectables
