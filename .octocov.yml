@@ -11,6 +11,7 @@ coverage:
 codeToTestRatio:
   code:
     - '**/*.go'
+    - '!cmd/**/*.go'
     - '!pkg/*.go'
     - '!**/*_test.go'
   test:
