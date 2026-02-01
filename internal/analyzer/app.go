@@ -149,8 +149,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 
 	// Wait for all packages with timeout
 	if len(allPkgPaths) > 0 {
-		ctx, cancel := context.WithTimeout(context.Background(), DefaultPackageWaitTimeout)
-		defer cancel()
+		ctx := context.Background()
 
 		if err := r.packageTracker.WaitForAllPackagesWithContext(ctx, allPkgPaths); err != nil {
 			// Emit timeout warning diagnostic but continue

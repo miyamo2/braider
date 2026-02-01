@@ -353,76 +353,6 @@ func (b *suggestedFixBuilder) calculateBootstrapReplacementRange(genDecl *ast.Ge
 	return start, end
 }
 
-// findExistingBlankDependencyAssignment finds an existing "_ = dependency" statement in main function.
-// Returns the assignment statement node if found, nil otherwise.
-//
-// TODO: This method is reserved for future use in BuildBootstrapReplacementFix
-// to properly handle updating bootstrap code when "_ = dependency" already exists.
-func (b *suggestedFixBuilder) findExistingBlankDependencyAssignment(mainFunc *ast.FuncDecl) *ast.AssignStmt {
-	if mainFunc == nil || mainFunc.Body == nil {
-		return nil
-	}
-
-	var found *ast.AssignStmt
-	ast.Inspect(mainFunc.Body, func(n ast.Node) bool {
-		if found != nil {
-			return false // Already found, stop searching
-		}
-
-		assignStmt, ok := n.(*ast.AssignStmt)
-		if !ok {
-			return true
-		}
-
-		// Check for "_ = dependency" pattern
-		if len(assignStmt.Lhs) == 1 && len(assignStmt.Rhs) == 1 {
-			if lhsIdent, ok := assignStmt.Lhs[0].(*ast.Ident); ok {
-				if lhsIdent.Name == "_" {
-					if rhsIdent, ok := assignStmt.Rhs[0].(*ast.Ident); ok {
-						if rhsIdent.Name == "dependency" {
-							found = assignStmt
-							return false
-						}
-					}
-				}
-			}
-		}
-
-		return true
-	})
-
-	return found
-}
-
-// findExistingImports scans the file for existing import declarations.
-// Returns the last import GenDecl (for determining insertion position) and a set of existing import paths.
-func (b *suggestedFixBuilder) findExistingImports(file *ast.File) (*ast.GenDecl, map[string]bool) {
-	existingPaths := make(map[string]bool)
-	var lastImportDecl *ast.GenDecl
-
-	for _, decl := range file.Decls {
-		genDecl, ok := decl.(*ast.GenDecl)
-		if !ok || genDecl.Tok != token.IMPORT {
-			continue
-		}
-
-		lastImportDecl = genDecl
-
-		for _, spec := range genDecl.Specs {
-			importSpec, ok := spec.(*ast.ImportSpec)
-			if !ok {
-				continue
-			}
-
-			// Strip quotes from import path
-			path := strings.Trim(importSpec.Path.Value, `"`)
-			existingPaths[path] = true
-		}
-	}
-
-	return lastImportDecl, existingPaths
-}
-
 // collectAllExistingImports scans all import declarations and returns:
 // - allImportDecls: slice of all GenDecl nodes with Tok == token.IMPORT
 // - importPaths: set of all imported package paths (deduplicated)
@@ -496,43 +426,6 @@ func (b *suggestedFixBuilder) hasImportDiff(existingPaths map[string]bool, sorte
 	}
 
 	return false // All imports already exist, no diff
-}
-
-// filterNewImports returns imports that don't already exist in the file.
-func (b *suggestedFixBuilder) filterNewImports(requiredImports []string, existing map[string]bool) []string {
-	var newImports []string
-	for _, imp := range requiredImports {
-		if !existing[imp] {
-			newImports = append(newImports, imp)
-		}
-	}
-	return newImports
-}
-
-// buildImportDeclaration generates gofmt-compliant import declaration.
-// Returns formatted string like:
-//
-//	import "pkg"  (single import)
-//	import (      (multiple imports)
-//	    "pkg1"
-//	    "pkg2"
-//	)
-func (b *suggestedFixBuilder) buildImportDeclaration(imports []string) string {
-	if len(imports) == 0 {
-		return ""
-	}
-
-	if len(imports) == 1 {
-		return fmt.Sprintf("import %q\n", imports[0])
-	}
-
-	var sb strings.Builder
-	sb.WriteString("import (\n")
-	for _, imp := range imports {
-		fmt.Fprintf(&sb, "\t%q\n", imp)
-	}
-	sb.WriteString(")\n")
-	return sb.String()
 }
 
 // buildUnifiedImportBlock generates a unified import block.
