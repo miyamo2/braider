@@ -165,8 +165,7 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Add method for reporting missing constructor errors
   - Add method for reporting circular dependency errors with full path
   - Add method for reporting ambiguous interface implementation errors
-  - Add method for reporting unresolved interface dependency errors
-  - Add method for reporting unresolvable constructor parameter errors
+  - Add method for reporting graph build errors (generic error reporting for graph construction failures including unresolved interfaces and unresolvable parameters)
   - Include source position in all error messages
   - Provide descriptive messages explaining issue and resolution
   - _Requirements: 8.1, 8.2_
@@ -278,44 +277,44 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Verify import statements generated for external package types
   - _Requirements: 2.3, 7.4, 9.1_
 
-- [ ] 10.5 Add integration test for circular dependency detection
+- [x] 10.5 Add integration test for circular dependency detection
   - Test cycle detected and reported with full path
   - Verify error message includes all types in cycle
   - _Requirements: 4.1, 4.3_
 
-- [ ] 10.6 Add integration test for empty dependency graph
+- [x] 10.6 Add integration test for empty dependency graph
   - Test empty bootstrap generated when no providers or injectors
   - Verify no errors for valid but empty configuration
   - _Requirements: 5.3_
 
-- [ ] 10.7 Add integration test for idempotent behavior
+- [x] 10.7 Add integration test for idempotent behavior
   - Test no diagnostic when bootstrap is current
   - Test hash comparison correctly identifies unchanged state
   - _Requirements: 6.5_
 
-- [ ] 10.8 Add integration test for dependency already referenced in main
+- [x] 10.8 Add integration test for dependency already referenced in main
   - Test _ = dependency not added when dependency is already used
   - Verify detection works for field access patterns
   - _Requirements: 6.3_
 
-- [ ] 10.9 Add integration test for interface dependency resolution
+- [x] 10.9 Add integration test for interface dependency resolution
   - Test interface parameter resolved to implementing provider or injector
   - Verify correct type passed to constructor in generated code
   - _Requirements: 3.5_
 
-- [ ] 10.10 Add integration test for ambiguous interface implementation
+- [x] 10.10 Add integration test for ambiguous interface implementation
   - Test error reported when multiple structs implement same interface
   - Verify error message lists all conflicting implementations
   - _Requirements: 3.6_
 
-- [ ] 10.11 Add integration test for cross-package interface resolution
+- [x] 10.11 Add integration test for cross-package interface resolution
   - Test interface defined in one package with implementation in another
   - Verify resolution works via global registry
   - _Requirements: 3.8_
 
-- [ ] 10.12 Add integration test for unresolved interface dependency
-  - Test error reported when interface parameter has no implementation
-  - Verify error message suggests adding annotation.Provide
+- [x] 10.12 Add integration test for unresolved interface dependency
+  - Test error reported via EmitGraphBuildError when interface parameter has no implementation
+  - Verify error message includes unresolved interface type
   - _Requirements: 3.7_
 
 - [x] 10.13 Add integration test for single-pass constructor and bootstrap generation
@@ -323,22 +322,22 @@ This implementation plan covers the bootstrap-with-app-annotation feature for br
   - Verify channel synchronization ensures all packages scanned
   - _Requirements: 9.2, 9.3_
 
-- [ ] 10.14 Add integration test for module-wide discovery
+- [x] 10.14 Add integration test for module-wide discovery
   - Test all providers and injectors discovered without explicit imports in main
   - Verify bootstrap includes all annotated structs from module
   - _Requirements: 2.3, 9.1_
 
-- [ ] 10.15 Add integration test for unresolvable constructor parameter
-  - Test error reported when constructor parameter cannot be resolved
-  - Verify error message identifies the unresolvable type
+- [x] 10.15 Add integration test for unresolvable constructor parameter
+  - Test error reported via EmitGraphBuildError when constructor parameter cannot be resolved
+  - Verify error message identifies the unresolvable dependency type
   - _Requirements: 3.3_
 
-- [ ] 10.16 Add integration test for bootstrap update when outdated
+- [x] 10.16 Add integration test for bootstrap update when outdated
   - Test diagnostic emitted with SuggestedFix for outdated bootstrap
   - Verify updated bootstrap reflects current dependency graph
   - _Requirements: 6.6_
 
-- [ ] 10.17 Add integration test for missing constructor error
+- [x] 10.17 Add integration test for missing constructor error
   - Test error reported when Provide struct lacks constructor
   - Verify error message identifies the struct requiring constructor
   - _Requirements: 2.4_

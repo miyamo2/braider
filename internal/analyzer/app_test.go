@@ -375,7 +375,6 @@ func TestAppAnalyzer_IdempotentBehavior(t *testing.T) {
 // The test fixture design (referencing non-existent dependency variable) causes
 // compilation errors that are incompatible with analysistest framework.
 func TestAppAnalyzer_DependencyAlreadyReferenced(t *testing.T) {
-	t.Skip("Skipped - logic covered by unit tests in internal/generate/ast_util_test.go")
 	providerRegistry, injectorRegistry, packageLoader, packageTracker, appDetector, graphBuilder, sorter,
 		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
 

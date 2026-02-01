@@ -109,18 +109,22 @@ func (s *TopologicalSorter) insertSorted(slice []string, node string) []string {
 // findCycle reconstructs a cycle path from remaining nodes with non-zero in-degree.
 func (s *TopologicalSorter) findCycle(graph *Graph, inDegrees map[string]int) []string {
 	// Find a node that's part of the cycle (non-zero in-degree)
-	var startNode string
+	// Sort candidates alphabetically for deterministic cycle paths
+	var candidates []string
 	for typeName, degree := range inDegrees {
 		if degree > 0 {
-			startNode = typeName
-			break
+			candidates = append(candidates, typeName)
 		}
 	}
 
-	if startNode == "" {
+	if len(candidates) == 0 {
 		// This shouldn't happen if caller detected cycle correctly
 		return []string{}
 	}
+
+	// Sort alphabetically to ensure deterministic starting node
+	sort.Strings(candidates)
+	startNode := candidates[0]
 
 	// Use DFS to find the cycle path starting from this node
 	visited := make(map[string]bool)

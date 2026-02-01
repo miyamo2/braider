@@ -111,6 +111,9 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		if node == nil {
 			continue
 		}
+		if len(node.ConstructorName) == 0 {
+			return nil, fmt.Errorf("injectable struct %s requires a constructor", typeName)
+		}
 
 		// Determine variable name
 		varName := ""

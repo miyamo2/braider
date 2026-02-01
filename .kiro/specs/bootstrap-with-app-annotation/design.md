@@ -55,11 +55,44 @@ When a constructor parameter is an interface type, an injectable struct implemen
 
 **Rationale**: Interface parameters without injectable implementations indicate either a missing `annotation.Inject` marker or an architectural issue that should be addressed before bootstrap generation.
 
-#### DD-4: Unresolvable Constructor Parameters
+#### DD-4: Unified Graph Error Transformation
 
-If any constructor parameter cannot be resolved to an injectable type (whether interface without implementation or concrete non-injectable type like `*sql.DB`), bootstrap generation halts with an error. This applies uniformly regardless of whether the unresolvable type is internal or external.
+When dependency graph construction encounters specific error types (such as `UnresolvedInterfaceError` or `UnresolvableTypeError`), they are intentionally transformed into a generic `UnresolvableTypeError` before being reported via `EmitGraphBuildError`. This design centralizes all graph construction failures into a single error reporting path with consistent formatting.
 
-**Rationale**: Consistent with DD-2 and DD-3, the analyzer follows a fail-fast approach. Partial bootstrap generation would produce code that cannot compile. Clear error messages guide users to either add `annotation.Inject` to the dependency or restructure their code.
+**Error Transformation Flow**:
+```
+UnresolvedInterfaceError{InterfaceType: "io.Reader"}
+  ↓ (dependency_graph.go:200-211で変換)
+UnresolvableTypeError{TypeName: "io.Reader"}
+  ↓ (app.go:170でラップ)
+EmitGraphBuildError("unresolvable dependency type: io.Reader")
+  ↓ (diagnostic.go:205でフォーマット)
+"failed to build dependency graph: unresolvable dependency type: io.Reader"
+```
+
+**Example**: When `NewMyWriter(reader io.Reader)` is encountered but no injectable implements `io.Reader`:
+1. `InterfaceRegistry.Resolve()` returns `UnresolvedInterfaceError{InterfaceType: "io.Reader"}`
+2. `DependencyGraph.BuildGraph()` transforms it to `UnresolvableTypeError{TypeName: "io.Reader"}`
+3. `AppAnalyzer` wraps it and calls `EmitGraphBuildError`
+4. User sees: `"failed to build dependency graph: unresolvable dependency type: io.Reader"`
+
+**Rationale and Trade-offs**:
+
+*Benefits*:
+1. **Single code path**: AppAnalyzer has one error handling path for all graph build failures
+2. **Consistent UX**: All graph errors presented with same format and prefix
+3. **Simplified testing**: Fewer error message variations to test and maintain
+4. **Domain separation**: Graph domain owns error types; reporting domain owns message formatting
+
+*Costs*:
+1. **Reduced specificity**: Users don't see detailed suggestions like "add annotation.Inject to implementing struct"
+2. **Manual diagnosis**: Users must inspect constructor parameters to determine if issue is interface or concrete type
+
+*Why acceptable*:
+- Error message includes type name, making it diagnosable
+- Users can inspect constructor to understand the issue
+- Implementation simplicity outweighs diagnostic convenience
+- Go analyzer conventions prioritize correctness over verbose guidance
 
 #### DD-5: Single-Pass Constructor and Bootstrap Generation
 
@@ -290,11 +323,11 @@ flowchart TD
 | 2.4 | Report error when Inject struct lacks constructor | DependencyGraph, DiagnosticEmitter | ValidateConstructors | Bootstrap Generation Detail |
 | 3.1 | Extract constructor parameter types | DependencyGraph | BuildGraph | Extended Analysis Pipeline |
 | 3.2 | Add dependency edges for injectable params | DependencyGraph | AddDependencyEdge | Extended Analysis Pipeline |
-| 3.3 | Exclude non-injectable types from graph | DependencyGraph | BuildGraph | Bootstrap Generation Detail |
+| 3.3 | Exclude non-injectable types from graph | DependencyGraph | BuildGraph (returns error) | Bootstrap Generation Detail |
 | 3.4 | Use first return value as provided type | DependencyGraph | ResolveReturnType | Bootstrap Generation Detail |
 | 3.5 | Resolve interface to implementing injectable | InterfaceRegistry, DependencyGraph | Resolve, BuildGraph | Bootstrap Generation Detail |
 | 3.6 | Report error for multiple implementations | InterfaceRegistry, DiagnosticEmitter | Resolve, EmitAmbiguousImplementationError | Bootstrap Generation Detail |
-| 3.7 | Report error for unresolved interface dependency | InterfaceRegistry, DiagnosticEmitter | Resolve, EmitUnresolvedInterfaceError | Bootstrap Generation Detail |
+| 3.7 | Report error for unresolved interface dependency | DependencyGraph, DiagnosticEmitter | BuildGraph, EmitGraphBuildError | Bootstrap Generation Detail |
 | 3.8 | Cross-package interface resolution via Registry | InterfaceRegistry, InjectableRegistry | Build, GetAll | Extended Analysis Pipeline |
 | 4.1 | Report error with cycle path | CycleDetector, DiagnosticEmitter | DetectCycle, EmitCircularDependency | Bootstrap Generation Detail |
 | 4.2 | Proceed when no cycles | TopologicalSort | Sort | Extended Analysis Pipeline |
@@ -565,6 +598,9 @@ type DependencyGraph interface {
     // - An injectable struct lacks both existing and pending constructor (see DD-2)
     // - An interface parameter has no injectable implementation (see DD-3)
     // - Multiple injectable structs implement the same required interface
+    // - A constructor parameter cannot be resolved to an injectable type
+    //
+    // All errors are returned as UnresolvableTypeError for unified error reporting (see DD-4).
     BuildGraph(
         pass *analysis.Pass,
         injectables []*InjectableInfo,  // from GlobalRegistry.GetAll()
@@ -601,13 +637,16 @@ type Node struct {
   - If constructor missing (neither on disk nor pending), return error (see DD-2)
 - Constructor validation: For each injectable, verify constructor exists (on disk or pending via IsPending flag); halt with error if missing
 - Edge construction: Parse constructor parameters (from existing or pending), filter for injectable types
-- **Interface resolution** (see DD-3): For interface-typed parameters:
+- **Interface resolution** (see DD-3, DD-4): For interface-typed parameters:
   1. Use InterfaceRegistry to find implementing injectable
   2. If found → add dependency edge
-  3. If not found → return error (do not exclude from graph)
+  3. If not found → InterfaceRegistry returns `UnresolvedInterfaceError`
+  4. Transform `UnresolvedInterfaceError` to `UnresolvableTypeError` for unified reporting
+  5. Return `UnresolvableTypeError` which gets wrapped by AppAnalyzer and reported via `EmitGraphBuildError`
 - **Concrete type handling** (see DD-4): For non-injectable concrete type parameters:
   1. If type is injectable → add dependency edge
-  2. If type is not injectable → return error (fail-fast, no partial bootstrap)
+  2. If type is not injectable → return `UnresolvableTypeError` (fail-fast, no partial bootstrap)
+- **Error transformation** (see DD-4): All error types from InterfaceRegistry and parameter validation are transformed to `UnresolvableTypeError` before returning to AppAnalyzer. This ensures a single error reporting path with consistent message formatting.
 - Risks: Must handle imported types with different import aliases; must correctly identify pending vs. existing constructors
 
 #### InterfaceRegistry
@@ -833,7 +872,7 @@ type GeneratedBootstrap struct {
 - Import collection: Track external package paths for types
 - Risks: Complex type expressions (generics) may require special handling
 - Reference detection: `IsDependencyReferenced` walks main function body using `ast.Inspect`, looking for `ast.Ident` or `ast.SelectorExpr` that references `dependency`. It excludes blank identifier assignments (`_ = dependency`) from consideration to avoid false positives from braider's own generated code.
-- **Unresolvable parameter validation**: Before adding an injectable to the graph, verify all constructor parameters are resolvable (either injectable types or interface types with injectable implementations). If any parameter cannot be resolved (see DD-4), halt bootstrap generation and emit an error diagnostic.
+- **Graph build error handling**: When `DependencyGraphBuilder.BuildGraph()` returns an error (including unresolvable types, missing constructors, or circular dependencies), AppAnalyzer catches the error and calls `EmitGraphBuildError` with the error message. This provides users with descriptive feedback about graph construction failures.
 
 ##### Generated Code Structure
 
@@ -895,11 +934,15 @@ type DiagnosticEmitter interface {
     // EmitMissingConstructorError reports Inject struct without constructor.
     EmitMissingConstructorError(reporter Reporter, pos token.Pos, typeName string)
 
-    // EmitAmbiguousImplementationError reports multiple injectable structs implementing same interface.
-    EmitAmbiguousImplementationError(reporter Reporter, pos token.Pos, ifaceType string, implementations []string)
-
-    // EmitUnresolvableParameterError reports constructor parameter that cannot be resolved (see DD-4).
-    EmitUnresolvableParameterError(reporter Reporter, pos token.Pos, constructorName, paramName, paramType string)
+    // EmitGraphBuildError reports dependency graph construction errors.
+    // This is the unified error reporting method for all graph build failures including:
+    // - Unresolved interface dependencies (transformed from UnresolvedInterfaceError)
+    // - Unresolvable constructor parameters (UnresolvableTypeError)
+    // - Ambiguous interface implementations (AmbiguousImplementationError)
+    // - Circular dependencies (CycleError)
+    // The message parameter contains the pre-formatted error description from the graph domain.
+    // This method wraps it with the "failed to build dependency graph: " prefix for consistent UX (see DD-4).
+    EmitGraphBuildError(reporter Reporter, pos token.Pos, message string)
 
     // EmitBootstrapFix reports bootstrap code generation.
     EmitBootstrapFix(reporter Reporter, pos token.Pos, fix analysis.SuggestedFix)
@@ -948,10 +991,10 @@ type SuggestedFixBuilder interface {
 | Non-main App | `annotation.App must reference main function, got %s` | `annotation.App must reference main function, got init` |
 | Missing constructor | `injectable struct %s requires a constructor (New%s)` | `injectable struct UserService requires a constructor (NewUserService)` |
 | Circular dependency | `circular dependency detected: %s` | `circular dependency detected: A -> B -> C -> A` |
-| Ambiguous implementation | `multiple injectable structs implement interface %s: %s` | `multiple injectable structs implement interface pkg.IUserRepository: UserRepositoryA, UserRepositoryB` |
-| Unresolved interface | `no injectable struct implements interface %s; add annotation.Inject to an implementing struct or change parameter to concrete type` | `no injectable struct implements interface io.Reader; add annotation.Inject to an implementing struct or change parameter to concrete type` |
-| Unresolvable parameter | `constructor parameter %s of type %s in %s cannot be resolved; the type must be injectable or an interface with an injectable implementation` | `constructor parameter db of type *sql.DB in NewUserRepository cannot be resolved; the type must be injectable or an interface with an injectable implementation` |
-| Bootstrap available | `missing bootstrap code for annotation.App` | - |
+| Unresolvable dependency (interface) | `failed to build dependency graph: unresolvable dependency type: %s` | `failed to build dependency graph: unresolvable dependency type: io.Reader` |
+| Unresolvable dependency (concrete) | `failed to build dependency graph: unresolvable dependency type: %s` | `failed to build dependency graph: unresolvable dependency type: database/sql.DB` |
+| Ambiguous implementation | `failed to build dependency graph: multiple injectable structs implement interface %s: %s` | `failed to build dependency graph: multiple injectable structs implement interface pkg.IUserRepository: UserRepositoryA, UserRepositoryB` |
+| Bootstrap available | `bootstrap code is missing` | - |
 | Bootstrap outdated | `bootstrap code is outdated` | - |
 
 ## Data Models
@@ -1069,8 +1112,7 @@ The analyzer follows fail-fast for invalid configurations with graceful degradat
 3. **Missing constructor**: Report error for each missing constructor; halt bootstrap if any missing
 4. **Circular dependency**: Report error with cycle path; halt bootstrap generation
 5. **Empty graph**: Proceed with empty bootstrap block (not an error)
-6. **Unresolved interface**: Report error for interface parameter without injectable implementation; halt bootstrap generation (see DD-3)
-7. **Unresolvable parameter**: Report error for constructor parameter that cannot be resolved to injectable type; halt bootstrap generation (see DD-4)
+6. **Graph build errors**: Report error via `EmitGraphBuildError` for any graph construction failure including unresolved interfaces, unresolvable constructor parameters, or other dependency resolution issues; halt bootstrap generation (see DD-4)
 
 ### Error Categories and Responses
 
@@ -1078,11 +1120,10 @@ The analyzer follows fail-fast for invalid configurations with graceful degradat
 - Multiple App annotations: Report all positions; suggest removing duplicates
 - Non-main reference: Report position; suggest changing to main function
 - Missing constructor: Report struct position; suggest running with -fix first
-- Unresolved interface: Report interface type and parameter position; suggest adding annotation.Inject to an implementing struct
-- Unresolvable parameter: Report parameter type and constructor; suggest making the type injectable or restructuring dependencies
 
 **Graph Errors (Logic)**:
 - Circular dependency: Report cycle path; suggest refactoring dependencies
+- Graph build errors: Report via `EmitGraphBuildError` with error context from graph builder; includes unresolved interfaces, unresolvable constructor parameters, and other dependency resolution failures
 
 **Generation Errors (Internal)**:
 - Code formatting failure: Report as bug with generated code snippet
@@ -1129,10 +1170,11 @@ Using `analysistest.Run` for analyzer behavior:
 9. **Interface resolution**: Interface parameter resolved to implementing injectable
 10. **Ambiguous interface**: Error reported when multiple implementations exist
 11. **Cross-package interface**: Interface in one package, implementation in another
-12. **Unresolved interface**: Error reported when interface parameter has no injectable implementation
+12. **Unresolved interface**: Error reported via `EmitGraphBuildError` when interface parameter has no injectable implementation
 13. **Single-pass constructor+bootstrap**: Constructor generation and bootstrap generation work in single `go vet -fix` invocation
 14. **Pending constructor dependency resolution**: Bootstrap correctly references constructors marked as IsPending in InjectableInfo
 15. **Module-wide discovery**: All injectables discovered via GlobalRegistry without explicit imports in main
+16. **Unresolvable parameter**: Error reported via `EmitGraphBuildError` when constructor parameter cannot be resolved to injectable type
 
 ### Golden File Tests
 
@@ -1349,7 +1391,7 @@ var dependency = func() struct {
 }()
 ```
 
-**Note**: The bootstrap code includes import statements for cross-package types. Injectable structs with external type constructor parameters (e.g., `*sql.DB`) cause bootstrap generation to halt with an error per DD-4.
+**Note**: The bootstrap code includes import statements for cross-package types. Injectable structs with external type constructor parameters (e.g., `*sql.DB`) cause graph construction to fail, and the error is reported via `EmitGraphBuildError` per DD-4.
 
 #### Example Test Case: Dependency Already Used
 
@@ -1650,7 +1692,7 @@ package main
 
 import "github.com/miyamo2/braider/pkg/annotation"
 
-var _ = annotation.App(main) // want "constructor parameter db of type \\*sql.DB in NewUserRepository cannot be resolved"
+var _ = annotation.App(main) // want "failed to build dependency graph: unresolvable dependency type: database/sql.DB"
 
 func main() {}
 ```
@@ -1694,7 +1736,7 @@ func NewUserService(repo *repository.UserRepository) *UserService {
 }
 ```
 
-**Note**: In this example, `repository.UserRepository` has a constructor parameter `db` of type `*sql.DB` which is not an injectable type. Per DD-4, bootstrap generation halts with an error. This is an error case with no golden file (no code changes expected).
+**Note**: In this example, `repository.UserRepository` has a constructor parameter `db` of type `*sql.DB` which is not an injectable type. Per DD-4, the graph builder returns an error which is reported via `EmitGraphBuildError`. Bootstrap generation halts with a generic graph build error. This is an error case with no golden file (no code changes expected).
 
 ### Performance Tests
 
