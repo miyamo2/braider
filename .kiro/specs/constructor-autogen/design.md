@@ -892,7 +892,7 @@ Using `analysistest.RunWithSuggestedFixes` for output verification:
 #### Test Directory Structure
 
 ```
-internal/testdata/src/
+internal/testdata/bootstrapgen/
   constructorgen/
     simple.go           # Simple struct with Inject embedding
     simple.go.golden    # Expected output after fix

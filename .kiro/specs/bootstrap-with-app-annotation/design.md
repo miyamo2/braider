@@ -1196,7 +1196,7 @@ Using `analysistest.RunWithSuggestedFixes` for output verification:
 All test cases use realistic multi-package architectures. Each test case follows a layered structure with separate packages for domain, repository, and service layers.
 
 ```
-internal/testdata/src/
+internal/testdata/bootstrapgen/
   bootstrap/
     simple/
       main.go                 # annotation.App(main) only

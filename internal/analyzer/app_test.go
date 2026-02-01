@@ -91,7 +91,7 @@ func TestAppAnalyzer_NoAppAnnotation(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/noapp", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/noapp", analyzer, ".")
 }
 
 // TestAppAnalyzer_DetectsAppAnnotation tests that the analyzer detects
@@ -120,7 +120,7 @@ func TestAppAnalyzer_DetectsAppAnnotation(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/simpleapp", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/simpleapp", analyzer, ".")
 }
 
 // TestAppAnalyzer_WaitsForAllPackages tests that the analyzer waits for
@@ -153,7 +153,7 @@ func TestAppAnalyzer_WaitsForAllPackages(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/simpleapp", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/simpleapp", analyzer, ".")
 }
 
 // TestAppAnalyzer_SamefileAppAnnotations tests that multiple App annotations
@@ -181,7 +181,7 @@ func TestAppAnalyzer_SamefileAppAnnotations(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/samefileapp", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/samefileapp", analyzer, ".")
 }
 
 // TestAppAnalyzer_NonMainReference tests that App annotation referencing
@@ -197,7 +197,7 @@ func TestAppAnalyzer_NonMainReference(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/nonmainapp", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/nonmainapp", analyzer, ".")
 }
 
 // TestAppAnalyzer_RetrievesProvidersAndInjectors tests that the analyzer
@@ -238,7 +238,7 @@ func TestAppAnalyzer_RetrievesProvidersAndInjectors(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/simpleapp", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/simpleapp", analyzer, ".")
 }
 
 // TestAppAnalyzer_MultipleEntryPoints tests that multiple App annotations
@@ -280,7 +280,7 @@ func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
 	)
 
 	// Test both packages
-	analysistest.Run(t, "testdata/src/multipleapp", analyzer, "./cmd/1", "./cmd/2")
+	analysistest.Run(t, "testdata/bootstrapgen/multipleapp", analyzer, "./cmd/1", "./cmd/2")
 }
 
 // TestAppAnalyzer_CircularDependency tests that circular dependencies
@@ -321,7 +321,7 @@ func TestAppAnalyzer_CircularDependency(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/circular", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/circular", analyzer, ".")
 }
 
 // TestAppAnalyzer_EmptyGraph tests that an empty bootstrap is generated
@@ -337,7 +337,7 @@ func TestAppAnalyzer_EmptyGraph(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/emptygraph", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/emptygraph", analyzer, ".")
 }
 
 // TestAppAnalyzer_IdempotentBehavior tests that no diagnostic is emitted
@@ -365,39 +365,7 @@ func TestAppAnalyzer_IdempotentBehavior(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/idempotent", analyzer, ".")
-}
-
-// TestAppAnalyzer_DependencyAlreadyReferenced tests that _ = dependency
-// is not added when the dependency variable is already referenced in main.
-// NOTE: This integration test is skipped because IsDependencyReferenced logic
-// is already thoroughly tested in internal/generate/ast_util_test.go.
-// The test fixture design (referencing non-existent dependency variable) causes
-// compilation errors that are incompatible with analysistest framework.
-func TestAppAnalyzer_DependencyAlreadyReferenced(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register a service that will be referenced in main
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "depused.UserService",
-			PackagePath:     "depused",
-			LocalName:       "UserService",
-			ConstructorName: "NewUserService",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("depused")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/src/depused", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/idempotent", analyzer, ".")
 }
 
 // TestAppAnalyzer_InterfaceResolution tests that interface parameters
@@ -438,7 +406,7 @@ func TestAppAnalyzer_InterfaceResolution(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/iface", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/iface", analyzer, ".")
 }
 
 // TestAppAnalyzer_AmbiguousInterface tests that an error is reported
@@ -491,7 +459,7 @@ func TestAppAnalyzer_AmbiguousInterface(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/ambiguous", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/ambiguous", analyzer, ".")
 }
 
 // TestAppAnalyzer_CrossPackageInterface tests that interface resolution
@@ -532,7 +500,7 @@ func TestAppAnalyzer_CrossPackageInterface(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/crossiface", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/crossiface", analyzer, ".")
 }
 
 // TestAppAnalyzer_UnresolvedInterface tests that an error is reported
@@ -560,7 +528,7 @@ func TestAppAnalyzer_UnresolvedInterface(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/unresiface", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/unresiface", analyzer, ".")
 }
 
 // TestAppAnalyzer_ModuleWideDiscovery tests that all injectors and providers
@@ -612,7 +580,7 @@ func TestAppAnalyzer_ModuleWideDiscovery(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/modulewide", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/modulewide", analyzer, ".")
 }
 
 // TestAppAnalyzer_UnresolvableParameter tests that an error is reported
@@ -640,7 +608,7 @@ func TestAppAnalyzer_UnresolvableParameter(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/unresparam", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/unresparam", analyzer, ".")
 }
 
 // TestAppAnalyzer_BootstrapUpdate tests that a diagnostic is emitted
@@ -680,7 +648,7 @@ func TestAppAnalyzer_BootstrapUpdate(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/outdated", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/outdated", analyzer, ".")
 }
 
 // TestAppAnalyzer_MissingConstructor tests that an error is reported
@@ -710,7 +678,7 @@ func TestAppAnalyzer_MissingConstructor(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/missingctor", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/missingctor", analyzer, ".")
 }
 
 // Golden File Tests (Task 11.1-11.5)
@@ -740,7 +708,7 @@ func TestGoldenFile_BasicSinglePackage(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.RunWithSuggestedFixes(t, "testdata/src/basic", analyzer, ".")
+	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/basic", analyzer, ".")
 }
 
 // TestGoldenFile_MultiTypeCrossPackage tests multi-type cross-package bootstrap with Inject/Provide distinction.
@@ -805,7 +773,7 @@ func TestGoldenFile_MultiTypeCrossPackage(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.RunWithSuggestedFixes(t, "testdata/src/multitype", analyzer, ".")
+	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/multitype", analyzer, ".")
 }
 
 // TestGoldenFile_InterfaceDependency tests interface dependency resolution.
@@ -846,7 +814,7 @@ func TestGoldenFile_InterfaceDependency(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.RunWithSuggestedFixes(t, "testdata/src/ifacedep", analyzer, ".")
+	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/ifacedep", analyzer, ".")
 }
 
 // TestGoldenFile_DependencyAlreadyUsed tests that _ = dependency is not added when already referenced.
@@ -874,7 +842,7 @@ func TestGoldenFile_DependencyAlreadyUsed(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.RunWithSuggestedFixes(t, "testdata/src/depinuse", analyzer, ".")
+	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/depinuse", analyzer, ".")
 }
 
 // Error Scenario Tests (Task 11.5)
@@ -916,22 +884,35 @@ func TestGoldenFile_CircularDependency(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/circulardep", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/circulardep", analyzer, ".")
 }
 
 // TestGoldenFile_MultipleAppAnnotations tests multiple App annotation error reporting.
 // Task 11.5b: Create test fixtures for multiple App annotations
+// This test uses samefileapp which provides comprehensive coverage of multiple App annotations
 func TestGoldenFile_MultipleAppAnnotations(t *testing.T) {
 	providerRegistry, injectorRegistry, packageLoader, packageTracker, appDetector, graphBuilder, sorter,
 		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
 
-	packageTracker.MarkPackageScanned("example.com/multiapp")
+	// Register a test injector so the graph is not empty
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/samefileapp.Service",
+			PackagePath:     "example.com/samefileapp",
+			LocalName:       "Service",
+			ConstructorName: "NewService",
+			Dependencies:    []string{},
+			IsPending:       false,
+		},
+	)
+
+	packageTracker.MarkPackageScanned("example.com/samefileapp")
 
 	analyzer := createAppAnalyzer(
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/multiapp", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/samefileapp", analyzer, ".")
 }
 
 // TestGoldenFile_AmbiguousInterface tests ambiguous interface implementation error reporting.
@@ -984,7 +965,7 @@ func TestGoldenFile_AmbiguousInterface(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/ambiguousiface", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/ambiguousiface", analyzer, ".")
 }
 
 // TestGoldenFile_UnresolvedInterface tests unresolved interface error reporting.
@@ -993,14 +974,14 @@ func TestGoldenFile_UnresolvedInterface(t *testing.T) {
 	providerRegistry, injectorRegistry, packageLoader, packageTracker, appDetector, graphBuilder, sorter,
 		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
 
-	// Register Inject struct with unresolvable interface dependency
+	// Register Inject struct with unresolvable project-internal interface dependency
 	injectorRegistry.Register(
 		&registry.InjectorInfo{
 			TypeName:        "example.com/unresolvedif/writer.MyWriter",
 			PackagePath:     "example.com/unresolvedif/writer",
 			LocalName:       "MyWriter",
 			ConstructorName: "NewMyWriter",
-			Dependencies:    []string{"io.Reader"},
+			Dependencies:    []string{"example.com/unresolvedif/writer.MyInterface"},
 			Implements:      []string{},
 			IsPending:       false,
 		},
@@ -1012,7 +993,7 @@ func TestGoldenFile_UnresolvedInterface(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/unresolvedif", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/unresolvedif", analyzer, ".")
 }
 
 // TestGoldenFile_UnresolvableParameter tests unresolvable parameter error reporting.
@@ -1052,7 +1033,7 @@ func TestGoldenFile_UnresolvableParameter(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.Run(t, "testdata/src/unresolvedparam", analyzer, ".")
+	analysistest.Run(t, "testdata/bootstrapgen/unresolvedparam", analyzer, ".")
 }
 
 // TestGoldenFile_DependencyBlankIdentifier tests that _ = dependency is not duplicated
@@ -1093,7 +1074,7 @@ func TestGoldenFile_DependencyBlankIdentifier(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.RunWithSuggestedFixes(t, "testdata/src/depblank", analyzer, ".")
+	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/depblank", analyzer, ".")
 }
 
 // TestGoldenFile_CrossPackageImports tests that import statements are correctly added
@@ -1135,7 +1116,7 @@ func TestGoldenFile_CrossPackageImports(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.RunWithSuggestedFixes(t, "testdata/src/crosspackage", analyzer, ".")
+	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/crosspackage", analyzer, ".")
 }
 
 // TestGoldenFile_IdempotentImport tests that import statements are not modified
@@ -1164,5 +1145,5 @@ func TestGoldenFile_IdempotentImport(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
-	analysistest.RunWithSuggestedFixes(t, "testdata/src/idempotent_import", analyzer, ".")
+	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/idempotent_import", analyzer, ".")
 }

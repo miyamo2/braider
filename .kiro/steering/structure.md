@@ -24,7 +24,7 @@ braider follows a **standard Go project layout** with clear separation between p
 **Location**: `internal/analyzer/testdata/`
 **Purpose**: Go source files used as test inputs for analysistest
 **Pattern**: Organized by test category and analyzer:
-- `testdata/src/` - App annotation scenarios (basic, multiapp, circular, iface, crosspackage, idempotent, etc.)
+- `testdata/bootstrapgen/` - App annotation scenarios (basic, multiapp, circular, iface, crosspackage, idempotent, etc.)
 - `testdata/dependency/` - Dependency analysis scenarios (basic, abstrct, cross_package, missing_constructor)
 - `testdata/constructorgen/` - Constructor generation scenarios
 - `testdata/example/` - Example integration tests
@@ -78,7 +78,7 @@ Both analyzers share state through global registries, enabling cross-package dep
 Only the CLI entry point (`cmd/braider/main.go`) is user-facing. All implementation details are in `internal/` to prevent accidental external dependencies.
 
 ### Test Data Isolation
-Test fixtures live in `testdata/src/` following analysistest conventions. Each test case is a separate Go package that can be analyzed independently.
+Test fixtures live in `testdata/bootstrapgen/` following analysistest conventions. Each test case is a separate Go package that can be analyzed independently.
 
 ### Internal Package Organization
 The internal package is split into focused subpackages:
