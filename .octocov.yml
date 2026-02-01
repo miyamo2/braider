@@ -1,6 +1,9 @@
 coverage:
   if: true
   acceptable: 70%
+  exclude:
+    - 'github.com/miyamo2/braider/cmd/**/*'
+    - 'github.com/miyamo2/braider/pkg/**/*'
 codeToTestRatio:
   code:
     - '**/*.go'
@@ -18,7 +21,7 @@ comment:
 report:
   if: is_default_branch
   datastores:
-    - github://miyamo2/octocov-central
+    - artifact://${GITHUB_REPOSITORY}
 body:
   if: is_pull_request
 summary:
