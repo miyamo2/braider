@@ -33,6 +33,7 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 					"example.com/pkg.Service": {
 						TypeName:        "example.com/pkg.Service",
 						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
 						LocalName:       "Service",
 						ConstructorName: "NewService",
 						Dependencies:    []string{},
@@ -52,10 +53,10 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 				if !strings.Contains(bootstrap.DependencyVar, "var dependency") {
 					t.Error("missing var dependency declaration")
 				}
-				if !strings.Contains(bootstrap.DependencyVar, "service Service") {
+				if !strings.Contains(bootstrap.DependencyVar, "service pkg.Service") {
 					t.Error("missing service field")
 				}
-				if !strings.Contains(bootstrap.DependencyVar, "service := NewService()") {
+				if !strings.Contains(bootstrap.DependencyVar, "service := pkg.NewService()") {
 					t.Error("missing NewService call")
 				}
 				if bootstrap.Hash == "" {
@@ -70,6 +71,7 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 					"example.com/pkg.Repository": {
 						TypeName:        "example.com/pkg.Repository",
 						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
 						LocalName:       "Repository",
 						ConstructorName: "NewRepository",
 						Dependencies:    []string{},
@@ -78,6 +80,7 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 					"example.com/pkg.Service": {
 						TypeName:        "example.com/pkg.Service",
 						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
 						LocalName:       "Service",
 						ConstructorName: "NewService",
 						Dependencies:    []string{"example.com/pkg.Repository"},
@@ -96,18 +99,18 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 					t.Fatal("bootstrap is nil")
 				}
 				// Only Service should be a field (Inject)
-				if !strings.Contains(bootstrap.DependencyVar, "service Service") {
+				if !strings.Contains(bootstrap.DependencyVar, "service pkg.Service") {
 					t.Error("missing service field")
 				}
 				// Repository should NOT be a field (Provide)
-				if strings.Contains(bootstrap.DependencyVar, "repository Repository") {
+				if strings.Contains(bootstrap.DependencyVar, "repository pkg.Repository") {
 					t.Error("repository should not be a field")
 				}
 				// Both should have initialization
-				if !strings.Contains(bootstrap.DependencyVar, "repository := NewRepository()") {
+				if !strings.Contains(bootstrap.DependencyVar, "repository := pkg.NewRepository()") {
 					t.Error("missing NewRepository call")
 				}
-				if !strings.Contains(bootstrap.DependencyVar, "service := NewService(repository)") {
+				if !strings.Contains(bootstrap.DependencyVar, "service := pkg.NewService(repository)") {
 					t.Error("missing NewService call with repository")
 				}
 			},

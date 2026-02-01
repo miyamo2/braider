@@ -181,6 +181,7 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 			&registry.ProviderInfo{
 				TypeName:        pass.Pkg.Path() + "." + provider.TypeSpec.Name.Name,
 				PackagePath:     pass.Pkg.Path(),
+				PackageName:     pass.Pkg.Name(),
 				LocalName:       provider.TypeSpec.Name.Name,
 				ConstructorName: provider.ExistingConstructor.Name.Name,
 				Dependencies:    dependencies,
@@ -224,6 +225,7 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 			&registry.InjectorInfo{
 				TypeName:        pass.Pkg.Path() + "." + injector.TypeSpec.Name.Name,
 				PackagePath:     pass.Pkg.Path(),
+				PackageName:     pass.Pkg.Name(),
 				LocalName:       injector.TypeSpec.Name.Name,
 				ConstructorName: getConstructorName(injector),
 				Dependencies:    dependencies,

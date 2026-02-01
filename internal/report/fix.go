@@ -454,29 +454,35 @@ func (b *suggestedFixBuilder) collectAllExistingImports(file *ast.File) ([]*ast.
 }
 
 // mergeAndSortImports combines existing and new imports, deduplicates, and sorts.
-func (b *suggestedFixBuilder) mergeAndSortImports(existing map[string]bool, newImports []string) []string {
+func (b *suggestedFixBuilder) mergeAndSortImports(existing map[string]bool, newImports []generate.ImportInfo) []generate.ImportInfo {
 	// Merge existing and new imports
-	merged := make(map[string]bool)
+	merged := make(map[string]generate.ImportInfo)
+
+	// Add existing imports without aliases
 	for path := range existing {
-		merged[path] = true
-	}
-	for _, path := range newImports {
-		merged[path] = true
+		merged[path] = generate.ImportInfo{Path: path, Alias: ""}
 	}
 
-	// Convert to slice and sort
-	var sorted []string
-	for path := range merged {
-		sorted = append(sorted, path)
+	// New imports may have aliases - they take precedence
+	for _, imp := range newImports {
+		merged[imp.Path] = imp
 	}
-	sort.Strings(sorted)
+
+	// Convert to sorted slice
+	var sorted []generate.ImportInfo
+	for _, imp := range merged {
+		sorted = append(sorted, imp)
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Path < sorted[j].Path
+	})
 
 	return sorted
 }
 
 // hasImportDiff checks if merged imports differ from existing imports.
 // Returns true if there are added or removed packages, false if only formatting differs.
-func (b *suggestedFixBuilder) hasImportDiff(existingPaths map[string]bool, sortedImports []string) bool {
+func (b *suggestedFixBuilder) hasImportDiff(existingPaths map[string]bool, sortedImports []generate.ImportInfo) bool {
 	// Quick length check
 	if len(existingPaths) != len(sortedImports) {
 		return true // Different count = definite diff
@@ -484,7 +490,7 @@ func (b *suggestedFixBuilder) hasImportDiff(existingPaths map[string]bool, sorte
 
 	// Check each import in sorted list exists in existing
 	for _, imp := range sortedImports {
-		if !existingPaths[imp] {
+		if !existingPaths[imp.Path] {
 			return true // New import found
 		}
 	}
@@ -532,7 +538,7 @@ func (b *suggestedFixBuilder) buildImportDeclaration(imports []string) string {
 // buildUnifiedImportBlock generates a unified import block.
 // Always uses import (...) syntax, even for single import.
 // Imports should be pre-sorted alphabetically.
-func (b *suggestedFixBuilder) buildUnifiedImportBlock(sortedImports []string) string {
+func (b *suggestedFixBuilder) buildUnifiedImportBlock(sortedImports []generate.ImportInfo) string {
 	if len(sortedImports) == 0 {
 		return ""
 	}
@@ -540,7 +546,11 @@ func (b *suggestedFixBuilder) buildUnifiedImportBlock(sortedImports []string) st
 	var sb strings.Builder
 	sb.WriteString("import (\n")
 	for _, imp := range sortedImports {
-		fmt.Fprintf(&sb, "\t%q\n", imp)
+		if imp.HasAlias() {
+			fmt.Fprintf(&sb, "\t%s %q\n", imp.Alias, imp.Path)
+		} else {
+			fmt.Fprintf(&sb, "\t%q\n", imp.Path)
+		}
 	}
 	sb.WriteString(")\n")
 	return sb.String()

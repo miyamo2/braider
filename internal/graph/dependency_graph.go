@@ -32,6 +32,8 @@ type Graph struct {
 type Node struct {
 	TypeName        string   // Fully qualified type name
 	PackagePath     string   // Import path
+	PackageName     string   // Actual package name from go/types.Package
+	PackageAlias    string   // Alias when name collision occurs (empty = no alias)
 	LocalName       string   // Type name without package
 	ConstructorName string   // New<TypeName>
 	Dependencies    []string // Types this depends on
@@ -92,6 +94,7 @@ func (b *DependencyGraphBuilder) BuildGraph(
 		node := &Node{
 			TypeName:        provider.TypeName,
 			PackagePath:     provider.PackagePath,
+			PackageName:     provider.PackageName,
 			LocalName:       provider.LocalName,
 			ConstructorName: provider.ConstructorName,
 			Dependencies:    []string{},
@@ -106,6 +109,7 @@ func (b *DependencyGraphBuilder) BuildGraph(
 		node := &Node{
 			TypeName:        injector.TypeName,
 			PackagePath:     injector.PackagePath,
+			PackageName:     injector.PackageName,
 			LocalName:       injector.LocalName,
 			ConstructorName: injector.ConstructorName,
 			Dependencies:    []string{},

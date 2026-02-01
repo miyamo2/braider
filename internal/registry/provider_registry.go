@@ -16,6 +16,8 @@ type ProviderInfo struct {
 	TypeName string
 	// PackagePath is the import path of the package (e.g., "example.com/repo")
 	PackagePath string
+	// PackageName is the actual package name from go/types.Package (e.g., "repo")
+	PackageName string
 	// LocalName is the type name without package path (e.g., "UserRepository")
 	LocalName string
 	// ConstructorName is the constructor function name (e.g., "NewUserRepository")

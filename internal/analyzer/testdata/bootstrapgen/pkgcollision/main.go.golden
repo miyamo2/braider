@@ -1,0 +1,30 @@
+package main
+
+import (
+	v1user "pkgcollision/v1user"
+	v2user "pkgcollision/v2user"
+	"github.com/miyamo2/braider/pkg/annotation"
+)
+
+var _ = annotation.App(main) // want "bootstrap code is missing"
+
+func main() {
+	_ = dependency
+}
+
+// braider:hash:d9e8a7b6c5f4e3d2
+var dependency = func() struct {
+	v1Service v1user.Service
+	v2Service v2user.Service
+} {
+	v1Repository := v1user.NewRepository()
+	v1Service := v1user.NewService(v1Repository)
+	v2Service := v2user.NewService(v1Repository)
+	return struct {
+		v1Service v1user.Service
+		v2Service v2user.Service
+	}{
+		v1Service: v1Service,
+		v2Service: v2Service,
+	}
+}()

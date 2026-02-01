@@ -15,4 +15,18 @@ var _ = annotation.App(main) // want "bootstrap code is missing"
 
 var _ = annotation.App(main) // want "another annotation.App in the same package is being applied"
 
-func main() {}
+func main() {
+	_ = dependency
+}
+
+// braider:hash:ba904f56d3d08447
+var dependency = func() struct {
+	service Service
+} {
+	service := NewService()
+	return struct {
+		service Service
+	}{
+		service: service,
+	}
+}()

@@ -17,10 +17,10 @@ var hashCommentRe = regexp.MustCompile(`//\s*braider:hash:\s*([a-f0-9]+)`)
 
 // GeneratedBootstrap represents the generated bootstrap code and metadata.
 type GeneratedBootstrap struct {
-	DependencyVar string   // IIFE code defining the dependency variable
-	MainReference string   // Optional "_ = dependency" statement for main
-	Imports       []string // Required import paths
-	Hash          string   // Hash marker for idempotency
+	DependencyVar string       // IIFE code defining the dependency variable
+	MainReference string       // Optional "_ = dependency" statement for main
+	Imports       []ImportInfo // Required import paths with aliases
+	Hash          string       // Hash marker for idempotency
 }
 
 // BootstrapGenerator generates bootstrap code for the DI system.
@@ -55,9 +55,34 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 	// Compute hash for idempotency (works even with empty graph)
 	hash := ComputeGraphHash(g)
 
+	// Detect existing aliases from the target file
+	// Find the file containing App annotation or existing bootstrap
+	var targetFile *ast.File
+	existingBootstrap := bg.DetectExistingBootstrap(pass)
+	if existingBootstrap != nil {
+		// Find file containing existing bootstrap
+		for _, file := range pass.Files {
+			for _, decl := range file.Decls {
+				if decl == existingBootstrap {
+					targetFile = file
+					break
+				}
+			}
+			if targetFile != nil {
+				break
+			}
+		}
+	}
+	// If no existing bootstrap, use the first file (typically main.go)
+	if targetFile == nil && len(pass.Files) > 0 {
+		targetFile = pass.Files[0]
+	}
+	existingAliases := detectExistingAliases(targetFile)
+
 	// Collect imports
 	currentPackage := pass.Pkg.Path()
-	imports := CollectImports(g, currentPackage)
+	currentPkgName := pass.Pkg.Name()
+	imports := CollectImports(g, currentPackage, currentPkgName, existingAliases)
 
 	// Build struct fields and initialization code
 	// Note: If all nodes are Provide (IsField=false), structFields will be empty
@@ -87,8 +112,32 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		fieldName := DeriveFieldName(typeName)
 		fieldNames[typeName] = fieldName
 
-		// Add struct field
-		structFields = append(structFields, fmt.Sprintf("\t%s %s", fieldName, node.LocalName))
+		// Determine qualifier (alias takes precedence)
+		qualifier := node.PackageAlias
+		if qualifier == "" {
+			qualifier = node.PackageName
+		}
+
+		// Add struct field with qualified type name
+		var qualifiedType string
+		// For main packages, also check PackagePath to distinguish multiple entry points
+		if node.PackageName == "main" && currentPkgName == "main" {
+			// Both are main - check if same entry point
+			if node.PackagePath != currentPackage {
+				// Different main packages - this shouldn't happen in same analysis,
+				// but if it does, use unqualified (they're in different binaries)
+				qualifiedType = node.LocalName
+			} else {
+				qualifiedType = node.LocalName
+			}
+		} else if node.PackageName != currentPkgName {
+			// Different package - use alias if available, otherwise package name
+			qualifiedType = qualifier + "." + node.LocalName
+		} else {
+			// Same package - no qualification
+			qualifiedType = node.LocalName
+		}
+		structFields = append(structFields, fmt.Sprintf("\t%s %s", fieldName, qualifiedType))
 		returnFields = append(returnFields, fmt.Sprintf("\t\t%s: %s,", fieldName, fieldName))
 	}
 
@@ -141,7 +190,21 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 			args = append(args, depVarName)
 		}
 
-		constructorCall := fmt.Sprintf("%s(%s)", node.ConstructorName, strings.Join(args, ", "))
+		// Determine qualifier (alias takes precedence)
+		qualifier := node.PackageAlias
+		if qualifier == "" {
+			qualifier = node.PackageName
+		}
+
+		// Determine package qualifier for constructor call
+		var pkgQualifier string
+		if node.PackageName == "main" && currentPkgName == "main" {
+			// Same or different main - no qualifier (different binaries anyway)
+			pkgQualifier = ""
+		} else if node.PackageName != currentPkgName {
+			pkgQualifier = qualifier + "."
+		}
+		constructorCall := fmt.Sprintf("%s%s(%s)", pkgQualifier, node.ConstructorName, strings.Join(args, ", "))
 		inits = append(inits, fmt.Sprintf("\t%s := %s", varName, constructorCall))
 	}
 

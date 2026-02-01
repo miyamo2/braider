@@ -327,7 +327,7 @@ func main() {}
 				DependencyVar: "var dependency = struct{}{}",
 				MainReference: "_ = dependency",
 				Hash:          "abc123",
-				Imports:       []string{},
+				Imports:       []generate.ImportInfo{},
 			}
 
 			builder := report.NewSuggestedFixBuilder()
@@ -424,7 +424,7 @@ func main() {
 		DependencyVar: "// braider:hash:def456\nvar dependency = struct{ NewField string }{}",
 		MainReference: "_ = dependency",
 		Hash:          "def456",
-		Imports:       []string{},
+		Imports:       []generate.ImportInfo{},
 	}
 
 	builder := report.NewSuggestedFixBuilder()
@@ -456,7 +456,7 @@ func TestSuggestedFixBuilder_BuildBootstrapFix_WithImports(t *testing.T) {
 	tests := []struct {
 		name           string
 		src            string
-		imports        []string
+		imports        []generate.ImportInfo
 		wantImportEdit bool
 		wantImportText string
 	}{
@@ -465,7 +465,7 @@ func TestSuggestedFixBuilder_BuildBootstrapFix_WithImports(t *testing.T) {
 			src: `package main
 
 func main() {}`,
-			imports:        []string{"example.com/pkg"},
+			imports:        []generate.ImportInfo{{Path: "example.com/pkg", Alias: ""}},
 			wantImportEdit: true,
 			wantImportText: `import (
 	"example.com/pkg"
@@ -476,7 +476,7 @@ func main() {}`,
 			src: `package main
 
 func main() {}`,
-			imports:        []string{"example.com/pkg1", "example.com/pkg2"},
+			imports: []generate.ImportInfo{{Path: "example.com/pkg1", Alias: ""}, {Path: "example.com/pkg2", Alias: ""}},
 			wantImportEdit: true,
 			wantImportText: `import (
 	"example.com/pkg1"
@@ -490,7 +490,7 @@ func main() {}`,
 import "fmt"
 
 func main() {}`,
-			imports:        []string{"example.com/pkg"},
+			imports: []generate.ImportInfo{{Path: "example.com/pkg", Alias: ""}},
 			wantImportEdit: true,
 			wantImportText: `import (
 	"example.com/pkg"
@@ -504,7 +504,7 @@ func main() {}`,
 import "example.com/pkg"
 
 func main() {}`,
-			imports:        []string{"example.com/pkg"},
+			imports: []generate.ImportInfo{{Path: "example.com/pkg", Alias: ""}},
 			wantImportEdit: false,
 		},
 		{
@@ -514,7 +514,7 @@ func main() {}`,
 import "fmt"
 
 func main() {}`,
-			imports:        []string{"fmt", "example.com/pkg"},
+			imports: []generate.ImportInfo{{Path: "fmt", Alias: ""}, {Path: "example.com/pkg", Alias: ""}},
 			wantImportEdit: true,
 			wantImportText: `import (
 	"example.com/pkg"
@@ -526,7 +526,7 @@ func main() {}`,
 			src: `package main
 
 func main() {}`,
-			imports:        []string{},
+			imports:        []generate.ImportInfo{},
 			wantImportEdit: false,
 		},
 		{
@@ -539,7 +539,7 @@ import (
 )
 
 func main() {}`,
-			imports:        []string{"example.com/pkg"},
+			imports: []generate.ImportInfo{{Path: "example.com/pkg", Alias: ""}},
 			wantImportEdit: true,
 			wantImportText: `import (
 	"example.com/pkg"
@@ -554,7 +554,7 @@ func main() {}`,
 import "fmt"
 
 func main() {}`,
-			imports:        []string{"fmt"},
+			imports: []generate.ImportInfo{{Path: "fmt", Alias: ""}},
 			wantImportEdit: false,
 		},
 		{
@@ -567,7 +567,7 @@ import (
 )
 
 func main() {}`,
-			imports:        []string{"os", "fmt"}, // Different order in input
+			imports: []generate.ImportInfo{{Path: "os", Alias: ""}, {Path: "fmt", Alias: ""}}, // Different order in input
 			wantImportEdit: false,
 		},
 		{
@@ -579,7 +579,7 @@ import (
 )
 
 func main() {}`,
-			imports:        []string{"example.com/pkg"},
+			imports: []generate.ImportInfo{{Path: "example.com/pkg", Alias: ""}},
 			wantImportEdit: true,
 			wantImportText: `import (
 	"example.com/pkg"
@@ -653,7 +653,7 @@ func TestSuggestedFixBuilder_BuildBootstrapReplacementFix_WithImports(t *testing
 	tests := []struct {
 		name           string
 		src            string
-		imports        []string
+		imports        []generate.ImportInfo
 		wantImportEdit bool
 		wantImportText string
 	}{
@@ -665,7 +665,7 @@ func TestSuggestedFixBuilder_BuildBootstrapReplacementFix_WithImports(t *testing
 var dependency = struct{}{}
 
 func main() {}`,
-			imports:        []string{"example.com/pkg"},
+			imports: []generate.ImportInfo{{Path: "example.com/pkg", Alias: ""}},
 			wantImportEdit: true,
 			wantImportText: `import (
 	"example.com/pkg"
@@ -681,7 +681,7 @@ import "example.com/pkg"
 var dependency = struct{}{}
 
 func main() {}`,
-			imports:        []string{"example.com/pkg"},
+			imports: []generate.ImportInfo{{Path: "example.com/pkg", Alias: ""}},
 			wantImportEdit: false,
 		},
 		{
@@ -694,7 +694,7 @@ import "fmt"
 var dependency = struct{}{}
 
 func main() {}`,
-			imports:        []string{"example.com/pkg1", "example.com/pkg2"},
+			imports: []generate.ImportInfo{{Path: "example.com/pkg1", Alias: ""}, {Path: "example.com/pkg2", Alias: ""}},
 			wantImportEdit: true,
 			wantImportText: `import (
 	"example.com/pkg1"
@@ -782,19 +782,19 @@ func TestImportBlockGofmtCompatible(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		imports []string
+		imports []generate.ImportInfo
 	}{
 		{
 			name:    "single import",
-			imports: []string{"fmt"},
+			imports: []generate.ImportInfo{{Path: "fmt", Alias: ""}},
 		},
 		{
 			name:    "multiple imports sorted",
-			imports: []string{"example.com/pkg/a", "example.com/pkg/b", "fmt"},
+			imports: []generate.ImportInfo{{Path: "example.com/pkg/a", Alias: ""}, {Path: "example.com/pkg/b", Alias: ""}, {Path: "fmt", Alias: ""}},
 		},
 		{
 			name:    "multiple imports unsorted",
-			imports: []string{"pkg/b", "pkg/a", "pkg/c"},
+			imports: []generate.ImportInfo{{Path: "pkg/b", Alias: ""}, {Path: "pkg/a", Alias: ""}, {Path: "pkg/c", Alias: ""}},
 		},
 	}
 
@@ -896,7 +896,9 @@ func main() {}`
 		DependencyVar: "var dependency = struct{}{}",
 		MainReference: "_ = dependency",
 		Hash:          "abc123",
-		Imports:       []string{"example.com/pkg"},
+		Imports: []generate.ImportInfo{
+			{Path: "example.com/pkg", Alias: ""},
+		},
 	}
 
 	builder := report.NewSuggestedFixBuilder()
@@ -974,7 +976,9 @@ func main() {}`
 		DependencyVar: "var dependency = struct{}{}",
 		MainReference: "_ = dependency",
 		Hash:          "abc123",
-		Imports:       []string{"example.com/pkg"},
+		Imports: []generate.ImportInfo{
+			{Path: "example.com/pkg", Alias: ""},
+		},
 	}
 
 	builder := report.NewSuggestedFixBuilder()
