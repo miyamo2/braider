@@ -139,7 +139,10 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 		// Merge existing + new imports and sort
 		sortedImports := b.mergeAndSortImports(existingPaths, bootstrap.Imports)
 
-		if len(allImportDecls) > 0 {
+		// Check if there's an actual package diff (not just formatting)
+		if !b.hasImportDiff(existingPaths, sortedImports) {
+			// No package diff, skip import edit
+		} else if len(allImportDecls) > 0 {
 			// Case 1: Import exists - replace all import declarations with unified block
 			firstImportStart := allImportDecls[0].Pos()
 			if allImportDecls[0].Doc != nil {
@@ -229,7 +232,10 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 			// Merge existing + new imports and sort
 			sortedImports := b.mergeAndSortImports(existingPaths, bootstrap.Imports)
 
-			if len(allImportDecls) > 0 {
+			// Check if there's an actual package diff (not just formatting)
+			if !b.hasImportDiff(existingPaths, sortedImports) {
+				// No package diff, skip import edit
+			} else if len(allImportDecls) > 0 {
 				// Case 1: Import exists - replace all import declarations with unified block
 				firstImportStart := allImportDecls[0].Pos()
 				if allImportDecls[0].Doc != nil {
@@ -466,6 +472,24 @@ func (b *suggestedFixBuilder) mergeAndSortImports(existing map[string]bool, newI
 	sort.Strings(sorted)
 
 	return sorted
+}
+
+// hasImportDiff checks if merged imports differ from existing imports.
+// Returns true if there are added or removed packages, false if only formatting differs.
+func (b *suggestedFixBuilder) hasImportDiff(existingPaths map[string]bool, sortedImports []string) bool {
+	// Quick length check
+	if len(existingPaths) != len(sortedImports) {
+		return true // Different count = definite diff
+	}
+
+	// Check each import in sorted list exists in existing
+	for _, imp := range sortedImports {
+		if !existingPaths[imp] {
+			return true // New import found
+		}
+	}
+
+	return false // All imports already exist, no diff
 }
 
 // filterNewImports returns imports that don't already exist in the file.

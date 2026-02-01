@@ -498,17 +498,14 @@ func main() {}`,
 )`,
 		},
 		{
-			name: "replaces existing import even if no new imports",
+			name: "skips import edit when no package diff exists",
 			src: `package main
 
 import "example.com/pkg"
 
 func main() {}`,
 			imports:        []string{"example.com/pkg"},
-			wantImportEdit: true,
-			wantImportText: `import (
-	"example.com/pkg"
-)`,
+			wantImportEdit: false,
 		},
 		{
 			name: "filters duplicates and merges",
@@ -548,6 +545,45 @@ func main() {}`,
 	"example.com/pkg"
 	"fmt"
 	"os"
+)`,
+		},
+		{
+			name: "skips import edit when only formatting differs (single to block)",
+			src: `package main
+
+import "fmt"
+
+func main() {}`,
+			imports:        []string{"fmt"},
+			wantImportEdit: false,
+		},
+		{
+			name: "skips import edit when only order differs (already sorted)",
+			src: `package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {}`,
+			imports:        []string{"os", "fmt"}, // Different order in input
+			wantImportEdit: false,
+		},
+		{
+			name: "adds new package to existing import block",
+			src: `package main
+
+import (
+	"fmt"
+)
+
+func main() {}`,
+			imports:        []string{"example.com/pkg"},
+			wantImportEdit: true,
+			wantImportText: `import (
+	"example.com/pkg"
+	"fmt"
 )`,
 		},
 	}
@@ -636,7 +672,7 @@ func main() {}`,
 )`,
 		},
 		{
-			name: "replaces existing import even if no new imports",
+			name: "skips import edit when no package diff exists",
 			src: `package main
 
 import "example.com/pkg"
@@ -646,10 +682,7 @@ var dependency = struct{}{}
 
 func main() {}`,
 			imports:        []string{"example.com/pkg"},
-			wantImportEdit: true,
-			wantImportText: `import (
-	"example.com/pkg"
-)`,
+			wantImportEdit: false,
 		},
 		{
 			name: "adds multiple new imports and merges with existing",

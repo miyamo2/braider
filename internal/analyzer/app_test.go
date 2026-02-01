@@ -1137,3 +1137,32 @@ func TestGoldenFile_CrossPackageImports(t *testing.T) {
 	)
 	analysistest.RunWithSuggestedFixes(t, "testdata/src/crosspackage", analyzer, ".")
 }
+
+// TestGoldenFile_IdempotentImport tests that import statements are not modified
+// when they already contain the exact same packages (only formatting differs).
+// This ensures the analyzer is idempotent and doesn't create unnecessary edits.
+func TestGoldenFile_IdempotentImport(t *testing.T) {
+	providerRegistry, injectorRegistry, packageLoader, packageTracker, appDetector, graphBuilder, sorter,
+		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+
+	// Register a simple injector in service package
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "idempotent_import/service.UserService",
+			PackagePath:     "idempotent_import/service",
+			LocalName:       "UserService",
+			ConstructorName: "NewUserService",
+			Dependencies:    []string{},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	packageTracker.MarkPackageScanned("idempotent_import")
+
+	analyzer := createAppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker,
+		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+	)
+	analysistest.RunWithSuggestedFixes(t, "testdata/src/idempotent_import", analyzer, ".")
+}
