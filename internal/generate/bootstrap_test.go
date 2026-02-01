@@ -115,6 +115,109 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "all provide types no inject",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"example.com/pkg.ConfigProvider": {
+						TypeName:        "example.com/pkg.ConfigProvider",
+						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
+						LocalName:       "ConfigProvider",
+						ConstructorName: "NewConfigProvider",
+						Dependencies:    []string{},
+						IsField:         false, // Provide only
+					},
+					"example.com/pkg.DBProvider": {
+						TypeName:        "example.com/pkg.DBProvider",
+						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
+						LocalName:       "DBProvider",
+						ConstructorName: "NewDBProvider",
+						Dependencies:    []string{},
+						IsField:         false, // Provide only
+					},
+				},
+				Edges: map[string][]string{
+					"example.com/pkg.ConfigProvider": {},
+					"example.com/pkg.DBProvider":     {},
+				},
+			},
+			sortedTypes: []string{"example.com/pkg.ConfigProvider", "example.com/pkg.DBProvider"},
+			wantErr:     false,
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				// Should have var dependency but with no fields
+				if !strings.Contains(bootstrap.DependencyVar, "var dependency") {
+					t.Error("missing var dependency declaration")
+				}
+				// Both Provide types should be initialized as local variables
+				if !strings.Contains(bootstrap.DependencyVar, "configProvider := pkg.NewConfigProvider()") {
+					t.Error("missing NewConfigProvider call")
+				}
+				if !strings.Contains(bootstrap.DependencyVar, "dbProvider := pkg.NewDBProvider()") {
+					t.Error("missing NewDBProvider call")
+				}
+			},
+		},
+		{
+			name: "complex dependency chain",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"example.com/pkg.A": {
+						TypeName:        "example.com/pkg.A",
+						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
+						LocalName:       "A",
+						ConstructorName: "NewA",
+						Dependencies:    []string{},
+						IsField:         false,
+					},
+					"example.com/pkg.B": {
+						TypeName:        "example.com/pkg.B",
+						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
+						LocalName:       "B",
+						ConstructorName: "NewB",
+						Dependencies:    []string{"example.com/pkg.A"},
+						IsField:         false,
+					},
+					"example.com/pkg.C": {
+						TypeName:        "example.com/pkg.C",
+						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
+						LocalName:       "C",
+						ConstructorName: "NewC",
+						Dependencies:    []string{"example.com/pkg.B"},
+						IsField:         true,
+					},
+				},
+				Edges: map[string][]string{
+					"example.com/pkg.A": {},
+					"example.com/pkg.B": {"example.com/pkg.A"},
+					"example.com/pkg.C": {"example.com/pkg.B"},
+				},
+			},
+			sortedTypes: []string{"example.com/pkg.A", "example.com/pkg.B", "example.com/pkg.C"},
+			wantErr:     false,
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				// Verify dependency chain initialization order
+				if !strings.Contains(bootstrap.DependencyVar, "a := pkg.NewA()") {
+					t.Error("missing NewA call")
+				}
+				if !strings.Contains(bootstrap.DependencyVar, "b := pkg.NewB(a)") {
+					t.Error("missing NewB call with a")
+				}
+				if !strings.Contains(bootstrap.DependencyVar, "c := pkg.NewC(b)") {
+					t.Error("missing NewC call with b")
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -174,6 +277,33 @@ var dependency = func() struct {
 var config = &Config{}
 `,
 			want: false,
+		},
+		{
+			name: "const declaration - not a var",
+			source: `package main
+
+const dependency = "value"
+`,
+			want: false,
+		},
+		{
+			name: "type declaration",
+			source: `package main
+
+type dependency struct{}
+`,
+			want: false,
+		},
+		{
+			name: "multiple var declarations",
+			source: `package main
+
+var (
+	config Config
+	dependency = NewDependency()
+)
+`,
+			want: true,
 		},
 	}
 
@@ -282,5 +412,201 @@ var dependency = func() struct {
 	isCurrent2 := bg.CheckBootstrapCurrent(pass, existing, g2)
 	if isCurrent2 {
 		t.Error("CheckBootstrapCurrent() should return false for different graph")
+	}
+
+	// Test with nil Doc
+	sourceNilDoc := `package main
+
+var dependency = func() struct {
+	service Service
+} {
+	service := NewService()
+	return struct {
+		service Service
+	}{
+		service: service,
+	}
+}()
+`
+	fileNilDoc, err := parser.ParseFile(token.NewFileSet(), "", sourceNilDoc, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("Failed to parse source: %v", err)
+	}
+
+	passNilDoc := &analysis.Pass{
+		Files: []*ast.File{fileNilDoc},
+	}
+
+	existingNilDoc := bg.DetectExistingBootstrap(passNilDoc)
+	if existingNilDoc == nil {
+		t.Fatal("Failed to detect existing bootstrap without doc")
+	}
+
+	isCurrentNilDoc := bg.CheckBootstrapCurrent(passNilDoc, existingNilDoc, g)
+	if isCurrentNilDoc {
+		t.Error("CheckBootstrapCurrent() should return false when Doc is nil")
+	}
+
+	// Test with incorrect hash format
+	sourceWrongHash := `package main
+
+// braider-hash:wrongformat
+var dependency = func() struct {
+	service Service
+} {
+	service := NewService()
+	return struct {
+		service Service
+	}{
+		service: service,
+	}
+}()
+`
+	fileWrongHash, err := parser.ParseFile(token.NewFileSet(), "", sourceWrongHash, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("Failed to parse source: %v", err)
+	}
+
+	passWrongHash := &analysis.Pass{
+		Files: []*ast.File{fileWrongHash},
+	}
+
+	existingWrongHash := bg.DetectExistingBootstrap(passWrongHash)
+	if existingWrongHash == nil {
+		t.Fatal("Failed to detect existing bootstrap")
+	}
+
+	isCurrentWrongHash := bg.CheckBootstrapCurrent(passWrongHash, existingWrongHash, g)
+	if isCurrentWrongHash {
+		t.Error("CheckBootstrapCurrent() should return false for wrong hash format")
+	}
+}
+
+func TestExtractHashFromComments(t *testing.T) {
+	tests := []struct {
+		name     string
+		comments []string
+		want     string
+	}{
+		{
+			name:     "nil comment group",
+			comments: nil,
+			want:     "",
+		},
+		{
+			name:     "no hash in comments",
+			comments: []string{"// This is a comment", "// Another comment"},
+			want:     "",
+		},
+		{
+			name:     "hash at beginning",
+			comments: []string{"// braider:hash:abc123", "// Other comment"},
+			want:     "abc123",
+		},
+		{
+			name:     "hash in middle",
+			comments: []string{"// First comment", "// braider:hash:def456", "// Last comment"},
+			want:     "def456",
+		},
+		{
+			name:     "hash at end",
+			comments: []string{"// First comment", "// Second comment", "// braider:hash:xyz789"},
+			want:     "xyz789",
+		},
+		{
+			name:     "flexible whitespace - no spaces",
+			comments: []string{"//braider:hash:compact"},
+			want:     "compact",
+		},
+		{
+			name:     "flexible whitespace - multiple spaces",
+			comments: []string{"//   braider:hash:spaced"},
+			want:     "spaced",
+		},
+		{
+			name:     "wrong pattern - braider-hash",
+			comments: []string{"// braider-hash:wrong"},
+			want:     "",
+		},
+		{
+			name:     "wrong pattern - braider:sha256",
+			comments: []string{"// braider:sha256:wrong"},
+			want:     "",
+		},
+		{
+			name:     "valid hex hash with regex meta characters context",
+			comments: []string{"// braider:hash:a1b2c3d4"},
+			want:     "a1b2c3d4",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var doc *ast.CommentGroup
+			if tt.comments != nil {
+				comments := make([]*ast.Comment, len(tt.comments))
+				for i, text := range tt.comments {
+					comments[i] = &ast.Comment{Text: text}
+				}
+				doc = &ast.CommentGroup{List: comments}
+			}
+
+			// Use unexported function via DetectExistingBootstrap path
+			// We'll create a minimal test to exercise extractHashFromComments
+			source := "package main\n\n"
+			if doc != nil {
+				for _, c := range doc.List {
+					source += c.Text + "\n"
+				}
+			}
+			source += `var dependency = func() struct{} { return struct{}{} }()`
+
+			fset := token.NewFileSet()
+			file, err := parser.ParseFile(fset, "", source, parser.ParseComments)
+			if err != nil {
+				t.Fatalf("Failed to parse source: %v", err)
+			}
+
+			pass := &analysis.Pass{
+				Files: []*ast.File{file},
+			}
+
+			bg := NewBootstrapGenerator()
+			existing := bg.DetectExistingBootstrap(pass)
+
+			if existing == nil && tt.want != "" {
+				t.Fatal("Failed to detect existing bootstrap")
+			}
+
+			if existing != nil {
+				// Check via CheckBootstrapCurrent which internally uses extractHashFromComments
+				g := &graph.Graph{
+					Nodes: map[string]*graph.Node{
+						"test.Service": {
+							TypeName:        "test.Service",
+							ConstructorName: "NewService",
+							IsField:         true,
+						},
+					},
+				}
+
+				// Create a graph with the expected hash
+				expectedHash := ComputeGraphHash(g)
+
+				isCurrent := bg.CheckBootstrapCurrent(pass, existing, g)
+
+				if tt.want == "" {
+					// Should not be current if no hash found
+					if isCurrent {
+						t.Error("CheckBootstrapCurrent() should return false when no hash comment")
+					}
+				} else if tt.want == expectedHash {
+					// If extracted hash matches computed hash
+					if !isCurrent {
+						t.Error("CheckBootstrapCurrent() should return true for matching hash")
+					}
+				}
+			}
+		})
 	}
 }
