@@ -135,28 +135,7 @@ func (b *DependencyGraphBuilder) buildEdgesFromProviders(
 	graph *Graph,
 	providers []*registry.ProviderInfo,
 ) error {
-	for _, provider := range providers {
-		node := graph.Nodes[provider.TypeName]
-		edges := make([]string, 0, len(provider.Dependencies))
-		for _, dep := range provider.Dependencies {
-			// Resolve dependency (may be interface type)
-			resolvedDep, err := b.resolveDependency(graph, dep)
-			if err != nil {
-				return err
-			}
-			edges = append(edges, resolvedDep)
-
-			// Update node dependencies
-			node.Dependencies = append(node.Dependencies, resolvedDep)
-
-			// Increment in-degree of the current node (it depends on resolvedDep)
-			// For Kahn's algorithm: nodes with InDegree=0 are constructed first
-			// Since this node depends on resolvedDep, it must wait until resolvedDep is constructed
-			node.InDegree++
-		}
-		graph.Edges[provider.TypeName] = edges
-	}
-	return nil
+	return buildEdges(graph, providers, b)
 }
 
 // buildEdgesFromInjectors builds edges from injector dependencies.
@@ -164,12 +143,25 @@ func (b *DependencyGraphBuilder) buildEdgesFromInjectors(
 	graph *Graph,
 	injectors []*registry.InjectorInfo,
 ) error {
-	for _, injector := range injectors {
-		node := graph.Nodes[injector.TypeName]
-		edges := make([]string, 0, len(injector.Dependencies))
-		for _, dep := range injector.Dependencies {
+	return buildEdges(graph, injectors, b)
+}
+
+type dependencyInfo interface {
+	GetTypeName() string
+	GetDependencies() []string
+}
+
+func buildEdges[T dependencyInfo](
+	graph *Graph,
+	infos []T,
+	builder *DependencyGraphBuilder,
+) error {
+	for _, info := range infos {
+		node := graph.Nodes[info.GetTypeName()]
+		edges := make([]string, 0, len(info.GetDependencies()))
+		for _, dep := range info.GetDependencies() {
 			// Resolve dependency (may be interface type)
-			resolvedDep, err := b.resolveDependency(graph, dep)
+			resolvedDep, err := builder.resolveDependency(graph, dep)
 			if err != nil {
 				return err
 			}
@@ -183,7 +175,7 @@ func (b *DependencyGraphBuilder) buildEdgesFromInjectors(
 			// Since this node depends on resolvedDep, it must wait until resolvedDep is constructed
 			node.InDegree++
 		}
-		graph.Edges[injector.TypeName] = edges
+		graph.Edges[info.GetTypeName()] = edges
 	}
 	return nil
 }

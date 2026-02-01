@@ -32,6 +32,14 @@ type ProviderInfo struct {
 	IsPending bool
 }
 
+func (i *ProviderInfo) GetTypeName() string {
+	return i.TypeName
+}
+
+func (i *ProviderInfo) GetDependencies() []string {
+	return i.Dependencies
+}
+
 // ProviderRegistry stores all discovered provider structs globally.
 // Thread-safe for potential parallel analyzer execution.
 // Uses RWMutex to allow concurrent reads for improved performance.

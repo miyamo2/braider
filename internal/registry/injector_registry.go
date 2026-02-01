@@ -27,6 +27,14 @@ type InjectorInfo struct {
 	IsPending bool
 }
 
+func (i *InjectorInfo) GetTypeName() string {
+	return i.TypeName
+}
+
+func (i *InjectorInfo) GetDependencies() []string {
+	return i.Dependencies
+}
+
 // InjectorRegistry stores all discovered injector structs globally.
 // Thread-safe for potential parallel analyzer execution.
 // Uses RWMutex to allow concurrent reads for improved performance.
