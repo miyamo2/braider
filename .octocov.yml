@@ -15,13 +15,13 @@ testExecutionTime:
   if: true
 diff:
   datastores:
-    - artifact://${GITHUB_REPOSITORY}
+    - github://miyamo2/octocov-central
 comment:
   if: is_pull_request
 report:
   if: is_default_branch
   datastores:
-    - artifact://${GITHUB_REPOSITORY}
+    - github://miyamo2/octocov-central
 body:
   if: is_pull_request
 summary:
