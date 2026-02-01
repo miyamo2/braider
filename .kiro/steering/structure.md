@@ -84,21 +84,22 @@ Test fixtures live in `testdata/bootstrapgen/` following analysistest convention
 The internal package is split into focused subpackages:
 - `internal/analyzer/` - Analyzer definitions (`DependencyAnalyzer`, `AppAnalyzer`) and orchestration
 - `internal/detect/` - Detection logic for DI patterns (inject, provide, app annotations, struct analysis, field analysis, constructor detection)
-- `internal/generate/` - Code generation logic (constructors, bootstrap IIFE, code formatting, import management, hash generation)
+- `internal/generate/` - Code generation logic (constructors, bootstrap IIFE) and utilities (code formatting, import management, naming conventions, keyword checking, hash generation)
 - `internal/report/` - Diagnostic and suggested fix building
 - `internal/registry/` - Global state management (provider registry, injector registry, package tracker)
 - `internal/graph/` - Dependency resolution (dependency graph, interface registry, topological sort)
-- `internal/loader/` - Package loading utilities
+- `internal/loader/` - Package loading utilities for cross-package dependency analysis
 
 ### Public API (`pkg/`)
 **Location**: `pkg/annotation/`
 **Purpose**: Public annotation types and functions for users to mark DI targets
-**Pattern**: Three annotation mechanisms:
+**Pattern**: Four annotation mechanisms:
 - `Inject` struct - Embed in structs to mark for constructor generation and DI registration
 - `Provide` struct - Embed in structs to mark as providers (local variables in bootstrap IIFE)
+- `ProvideFunc(fn)` function - Annotate provider functions that return dependency instances (enables interface implementation)
 - `App(main)` function - Call in main package to mark entry point for bootstrap code generation
 
 ---
 _Document patterns, not file trees. New files following patterns should not require updates_
 
-_Updated: 2026-02-01 - Refined internal/generate package description to include code formatting and hash utilities, updated testdata organization with actual test categories_
+_Updated: 2026-02-02 - Added ProvideFunc annotation, expanded generate package utilities, clarified loader package purpose_
