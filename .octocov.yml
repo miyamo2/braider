@@ -4,6 +4,8 @@ coverage:
   exclude:
     - 'github.com/miyamo2/braider/cmd/**/*'
     - 'github.com/miyamo2/braider/pkg/**/*'
+  badge:
+    path: .assets/coverage.svg
 codeToTestRatio:
   code:
     - '**/*.go'
@@ -13,16 +15,23 @@ codeToTestRatio:
     - '**/*_test.go'
 testExecutionTime:
   if: true
-diff:
-  datastores:
-    - github://miyamo2/octocov-central
+  badge:
+    path: .assets/time.svg
 comment:
   if: is_pull_request
-report:
-  if: is_default_branch
-  datastores:
-    - github://miyamo2/octocov-central
 body:
   if: is_pull_request
 summary:
   if: true
+diff:
+  datastores:
+    - artifact://${GITHUB_REPOSITORY}
+report:
+  if: is_default_branch
+  datastores:
+    - artifact://${GITHUB_REPOSITORY}
+push:
+  if: is_default_branch
+  datastores:
+    - github://${GITHUB_REPOSITORY}
+  message: "Update coverage badges"
