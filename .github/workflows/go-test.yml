@@ -10,16 +10,23 @@ permissions:
   actions: write
 
 jobs:
-  skip-if-closed-without-merging:
+  check-closed-without-merging:
     if: github.event.action == 'closed' && github.event.pull_request.merged == false
     runs-on: ubuntu-latest
     steps:
       - name: Skip tests for closed PR
         run: echo "Pull request closed without merge; skipping test job."
-
+  check-skip-ci:
+    if: startsWith(github.event.pull_request.title, '[Skip CI]') && github.actor == 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip tests for [Skip CI]
+        run: echo "Pull request title starts with [Skip CI]; skipping test job."
   test:
-    needs: skip-if-closed-without-merging
-    if: ${{ always() && needs.skip-if-closed-without-merging.result == 'skipped' && !startsWith(github.event.pull_request.title, '[Skip CI]') }}
+    needs:
+      - check-closed-without-merging
+      - check-skip-ci
+    if: ${{ always() && needs.check-closed-without-merging.result == 'skipped' && needs.check-skip-ci == 'skipped' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
