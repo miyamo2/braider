@@ -8,6 +8,10 @@ import (
 
 var _ = annotation.App(main) // want "bootstrap code is missing"
 
+func main() {
+	_ = dependency
+}
+
 // braider:hash:e182e75e68094f9b
 var dependency = func() struct {
 	orderService OrderService
@@ -25,7 +29,3 @@ var dependency = func() struct {
 		userService:  userService,
 	}
 }()
-
-func main() {
-	_ = dependency
-}

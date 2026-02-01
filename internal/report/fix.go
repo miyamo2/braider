@@ -169,8 +169,8 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 
 	// Phase 2: Add dependency variable
 	// Find insertion point for dependency variable
-	// Insert after package declaration, before first function
-	insertPos := b.findBootstrapInsertionPoint(pass)
+	// Insert after main function
+	insertPos := b.findBootstrapInsertionPoint(pass, mainFunc)
 
 	// Add dependency variable
 	dependencyText := "\n\n" + bootstrap.DependencyVar + "\n"
@@ -285,18 +285,42 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 }
 
 // findBootstrapInsertionPoint finds the position to insert bootstrap code.
-// Returns position after package declaration, before first function.
-func (b *suggestedFixBuilder) findBootstrapInsertionPoint(pass *analysis.Pass) token.Pos {
+// Returns position after main function.
+func (b *suggestedFixBuilder) findBootstrapInsertionPoint(pass *analysis.Pass, mainFunc *ast.FuncDecl) token.Pos {
+	// Primary strategy: Insert after main function
+	if mainFunc != nil {
+		return mainFunc.End()
+	}
+
+	// Fallback 1: Try to find main function in pass
 	for _, file := range pass.Files {
-		// Find first function declaration
 		for _, decl := range file.Decls {
 			if fn, ok := decl.(*ast.FuncDecl); ok {
-				return fn.Pos()
+				if fn.Name.Name == "main" {
+					return fn.End()
+				}
 			}
 		}
-		// If no function found, insert at end of file
+	}
+
+	// Fallback 2: Insert after last function
+	var lastFunc *ast.FuncDecl
+	for _, file := range pass.Files {
+		for _, decl := range file.Decls {
+			if fn, ok := decl.(*ast.FuncDecl); ok {
+				lastFunc = fn
+			}
+		}
+	}
+	if lastFunc != nil {
+		return lastFunc.End()
+	}
+
+	// Final fallback: End of file
+	for _, file := range pass.Files {
 		return file.End()
 	}
+
 	return token.NoPos
 }
 
