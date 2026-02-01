@@ -2,7 +2,7 @@ name: Go Test
 
 on:
   pull_request:
-    types: [synchronize, reopened, ready_for_review, closed]
+    types: [opened, synchronize, reopened, ready_for_review, closed]
 
 permissions:
   contents: read
