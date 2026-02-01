@@ -130,6 +130,59 @@ func TestCollectImports(t *testing.T) {
 				{Path: "github.com/z/pkg", Alias: "pkg3"},  // Third gets numbered alias
 			},
 		},
+		{
+			name: "empty package path nodes",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"github.com/user/repo.Service": {
+						TypeName:    "github.com/user/repo.Service",
+						PackagePath: "github.com/user/repo",
+						PackageName: "repo",
+					},
+					"EmptyPath.Type": {
+						TypeName:    "EmptyPath.Type",
+						PackagePath: "", // Empty path
+						PackageName: "empty",
+					},
+				},
+				Edges: make(map[string][]string),
+			},
+			currentPackage: "main",
+			currentPkgName: "main",
+			want:           []ImportInfo{{Path: "github.com/user/repo", Alias: ""}},
+		},
+		{
+			name: "different main packages",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"other/main.Service": {
+						TypeName:    "other/main.Service",
+						PackagePath: "other/main",
+						PackageName: "main",
+					},
+				},
+				Edges: make(map[string][]string),
+			},
+			currentPackage: "current/main",
+			currentPkgName: "main",
+			want:           []ImportInfo{}, // Different main packages shouldn't import each other
+		},
+		{
+			name: "same main package",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"current/main.Service": {
+						TypeName:    "current/main.Service",
+						PackagePath: "current/main",
+						PackageName: "main",
+					},
+				},
+				Edges: make(map[string][]string),
+			},
+			currentPackage: "current/main",
+			currentPkgName: "main",
+			want:           []ImportInfo{}, // Same main package
+		},
 	}
 
 	for _, tt := range tests {
@@ -298,6 +351,34 @@ func TestDetectPackageCollisions(t *testing.T) {
 			got := detectPackageCollisions(tt.g)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("detectPackageCollisions() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestImportInfo_HasAlias(t *testing.T) {
+	tests := []struct {
+		name string
+		info ImportInfo
+		want bool
+	}{
+		{
+			name: "with alias",
+			info: ImportInfo{Path: "example.com/v1/user", Alias: "v1user"},
+			want: true,
+		},
+		{
+			name: "without alias",
+			info: ImportInfo{Path: "example.com/user", Alias: ""},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.info.HasAlias()
+			if got != tt.want {
+				t.Errorf("HasAlias() = %v, want %v", got, tt.want)
 			}
 		})
 	}

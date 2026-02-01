@@ -185,6 +185,9 @@ func TestDeriveParamName(t *testing.T) {
 		{"repo", "repo"},
 		{"logger", "logger"},
 		{"config", "config"},
+		// Edge cases
+		{"", "param"},
+		{"STRING", "stringParam"},
 	}
 
 	for _, tt := range tests {
@@ -194,6 +197,30 @@ func TestDeriveParamName(t *testing.T) {
 				t.Errorf("DeriveParamName(%q) = %q, want %q", tt.fieldName, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestConstructorGenerator_NilTypeExpr(t *testing.T) {
+	gen := generate.NewConstructorGenerator()
+	candidate := detect.ConstructorCandidate{
+		TypeSpec: &ast.TypeSpec{
+			Name: &ast.Ident{Name: "Service"},
+		},
+	}
+
+	// Field with nil TypeExpr should be handled gracefully
+	fields := []detect.FieldInfo{
+		{Name: "field", TypeExpr: nil},
+	}
+
+	result, err := gen.GenerateConstructor(candidate, fields)
+	if err != nil {
+		t.Fatalf("GenerateConstructor() error = %v", err)
+	}
+
+	// Should generate constructor even with nil type expr
+	if result == nil {
+		t.Error("Result should not be nil")
 	}
 }
 
@@ -278,3 +305,158 @@ func TestConstructorGenerator_EmptyFields(t *testing.T) {
 		t.Errorf("Code should contain empty struct literal\nGot:\n%s", result.Code)
 	}
 }
+
+func TestConstructorGenerator_ComplexTypes(t *testing.T) {
+	tests := []struct {
+		name             string
+		structName       string
+		fields           []detect.FieldInfo
+		expectedContains []string
+	}{
+		{
+			name:       "slice type",
+			structName: "Service",
+			fields: []detect.FieldInfo{
+				{
+					Name:     "items",
+					TypeExpr: &ast.ArrayType{Len: nil, Elt: &ast.Ident{Name: "string"}},
+				},
+			},
+			expectedContains: []string{
+				"func NewService(items []string) *Service",
+				"items: items,",
+			},
+		},
+		{
+			name:       "map type",
+			structName: "Cache",
+			fields: []detect.FieldInfo{
+				{
+					Name: "data",
+					TypeExpr: &ast.MapType{
+						Key:   &ast.Ident{Name: "string"},
+						Value: &ast.Ident{Name: "int"},
+					},
+				},
+			},
+			expectedContains: []string{
+				"func NewCache(data map[string]int) *Cache",
+				"data: data,",
+			},
+		},
+		{
+			name:       "channel type - send only",
+			structName: "Producer",
+			fields: []detect.FieldInfo{
+				{
+					Name: "ch",
+					TypeExpr: &ast.ChanType{
+						Dir:   ast.SEND,
+						Value: &ast.Ident{Name: "string"},
+					},
+				},
+			},
+			expectedContains: []string{
+				"func NewProducer(ch chan<- string) *Producer",
+				"ch: ch,",
+			},
+		},
+		{
+			name:       "channel type - receive only",
+			structName: "Consumer",
+			fields: []detect.FieldInfo{
+				{
+					Name: "ch",
+					TypeExpr: &ast.ChanType{
+						Dir:   ast.RECV,
+						Value: &ast.Ident{Name: "int"},
+					},
+				},
+			},
+			expectedContains: []string{
+				"func NewConsumer(ch <-chan int) *Consumer",
+				"ch: ch,",
+			},
+		},
+		{
+			name:       "channel type - bidirectional",
+			structName: "Worker",
+			fields: []detect.FieldInfo{
+				{
+					Name: "ch",
+					TypeExpr: &ast.ChanType{
+						Dir:   ast.SEND | ast.RECV,
+						Value: &ast.Ident{Name: "bool"},
+					},
+				},
+			},
+			expectedContains: []string{
+				"func NewWorker(ch chan bool) *Worker",
+				"ch: ch,",
+			},
+		},
+		{
+			name:       "nested complex type",
+			structName: "Registry",
+			fields: []detect.FieldInfo{
+				{
+					Name: "mapping",
+					TypeExpr: &ast.MapType{
+						Key: &ast.Ident{Name: "string"},
+						Value: &ast.ArrayType{
+							Len: nil,
+							Elt: &ast.Ident{Name: "int"},
+						},
+					},
+				},
+			},
+			expectedContains: []string{
+				"func NewRegistry(mapping map[string][]int) *Registry",
+				"mapping: mapping,",
+			},
+		},
+		{
+			name:       "pointer to slice",
+			structName: "Container",
+			fields: []detect.FieldInfo{
+				{
+					Name: "items",
+					TypeExpr: &ast.StarExpr{
+						X: &ast.ArrayType{
+							Len: nil,
+							Elt: &ast.Ident{Name: "User"},
+						},
+					},
+					IsPointer: true,
+				},
+			},
+			expectedContains: []string{
+				"func NewContainer(items *[]User) *Container",
+				"items: items,",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gen := generate.NewConstructorGenerator()
+			candidate := detect.ConstructorCandidate{
+				TypeSpec: &ast.TypeSpec{
+					Name: &ast.Ident{Name: tt.structName},
+				},
+			}
+
+			result, err := gen.GenerateConstructor(candidate, tt.fields)
+			if err != nil {
+				t.Fatalf("GenerateConstructor() error = %v", err)
+			}
+
+			for _, contains := range tt.expectedContains {
+				if !strings.Contains(result.Code, contains) {
+					t.Errorf("Code missing expected content: %q\nGot:\n%s", contains, result.Code)
+				}
+			}
+		})
+	}
+}
+
