@@ -6,26 +6,101 @@
 
 **Users**: Go developers building applications with dependency injection will utilize this feature to automatically generate bootstrap code that creates and wires all `annotation.Inject`-marked structs, eliminating manual initialization boilerplate.
 
-**Impact**: This feature extends the existing braider analyzer by adding a third phase (bootstrap generation) after constructor generation. It introduces the `annotation.App` marker detection, cross-package dependency discovery via Facts, dependency graph construction with cycle detection, and IIFE-based bootstrap code generation.
+**Impact**: This feature extends the existing braider analyzer by splitting it into two analyzers (InjectAnalyzer and AppAnalyzer) and adding bootstrap generation capability. It introduces the `annotation.App` marker detection, cross-package dependency discovery via global InjectableRegistry, dependency graph construction with cycle detection, and IIFE-based bootstrap code generation.
 
 ### Goals
 
 - Detect `annotation.App(main)` markers to identify bootstrap targets
-- Discover all `annotation.Inject` structs across the module via Facts
+- Discover all `annotation.Inject` structs across the module via global InjectableRegistry
 - Build dependency graph from constructor parameters
 - Detect and report circular dependencies with full cycle paths
 - Generate bootstrap code in topological order via `SuggestedFix`
 - Produce idempotent output (no changes if bootstrap is current)
-- Integrate with existing constructor generation feature
+- Integrate with existing constructor generation feature using multichecker architecture
 
 ### Non-Goals
 
 - Runtime dependency resolution or containers
-- Support for multiple `annotation.App` declarations per package
+- Support for multiple `annotation.App` declarations per package (first one wins; same-file duplicates warn)
 - Support for `annotation.App` with functions other than `main`
 - Lazy initialization or scoped lifetimes
 - Dynamic dependency selection based on configuration
 - Plugin/module loading at runtime
+
+### Design Decisions
+
+The following design decisions were made based on requirements clarification:
+
+#### DD-1: Module-Wide Discovery via Global InjectableRegistry
+
+Injectable structs are discovered across all packages using a global InjectableRegistry. The InjectAnalyzer registers each discovered injectable to the global registry; the AppAnalyzer retrieves all injectables from the registry when generating bootstrap code. This approach bypasses the import-relationship limitation of go/analysis Facts.
+
+**Mechanism**: Using multichecker with two analyzers:
+1. **InjectAnalyzer** runs on each package, detecting `annotation.Inject` structs and registering them to the global InjectableRegistry
+2. **AppAnalyzer** runs on each package, but only acts when `annotation.App(main)` is detected
+3. When AppAnalyzer detects the App annotation, it retrieves all registered injectables from the global registry
+4. The dependency graph is built from the complete set of injectables
+
+**Rationale**: The go/analysis Facts API propagates only through import relationships, which would require users to explicitly import all injectable packages from main. By using a global registry, we enable automatic discovery of all injectables across the module without import requirements, providing a better developer experience.
+
+#### DD-2: Strict Constructor Validation
+
+If any injectable struct lacks a constructor, bootstrap generation halts with an error. Partial bootstrap generation is not supported.
+
+**Rationale**: Partial bootstrap code would compile but fail at runtime with nil pointer dereferences. Failing fast at analysis time provides clearer feedback.
+
+#### DD-3: Strict Interface Resolution
+
+When a constructor parameter is an interface type, an injectable struct implementing that interface must exist. If no implementation is found, bootstrap generation halts with an error.
+
+**Rationale**: Interface parameters without injectable implementations indicate either a missing `annotation.Inject` marker or an architectural issue that should be addressed before bootstrap generation.
+
+#### DD-4: Unified Graph Error Transformation
+
+When dependency graph construction encounters specific error types (such as `UnresolvedInterfaceError` or `UnresolvableTypeError`), they are intentionally transformed into a generic `UnresolvableTypeError` before being reported via `EmitGraphBuildError`. This design centralizes all graph construction failures into a single error reporting path with consistent formatting.
+
+**Error Transformation Flow**:
+```
+UnresolvedInterfaceError{InterfaceType: "io.Reader"}
+  ↓ (dependency_graph.go:200-211で変換)
+UnresolvableTypeError{TypeName: "io.Reader"}
+  ↓ (app.go:170でラップ)
+EmitGraphBuildError("unresolvable dependency type: io.Reader")
+  ↓ (diagnostic.go:205でフォーマット)
+"failed to build dependency graph: unresolvable dependency type: io.Reader"
+```
+
+**Example**: When `NewMyWriter(reader io.Reader)` is encountered but no injectable implements `io.Reader`:
+1. `InterfaceRegistry.Resolve()` returns `UnresolvedInterfaceError{InterfaceType: "io.Reader"}`
+2. `DependencyGraph.BuildGraph()` transforms it to `UnresolvableTypeError{TypeName: "io.Reader"}`
+3. `AppAnalyzer` wraps it and calls `EmitGraphBuildError`
+4. User sees: `"failed to build dependency graph: unresolvable dependency type: io.Reader"`
+
+**Rationale and Trade-offs**:
+
+*Benefits*:
+1. **Single code path**: AppAnalyzer has one error handling path for all graph build failures
+2. **Consistent UX**: All graph errors presented with same format and prefix
+3. **Simplified testing**: Fewer error message variations to test and maintain
+4. **Domain separation**: Graph domain owns error types; reporting domain owns message formatting
+
+*Costs*:
+1. **Reduced specificity**: Users don't see detailed suggestions like "add annotation.Inject to implementing struct"
+2. **Manual diagnosis**: Users must inspect constructor parameters to determine if issue is interface or concrete type
+
+*Why acceptable*:
+- Error message includes type name, making it diagnosable
+- Users can inspect constructor to understand the issue
+- Implementation simplicity outweighs diagnostic convenience
+- Go analyzer conventions prioritize correctness over verbose guidance
+
+#### DD-5: Single-Pass Constructor and Bootstrap Generation
+
+Constructor generation and bootstrap generation MUST work in a single `go vet -fix` invocation. The InjectableRegistry tracks both existing and pending constructors.
+
+**Mechanism**: Each InjectableInfo in the global registry includes an `IsPending` flag indicating whether the constructor exists on disk or is being generated in the current pass. When InjectAnalyzer generates a constructor SuggestedFix, it registers the injectable with `IsPending=true`. AppAnalyzer uses all registered injectables regardless of pending status.
+
+**Rationale**: SuggestedFix changes are not applied until after `go vet -fix` completes. By tracking pending constructors within the same InjectableRegistry, we enable single-pass execution where bootstrap generation can reference constructors that don't yet exist on disk.
 
 ## Architecture
 
@@ -47,41 +122,35 @@ The existing `run` function in `analyzer.go` handles constructor generation in a
 graph TB
     subgraph CLI["CLI Layer"]
         Main[cmd/braider/main.go]
+        MultiChecker[multichecker.Main]
     end
 
-    subgraph Analyzer["Analyzer Layer"]
-        AnalyzerDef[Analyzer Definition]
-        RunFunc[run function]
-    end
-
-    subgraph Detection["Detection Domain"]
+    subgraph InjectAnalyzer["Inject Analyzer"]
         InjectDetector[Inject Detector]
         StructDetector[Struct Detector]
         FieldAnalyzer[Field Analyzer]
-        AppDetector[App Detector]
+        ConstructorGen[Constructor Generator]
     end
 
-    subgraph Graph["Graph Domain"]
+    subgraph AppAnalyzer["App Analyzer"]
+        AppDetector[App Detector]
         DependencyGraph[Dependency Graph Builder]
         TopologicalSort[Topological Sort]
         CycleDetector[Cycle Detector]
+        BootstrapGen[Bootstrap Generator]
+    end
+
+    subgraph Registry["Global State"]
+        InjectableRegistry[Injectable Registry]
     end
 
     subgraph Generation["Generation Domain"]
-        ConstructorGen[Constructor Generator]
-        BootstrapGen[Bootstrap Generator]
         CodeFormatter[Code Formatter]
     end
 
     subgraph Reporting["Reporting Domain"]
         DiagnosticEmitter[Diagnostic Emitter]
         SuggestedFixBuilder[SuggestedFix Builder]
-    end
-
-    subgraph Facts["Cross-Package Data"]
-        InjectableFact[Injectable Fact]
-        FactExporter[Fact Exporter]
-        FactImporter[Fact Importer]
     end
 
     subgraph External["External Dependencies"]
@@ -91,17 +160,16 @@ graph TB
         GoFormat[go/format package]
     end
 
-    Main --> AnalyzerDef
-    AnalyzerDef --> RunFunc
-    RunFunc --> InjectDetector
-    RunFunc --> StructDetector
-    RunFunc --> AppDetector
+    Main --> MultiChecker
+    MultiChecker --> InjectAnalyzer
+    MultiChecker --> AppAnalyzer
+    AppAnalyzer -.->|Requires| InjectAnalyzer
+    InjectDetector --> StructDetector
     StructDetector --> FieldAnalyzer
     FieldAnalyzer --> ConstructorGen
-    AppDetector --> DependencyGraph
-    DependencyGraph --> FactImporter
-    FactImporter --> InjectableFact
-    FactExporter --> InjectableFact
+    ConstructorGen --> InjectableRegistry
+    AppDetector --> InjectableRegistry
+    InjectableRegistry --> DependencyGraph
     DependencyGraph --> TopologicalSort
     TopologicalSort --> CycleDetector
     TopologicalSort --> BootstrapGen
@@ -120,27 +188,30 @@ graph TB
 
 **Architecture Integration**:
 
-- **Selected pattern**: Extended pipeline architecture with three phases (Detection -> Constructor Generation -> Bootstrap Generation)
-- **Domain boundaries**: Detection handles AST traversal and marker detection; Graph handles dependency resolution and ordering; Generation handles code synthesis; Reporting handles diagnostic emission
+- **Selected pattern**: Multichecker architecture with two analyzers (InjectAnalyzer -> AppAnalyzer)
+- **Domain boundaries**: InjectAnalyzer handles Inject detection and constructor generation; AppAnalyzer handles App detection, dependency resolution, and bootstrap generation; Registry provides cross-package state sharing
 - **Existing patterns preserved**: Component-based architecture, `inspect.Analyzer` dependency, `analysistest` testing, SuggestedFix-based code generation
 - **New components rationale**:
-  - `AppDetector`: Identifies `annotation.App(main)` calls to trigger bootstrap generation
+  - `InjectAnalyzer`: Detects `annotation.Inject` structs, generates constructors, registers to global registry
+  - `AppAnalyzer`: Detects `annotation.App(main)` calls, retrieves injectables from registry, generates bootstrap
+  - `InjectableRegistry`: Global state storing all discovered injectables across packages (DD-1)
   - `DependencyGraph`: Builds edges from constructor parameters to injectable types
   - `TopologicalSort`: Orders dependencies using Kahn's algorithm with cycle detection
   - `BootstrapGenerator`: Synthesizes IIFE-based bootstrap code
-  - Facts: Enable cross-package discovery of injectable structs
-- **Steering compliance**: Follows Go analyzer conventions, zero external dependencies for graph algorithms, compile-time safety
+- **Steering compliance**: Follows Go analyzer conventions (multichecker), zero external dependencies for graph algorithms, compile-time safety
+- **Trade-off**: Global state is not idiomatic go/analysis, but necessary to bypass Facts' import-relationship limitation
 
 ### Technology Stack
 
 | Layer | Choice / Version | Role in Feature | Notes |
 |-------|------------------|-----------------|-------|
-| Framework | `golang.org/x/tools/go/analysis` | Analyzer interface, Facts, diagnostics | v0.29.0 per go.mod |
+| Framework | `golang.org/x/tools/go/analysis` | Analyzer interface, diagnostics | v0.29.0 per go.mod |
+| CLI | `golang.org/x/tools/go/analysis/multichecker` | Multiple analyzer execution | Standard CLI pattern |
 | AST Processing | `go/ast`, `go/parser` | App annotation and struct parsing | Standard library |
 | Type Resolution | `go/types` via `pass.TypesInfo` | Constructor parameter type resolution | Standard library |
 | Code Generation | `go/format`, `go/printer` | gofmt-compatible output | Standard library |
 | AST Traversal | `golang.org/x/tools/go/ast/inspector` | Efficient node filtering | Via inspect.Analyzer |
-| Cross-Package Data | `analysis.Fact` | Injectable struct discovery across packages | Built-in mechanism |
+| Cross-Package Data | Global InjectableRegistry | Injectable struct discovery across packages | Custom (DD-1) |
 | Testing | `golang.org/x/tools/go/analysis/analysistest` | Golden file testing | RunWithSuggestedFixes |
 
 ## System Flows
@@ -150,34 +221,40 @@ graph TB
 ```mermaid
 sequenceDiagram
     participant GV as go vet
-    participant AN as Analyzer.Run
-    participant SD as StructDetector
-    participant FE as FactExporter
-    participant AD as AppDetector
-    participant FI as FactImporter
+    participant IA as InjectAnalyzer
+    participant GR as GlobalRegistry
+    participant AA as AppAnalyzer
     participant DG as DependencyGraph
     participant TS as TopologicalSort
     participant BG as BootstrapGen
     participant DE as DiagnosticEmitter
 
-    GV->>AN: Invoke with Pass
+    Note over GV,DE: Per-package execution (dependency order)
 
     rect rgb(240, 240, 255)
-        Note over AN,FE: Phase 1-2: Constructor Generation
-        AN->>SD: Detect Inject-annotated structs
-        SD->>AN: Return candidates
-        AN->>AN: Generate constructors (existing flow)
-        AN->>FE: Export InjectableFact for each struct
+        Note over GV,GR: InjectAnalyzer runs on each package
+        GV->>IA: Run on repo/
+        IA->>IA: Detect Inject structs
+        IA->>IA: Generate constructor (SuggestedFix)
+        IA->>GR: Register(DBRepository, IsPending=true)
+
+        GV->>IA: Run on service/
+        IA->>IA: Detect Inject structs
+        IA->>IA: Generate constructor (SuggestedFix)
+        IA->>GR: Register(UserService, IsPending=true)
+
+        GV->>IA: Run on main/
+        IA->>GR: Register(any main injectables)
     end
 
     rect rgb(255, 240, 240)
-        Note over AN,BG: Phase 3: Bootstrap Generation
-        AN->>AD: Detect App annotation
+        Note over GV,DE: AppAnalyzer runs on main package
+        GV->>AA: Run on main/
+        AA->>AA: Detect App annotation
         alt App annotation found
-            AD->>AN: Return App position
-            AN->>FI: Import InjectableFacts from dependencies
-            FI->>AN: Return all injectable types
-            AN->>DG: Build dependency graph
+            AA->>GR: GetAll()
+            GR->>AA: All InjectableInfo
+            AA->>DG: Build dependency graph
             DG->>DG: Analyze constructor parameters
             DG->>TS: Request topological order
             TS->>TS: Execute Kahn's algorithm
@@ -189,25 +266,26 @@ sequenceDiagram
                 BG->>DE: Emit SuggestedFix
             end
         else No App annotation
-            AD->>AN: Skip bootstrap generation
+            AA->>AA: Skip bootstrap generation
         end
     end
 
-    AN->>GV: Return results
+    AA->>GV: Return results
 ```
 
 ### Bootstrap Code Generation Detail
 
 ```mermaid
 flowchart TD
-    A[Start Phase 3] --> B{App annotation present?}
+    A[Start AppAnalyzer] --> B{App annotation present?}
     B -->|No| Z[Skip bootstrap generation]
-    B -->|Yes| C{Only one App annotation?}
-    C -->|No| ERR1[Report error: multiple App annotations]
-    C -->|Yes| D{App references main func?}
+    B -->|Yes| C{Multiple App annotations?}
+    C -->|Yes| WARN1[Warn for same-file duplicates; keep first per file]
+    C -->|No| D{App references main func?}
+    WARN1 --> D
     D -->|No| ERR2[Report error: App must reference main]
-    D -->|Yes| E[Import InjectableFacts from dependencies]
-    E --> F[Collect local injectable structs]
+    D -->|Yes| E[Get all injectables from GlobalRegistry]
+    E --> F[Validate all have constructors]
     F --> G[Build dependency graph from constructors]
     G --> H[Execute topological sort]
     H --> I{Cycle detected?}
@@ -237,21 +315,21 @@ flowchart TD
 | Requirement | Summary | Components | Interfaces | Flows |
 |-------------|---------|------------|------------|-------|
 | 1.1 | Detect `annotation.App(main)` as bootstrap target | AppDetector | DetectAppAnnotation | Extended Analysis Pipeline |
-| 1.2 | Report error for multiple App annotations | AppDetector, DiagnosticEmitter | ValidateAppCount, EmitMultipleAppError | Bootstrap Generation Detail |
+| 1.2 | Allow multiple App annotations; warn for same-file duplicates | AppDetector, DiagnosticEmitter | DeduplicateAppsByFile, EmitDuplicateAppWarning | Bootstrap Generation Detail |
 | 1.3 | Skip bootstrap when no App annotation | AppDetector | DetectAppAnnotation | Extended Analysis Pipeline |
 | 1.4 | Report error when App references non-main function | AppDetector, DiagnosticEmitter | ValidateMainReference, EmitNonMainError | Bootstrap Generation Detail |
 | 2.1 | Identify structs embedding `annotation.Inject` | InjectDetector | HasInjectAnnotation | Extended Analysis Pipeline |
 | 2.2 | Exclude structs without Inject from graph | StructDetector | DetectCandidates | Extended Analysis Pipeline |
-| 2.3 | Discover Inject structs across packages | FactImporter | ImportInjectableFacts | Extended Analysis Pipeline |
+| 2.3 | Discover Inject structs across packages | InjectableRegistry | GetAll | Extended Analysis Pipeline |
 | 2.4 | Report error when Inject struct lacks constructor | DependencyGraph, DiagnosticEmitter | ValidateConstructors | Bootstrap Generation Detail |
 | 3.1 | Extract constructor parameter types | DependencyGraph | BuildGraph | Extended Analysis Pipeline |
 | 3.2 | Add dependency edges for injectable params | DependencyGraph | AddDependencyEdge | Extended Analysis Pipeline |
-| 3.3 | Exclude non-injectable types from graph | DependencyGraph | BuildGraph | Bootstrap Generation Detail |
+| 3.3 | Exclude non-injectable types from graph | DependencyGraph | BuildGraph (returns error) | Bootstrap Generation Detail |
 | 3.4 | Use first return value as provided type | DependencyGraph | ResolveReturnType | Bootstrap Generation Detail |
 | 3.5 | Resolve interface to implementing injectable | InterfaceRegistry, DependencyGraph | Resolve, BuildGraph | Bootstrap Generation Detail |
 | 3.6 | Report error for multiple implementations | InterfaceRegistry, DiagnosticEmitter | Resolve, EmitAmbiguousImplementationError | Bootstrap Generation Detail |
-| 3.7 | Exclude unresolved interfaces from graph | DependencyGraph | BuildGraph | Bootstrap Generation Detail |
-| 3.8 | Cross-package interface resolution via Facts | InterfaceRegistry, FactImporter | Build, ImportInjectableFacts | Extended Analysis Pipeline |
+| 3.7 | Report error for unresolved interface dependency | DependencyGraph, DiagnosticEmitter | BuildGraph, EmitGraphBuildError | Bootstrap Generation Detail |
+| 3.8 | Cross-package interface resolution via Registry | InterfaceRegistry, InjectableRegistry | Build, GetAll | Extended Analysis Pipeline |
 | 4.1 | Report error with cycle path | CycleDetector, DiagnosticEmitter | DetectCycle, EmitCircularDependency | Bootstrap Generation Detail |
 | 4.2 | Proceed when no cycles | TopologicalSort | Sort | Extended Analysis Pipeline |
 | 4.3 | Include full cycle path in error | DiagnosticEmitter | EmitCircularDependency | Bootstrap Generation Detail |
@@ -272,20 +350,20 @@ flowchart TD
 | 8.1 | Include source position in errors | DiagnosticEmitter | All emit methods | All Flows |
 | 8.2 | Provide descriptive error messages | DiagnosticEmitter | All emit methods | All Flows |
 | 8.3 | Describe fix actions clearly | SuggestedFixBuilder | BuildBootstrapFix | Bootstrap Generation Detail |
-| 9.1 | Work alongside constructor generation | run function | Run | Extended Analysis Pipeline |
-| 9.2 | Constructors generated before bootstrap | run function | Run | Extended Analysis Pipeline |
-| 9.3 | Consistent results on incremental analysis | FactExporter, FactImporter | ExportFact, ImportFact | Extended Analysis Pipeline |
+| 9.1 | Work alongside constructor generation | InjectAnalyzer, InjectableRegistry | Run, Register | Extended Analysis Pipeline |
+| 9.2 | Constructors generated before bootstrap | InjectAnalyzer, InjectableRegistry | Run, Register | Extended Analysis Pipeline |
+| 9.3 | Consistent results on incremental analysis | InjectableRegistry | Register, GetAll | Extended Analysis Pipeline |
 
 ## Components and Interfaces
 
 | Component | Domain/Layer | Intent | Req Coverage | Key Dependencies | Contracts |
 |-----------|--------------|--------|--------------|------------------|-----------|
+| InjectAnalyzer | Analyzer | Detect Inject structs, generate constructors, register to registry | 2.1, 2.2, 9.1, 9.2 | InjectableRegistry (P0) | Analyzer |
+| AppAnalyzer | Analyzer | Detect App annotation, generate bootstrap | 1.1-1.4, 6.1-6.6 | InjectableRegistry (P0), InjectAnalyzer (Requires) | Analyzer |
+| InjectableRegistry | Registry | Store all discovered injectables across packages | 2.3, 9.3 (DD-1, DD-5) | none | State |
 | AppDetector | Detection | Detect `annotation.App(main)` calls | 1.1-1.4 | go/ast (P0), go/types (P0) | Service |
-| InjectableFact | Facts | Cross-package injectable struct data | 2.3, 9.3 | analysis.Fact (P0) | State |
-| FactExporter | Facts | Export facts from current package | 2.3, 9.3 | pass.ExportObjectFact (P0) | Service |
-| FactImporter | Facts | Import facts from dependencies | 2.3 | pass.ImportObjectFact (P0) | Service |
-| InterfaceRegistry | Graph | Map interface types to implementing injectable structs | 3.5-3.8 | InjectableFact (P0), go/types (P0) | Service |
-| DependencyGraph | Graph | Build dependency edges from constructors | 2.4, 3.1-3.8 | FieldAnalyzer (P0), FactImporter (P1), InterfaceRegistry (P0) | Service |
+| InterfaceRegistry | Graph | Map interface types to implementing injectable structs | 3.5-3.8 | InjectableInfo (P0), go/types (P0) | Service |
+| DependencyGraph | Graph | Build dependency edges from constructors | 2.4, 3.1-3.8 | InjectableRegistry (P0), InterfaceRegistry (P0) | Service |
 | TopologicalSort | Graph | Order types via Kahn's algorithm | 4.1-4.3, 5.1-5.3 | DependencyGraph (P0) | Service |
 | BootstrapGenerator | Generation | Generate IIFE bootstrap code | 6.1-6.6, 7.1-7.5 | TopologicalSort (P0), CodeFormatter (P0) | Service |
 
@@ -301,7 +379,7 @@ flowchart TD
 **Responsibilities and Constraints**
 
 - Traverse AST to find `var _ = annotation.App(main)` declarations
-- Validate that exactly one App annotation exists per package
+- Allow multiple App annotations per package; use the first per file and warn for same-file duplicates
 - Validate that the App annotation references the `main` function
 - Extract position information for diagnostic reporting
 - Boundary: App detection and validation only; does not build dependency graph
@@ -345,7 +423,7 @@ const AppFuncName = "App"
 
 - Preconditions: Pass must have valid AST and TypesInfo
 - Postconditions: Returns AppAnnotation if valid; nil if not present; emits diagnostics for invalid cases
-- Invariants: At most one valid App annotation per package
+- Invariants: App annotations are deduplicated per file; bootstrap generation uses the first detected App annotation
 
 **Implementation Notes**
 
@@ -354,136 +432,134 @@ const AppFuncName = "App"
 - Validation: Check argument is identifier `main` and references a function
 - Risks: Must handle aliased imports of annotation package
 
-### Facts Domain
+### Registry Domain
 
-#### InjectableFact
+#### InjectableRegistry
 
 | Field | Detail |
 |-------|--------|
-| Intent | Store cross-package data about injectable structs |
-| Requirements | 2.3, 9.3 |
+| Intent | Store all discovered injectable structs across packages globally |
+| Requirements | 2.3, 9.1, 9.2, 9.3 (DD-1, DD-5) |
 
 **Responsibilities and Constraints**
 
-- Implement `analysis.Fact` interface for gob serialization
-- Store constructor signature and dependency information
-- Enable import of facts from transitive dependencies
-- Boundary: Data structure only; no logic
+- Store injectable struct information when InjectAnalyzer discovers them
+- Provide all registered injectables to AppAnalyzer for bootstrap generation
+- Track whether constructor exists on disk or is pending (IsPending flag)
+- Thread-safe for potential parallel analyzer execution
+- Boundary: Global state storage; does not perform detection or generation
 
 **Dependencies**
 
-- External: `analysis.Fact` interface (P0)
-- External: `encoding/gob` - serialization (P0)
+- Inbound: InjectAnalyzer - registers discovered injectables (P0)
+- Inbound: AppAnalyzer - retrieves all injectables for bootstrap (P0)
+- Inbound: DependencyGraph - retrieves injectables for graph construction (P0)
 
 **Contracts**: State [x]
 
 ##### State Model
 
 ```go
-// InjectableFact stores information about an injectable struct.
-// Implements analysis.Fact interface for cross-package sharing.
-type InjectableFact struct {
-    TypeName        string   // Fully qualified type name (pkg.TypeName)
-    ConstructorName string   // Constructor function name (New<TypeName>)
-    Dependencies    []string // Fully qualified types of constructor parameters
-    PackagePath     string   // Import path of the package
-    Implements      []string // Fully qualified interface types this struct implements
+// GlobalRegistry is the singleton instance used by all analyzers.
+var GlobalRegistry = NewInjectableRegistry()
+
+// InjectableRegistry stores all discovered injectable structs globally.
+// Thread-safe for potential parallel analyzer execution.
+type InjectableRegistry struct {
+    mu          sync.Mutex
+    injectables map[string]*InjectableInfo  // key: fully qualified type name
 }
 
-// AFact marks InjectableFact as implementing analysis.Fact.
-func (*InjectableFact) AFact() {}
+// NewInjectableRegistry creates a new empty registry.
+func NewInjectableRegistry() *InjectableRegistry
 
-// String returns a string representation for debugging.
-func (f *InjectableFact) String() string {
-    return fmt.Sprintf("Injectable(%s)", f.TypeName)
-}
-```
+// Register adds an injectable struct to the registry.
+// If already registered, updates the entry (pending -> existing).
+func (r *InjectableRegistry) Register(info *InjectableInfo)
 
-- Persistence: Serialized via gob by go/analysis framework
-- Consistency: Facts are computed once per package during analysis
-- Concurrency: Read-only after creation; thread-safe via framework
+// GetAll returns all registered injectable structs.
+func (r *InjectableRegistry) GetAll() []*InjectableInfo
 
-#### FactExporter
+// Get retrieves an injectable by fully qualified type name.
+// Returns nil if not found.
+func (r *InjectableRegistry) Get(typeName string) *InjectableInfo
 
-| Field | Detail |
-|-------|--------|
-| Intent | Export InjectableFact for each discovered injectable struct |
-| Requirements | 2.3, 9.3 |
+// Clear removes all entries. Used for testing.
+func (r *InjectableRegistry) Clear()
 
-**Responsibilities and Constraints**
-
-- Create InjectableFact from ConstructorCandidate and constructor info
-- Export facts using `pass.ExportObjectFact`
-- Boundary: Export only; does not import or consume facts
-
-**Dependencies**
-
-- Inbound: run function - called after constructor generation (P0)
-- External: `pass.ExportObjectFact` - fact export API (P0)
-
-**Contracts**: Service [x]
-
-##### Service Interface
-
-```go
-// FactExporter exports injectable facts for cross-package discovery.
-type FactExporter interface {
-    // ExportInjectableFact creates and exports a fact for an injectable struct.
-    ExportInjectableFact(
-        pass *analysis.Pass,
-        candidate detect.ConstructorCandidate,
-        constructor *generate.GeneratedConstructor,
-        dependencies []string,
-    )
+// InjectableInfo contains information about an injectable struct.
+type InjectableInfo struct {
+    TypeName        string      // Fully qualified type name (pkg.TypeName)
+    PackagePath     string      // Import path of the package
+    LocalName       string      // Type name without package path
+    ConstructorName string      // Constructor function name (New<TypeName>)
+    Dependencies    []string    // Fully qualified types of constructor parameters
+    IsPending       bool        // Whether constructor is generated in current pass (not yet on disk)
+    Implements      []string    // Fully qualified interface types this struct implements
 }
 ```
 
-- Preconditions: Candidate must have valid TypeSpec; constructor must be generated successfully
-- Postconditions: Fact exported and available to dependent packages
-- Invariants: One fact per injectable struct per package
+- Persistence: In-memory only; not persisted between runs
+- Consistency: Thread-safe via sync.Mutex
+- Concurrency: Safe for parallel analyzer execution
 
 **Implementation Notes**
 
-- Interface detection: Use `types.Implements()` to detect which interfaces each injectable struct implements
-- Check both value receiver (`T`) and pointer receiver (`*T`) implementations
-- Only include interfaces defined within the module (not standard library or external packages)
-- Store fully qualified interface names in `InjectableFact.Implements` for cross-package resolution
+- **Global singleton**: `GlobalRegistry` is used by both InjectAnalyzer and AppAnalyzer
+- **Thread safety**: All methods protected by sync.Mutex for parallel go vet execution
+- **Pending tracking**: When InjectAnalyzer generates a constructor SuggestedFix, it registers with `IsPending=true`; if constructor already exists on disk, `IsPending=false`
+- **Clear for testing**: Tests should call `Clear()` before each test case to ensure isolation
+- **Interface detection**: InjectAnalyzer uses `types.Implements()` to populate `Implements` field before registration
 
-#### FactImporter
+**Trade-off Documentation**
 
-| Field | Detail |
-|-------|--------|
-| Intent | Import InjectableFacts from all imported packages |
-| Requirements | 2.3 |
+Global state is not idiomatic go/analysis. However, this is a deliberate trade-off to bypass the Facts API limitation:
+- Facts propagate only through import relationships
+- Users expect `annotation.App(main)` to discover all injectables without explicit imports
+- Global registry enables this user experience at the cost of non-standard architecture
 
-**Responsibilities and Constraints**
+**Execution Model Assumptions**
 
-- Iterate through package imports
-- Import facts using `pass.ImportObjectFact`
-- Collect all injectable types for dependency graph construction
-- Boundary: Import only; does not export or modify facts
+Users MUST run `go vet ./...` (or specify all packages) to ensure module-wide discovery:
 
-**Dependencies**
+```bash
+# Correct: Analyzes all packages, all injectables discovered
+go vet -vettool=$(which braider) ./...
 
-- Inbound: DependencyGraph - requests injectable types (P0)
-- External: `pass.ImportObjectFact` - fact import API (P0)
-- External: `pass.Pkg.Imports()` - import list (P0)
-
-**Contracts**: Service [x]
-
-##### Service Interface
-
-```go
-// FactImporter imports injectable facts from dependencies.
-type FactImporter interface {
-    // ImportInjectableFacts collects all InjectableFacts from imported packages.
-    ImportInjectableFacts(pass *analysis.Pass) []*InjectableFact
-}
+# Incorrect: Only analyzes main package, misses injectables in other packages
+go vet -vettool=$(which braider) ./cmd/app/
 ```
 
-- Preconditions: Pass must have valid package information
-- Postconditions: Returns all available InjectableFacts from imports
-- Invariants: Returns empty slice if no facts found (not an error)
+go vet analyzes packages in dependency order within a single invocation. However, since injectable packages may not be imported by main, users MUST explicitly include all packages in the analysis scope.
+
+**Parallel Analysis Behavior**
+
+go vet may analyze packages in parallel (controlled by `-p` flag). The GlobalRegistry uses `sync.Mutex` to ensure thread-safe registration and retrieval. However, `GetAll()` returns a snapshot of currently registered injectables, which may be incomplete if other packages are still being analyzed.
+
+**Eventual Consistency Model**:
+
+The analyzer adopts an eventual consistency approach for parallel execution:
+
+1. **Temporary inconsistency is acceptable**: During parallel analysis, some injectables may not yet be registered when AppAnalyzer runs
+2. **Re-running resolves inconsistencies**: Running `go vet ./...` again will capture any missed injectables
+3. **Final state is consistent**: After all packages are analyzed at least once, the global registry contains all injectables
+
+This trade-off prioritizes simplicity over strict single-pass guarantees. Users running incremental analysis may need to run the analyzer multiple times until the bootstrap stabilizes.
+
+```bash
+# Run analysis (may need to repeat if injectables are discovered incrementally)
+go vet -vettool=$(which braider) ./...
+```
+
+**Pending Constructor Signature Derivation**
+
+When `IsPending=true`, the `Dependencies` field is populated by InjectAnalyzer analyzing the struct's embedded fields (excluding `annotation.Inject`). This matches the same logic used for constructor generation:
+
+1. Find all fields with injectable types (pointer to struct with annotation.Inject)
+2. Extract fully qualified type names as dependencies
+3. Store in `InjectableInfo.Dependencies`
+
+This ensures consistency between pending constructor parameters and DependencyGraph edge construction.
 
 ### Graph Domain
 
@@ -499,14 +575,14 @@ type FactImporter interface {
 - Collect all injectable types (local and imported)
 - Parse constructor function signatures
 - Create edges from dependencies to dependents
-- Filter out non-injectable parameter types (primitives, external types)
+- Treat non-injectable parameter types (primitives, external types) as unresolvable and return a graph build error
 - Validate that all Inject structs have constructors
 - Boundary: Graph construction only; does not sort or detect cycles
 
 **Dependencies**
 
-- Inbound: run function - builds graph for bootstrap (P0)
-- Outbound: FactImporter - get imported injectables (P0)
+- Inbound: AppAnalyzer - builds graph for bootstrap (P0)
+- Outbound: InjectableRegistry - get all injectables (P0)
 - External: `go/types.Func` - constructor signature resolution (P0)
 
 **Contracts**: Service [x]
@@ -516,12 +592,19 @@ type FactImporter interface {
 ```go
 // DependencyGraph builds the dependency graph for injectable types.
 type DependencyGraph interface {
-    // BuildGraph constructs the dependency graph from local and imported injectables.
-    // Returns error if an injectable struct lacks a constructor.
+    // BuildGraph constructs the dependency graph from all registered injectables.
+    // Injectables are retrieved from global injector/provider registries.
+    //
+    // Returns error if:
+    // - An injectable struct lacks both existing and pending constructor (see DD-2)
+    // - An interface parameter has no injectable implementation (see DD-3)
+    // - Multiple injectable structs implement the same required interface
+    // - A constructor parameter cannot be resolved to an injectable type
+    //
+    // All errors are returned as UnresolvableTypeError for unified error reporting (see DD-4).
     BuildGraph(
         pass *analysis.Pass,
-        localCandidates []detect.ConstructorCandidate,
-        importedFacts []*InjectableFact,
+        injectables []*InjectableInfo,  // from global injector/provider registries
     ) (*Graph, error)
 }
 
@@ -533,28 +616,39 @@ type Graph struct {
 
 // Node represents an injectable type in the graph.
 type Node struct {
-    TypeName        string          // Fully qualified type name
-    PackagePath     string          // Import path
-    LocalName       string          // Type name without package
-    ConstructorName string          // New<TypeName>
-    Dependencies    []string        // Types this depends on
-    InDegree        int             // For Kahn's algorithm
-    Candidate       *detect.ConstructorCandidate // nil for imported
-    Fact            *InjectableFact // nil for local
+    TypeName        string           // Fully qualified type name
+    PackagePath     string           // Import path
+    LocalName       string           // Type name without package
+    ConstructorName string           // New<TypeName>
+    Dependencies    []string         // Types this depends on
+    InDegree        int              // For Kahn's algorithm
+    InjectableInfo  *InjectableInfo  // From InjectableRegistry (includes IsPending flag)
 }
 ```
 
-- Preconditions: Candidates must have valid TypeSpec and generated constructors
+- Preconditions: Injectables must be registered in GlobalRegistry with valid type info
 - Postconditions: Returns complete graph with all edges; errors for missing constructors
 - Invariants: All nodes in graph have constructors; edges only between injectable types
 
 **Implementation Notes**
 
-- Integration: Called after constructor generation and fact import
-- Validation: For each Inject struct, verify constructor exists in package or facts
-- Edge construction: Parse constructor parameters, filter for injectable types
-- Interface resolution: For interface-typed parameters, use InterfaceRegistry to find implementing injectable
-- Risks: Must handle imported types with different import aliases
+- Integration: Called by AppAnalyzer after InjectAnalyzer has registered all injectables to GlobalRegistry
+- **Constructor resolution** (DD-5):
+  - Check InjectableInfo.IsPending flag to determine if constructor exists on disk or is pending
+  - If constructor missing (neither on disk nor pending), return error (see DD-2)
+- Constructor validation: For each injectable, verify constructor exists (on disk or pending via IsPending flag); halt with error if missing
+- Edge construction: Parse constructor parameters (from existing or pending), filter for injectable types
+- **Interface resolution** (see DD-3, DD-4): For interface-typed parameters:
+  1. Use InterfaceRegistry to find implementing injectable
+  2. If found → add dependency edge
+  3. If not found → InterfaceRegistry returns `UnresolvedInterfaceError`
+  4. Transform `UnresolvedInterfaceError` to `UnresolvableTypeError` for unified reporting
+  5. Return `UnresolvableTypeError` which gets wrapped by AppAnalyzer and reported via `EmitGraphBuildError`
+- **Concrete type handling** (see DD-4): For non-injectable concrete type parameters:
+  1. If type is injectable → add dependency edge
+  2. If type is not injectable → return `UnresolvableTypeError` (fail-fast, no partial bootstrap)
+- **Error transformation** (see DD-4): All error types from InterfaceRegistry and parameter validation are transformed to `UnresolvableTypeError` before returning to AppAnalyzer. This ensures a single error reporting path with consistent message formatting.
+- Risks: Must handle imported types with different import aliases; must correctly identify pending vs. existing constructors
 
 #### InterfaceRegistry
 
@@ -565,17 +659,17 @@ type Node struct {
 
 **Responsibilities and Constraints**
 
-- Build mapping from interface types to implementing injectable structs
+- Build mapping from interface types to implementing injectable structs using injectable info from global registries
 - Use `types.Implements()` to detect interface implementations
-- Support both local candidates and imported facts
+- Support all injectables from GlobalRegistry
 - Report error when multiple injectables implement the same interface
 - Boundary: Interface-to-implementation mapping only; does not build dependency edges
 
 **Dependencies**
 
 - Inbound: DependencyGraph - requests interface resolution (P0)
+- Outbound: InjectableRegistry - get all injectables (P0)
 - External: `go/types.Implements` - interface implementation check (P0)
-- External: InjectableFact - imported implementation info (P0)
 
 **Contracts**: Service [x]
 
@@ -584,18 +678,19 @@ type Node struct {
 ```go
 // InterfaceRegistry maps interface types to their implementing injectable structs.
 type InterfaceRegistry interface {
-    // Build constructs the registry from local candidates and imported facts.
+    // Build constructs the registry from all registered injectables.
+    // Injectables are retrieved from global injector/provider registries.
     // Uses go/types.Implements() to detect interface implementations.
     Build(
         pass *analysis.Pass,
-        localCandidates []detect.ConstructorCandidate,
-        importedFacts []*InjectableFact,
+        injectables []*InjectableInfo,  // from global injector/provider registries
     ) error
 
     // Resolve finds the injectable struct implementing the given interface.
     // Returns the fully qualified type name of the implementation.
     // Returns AmbiguousImplementationError if multiple implementations exist.
-    // Returns empty string and nil error if no implementation found (external dependency).
+    // Returns UnresolvedInterfaceError if no implementation found (see DD-3).
+    // Note: Unlike concrete types, missing interface implementations are errors.
     Resolve(ifaceType string) (string, error)
 }
 
@@ -612,17 +707,30 @@ func (e *AmbiguousImplementationError) Error() string {
         strings.Join(e.Implementations, ", "),
     )
 }
+
+// UnresolvedInterfaceError indicates no injectable struct implements a required interface.
+type UnresolvedInterfaceError struct {
+    InterfaceType string    // Fully qualified interface type name
+    ParameterPos  token.Pos // Position of the constructor parameter
+}
+
+func (e *UnresolvedInterfaceError) Error() string {
+    return fmt.Sprintf(
+        "no injectable struct implements interface %s; add annotation.Inject to an implementing struct or change parameter to concrete type",
+        e.InterfaceType,
+    )
+}
 ```
 
-- Preconditions: Pass must have valid TypesInfo; candidates must have valid TypeSpec
+- Preconditions: Pass must have valid TypesInfo; injectables must have valid type info
 - Postconditions: Registry contains all interface-to-implementation mappings
 - Invariants: Each interface maps to at most one implementation (or error)
 
 **Implementation Notes**
 
-- Build phase: For each injectable struct (local and imported), detect implemented interfaces
-- Local detection: Use `types.Implements(structType, iface)` for both value and pointer receivers
-- Imported detection: Use `InjectableFact.Implements` field populated by FactExporter
+- Build phase: For each injectable from GlobalRegistry, detect implemented interfaces
+- Detection: Use `types.Implements(structType, iface)` for both value and pointer receivers
+- Interface info: Use `InjectableInfo.Implements` field populated by InjectAnalyzer
 - Conflict detection: Track all implementations per interface; report error if count > 1
 - Resolution: Return the implementing type's fully qualified name for dependency edge creation
 
@@ -756,10 +864,16 @@ type GeneratedBootstrap struct {
 **Implementation Notes**
 
 - Integration: Called after TopologicalSort succeeds
-- Idempotency: Compare field list and constructor calls with existing bootstrap
+- Idempotency strategy: Use graph state hash comparison for reliable detection
+  1. Compute deterministic hash from ordered type names and their dependencies using SHA-256
+  2. Truncate hash to first 8 hexadecimal characters for brevity
+  3. Store hash as a comment marker above the `var dependency` declaration: `// braider:hash:abc12345`
+  4. Compare hash values to determine if regeneration is needed
+  5. This avoids complex AST comparison and formatting-related false positives
 - Import collection: Track external package paths for types
 - Risks: Complex type expressions (generics) may require special handling
 - Reference detection: `IsDependencyReferenced` walks main function body using `ast.Inspect`, looking for `ast.Ident` or `ast.SelectorExpr` that references `dependency`. It excludes blank identifier assignments (`_ = dependency`) from consideration to avoid false positives from braider's own generated code.
+- **Graph build error handling**: When `DependencyGraphBuilder.BuildGraph()` returns an error (including unresolvable types, missing constructors, or circular dependencies), AppAnalyzer catches the error and calls `EmitGraphBuildError` with the error message. This provides users with descriptive feedback about graph construction failures.
 
 ##### Generated Code Structure
 
@@ -812,8 +926,8 @@ Extended `DiagnosticEmitter` with bootstrap-specific methods:
 type DiagnosticEmitter interface {
     // ... existing methods ...
 
-    // EmitMultipleAppError reports multiple annotation.App declarations.
-    EmitMultipleAppError(reporter Reporter, positions []token.Pos)
+// EmitDuplicateAppWarning reports duplicate annotation.App declarations in the same file.
+EmitDuplicateAppWarning(reporter Reporter, pos token.Pos)
 
     // EmitNonMainAppError reports App referencing non-main function.
     EmitNonMainAppError(reporter Reporter, pos token.Pos, funcName string)
@@ -821,8 +935,15 @@ type DiagnosticEmitter interface {
     // EmitMissingConstructorError reports Inject struct without constructor.
     EmitMissingConstructorError(reporter Reporter, pos token.Pos, typeName string)
 
-    // EmitAmbiguousImplementationError reports multiple injectable structs implementing same interface.
-    EmitAmbiguousImplementationError(reporter Reporter, pos token.Pos, ifaceType string, implementations []string)
+    // EmitGraphBuildError reports dependency graph construction errors.
+    // This is the unified error reporting method for all graph build failures including:
+    // - Unresolved interface dependencies (transformed from UnresolvedInterfaceError)
+    // - Unresolvable constructor parameters (UnresolvableTypeError)
+    // - Ambiguous interface implementations (AmbiguousImplementationError)
+    // - Circular dependencies (CycleError)
+    // The message parameter contains the pre-formatted error description from the graph domain.
+    // This method wraps it with the "failed to build dependency graph: " prefix for consistent UX (see DD-4).
+    EmitGraphBuildError(reporter Reporter, pos token.Pos, message string)
 
     // EmitBootstrapFix reports bootstrap code generation.
     EmitBootstrapFix(reporter Reporter, pos token.Pos, fix analysis.SuggestedFix)
@@ -867,12 +988,14 @@ type SuggestedFixBuilder interface {
 
 | Category | Message Template | Example |
 |----------|------------------|---------|
-| Multiple App | `multiple annotation.App declarations in package` | - |
+| Duplicate App (same file) | `another annotation.App in the same package is being applied` | - |
 | Non-main App | `annotation.App must reference main function, got %s` | `annotation.App must reference main function, got init` |
 | Missing constructor | `injectable struct %s requires a constructor (New%s)` | `injectable struct UserService requires a constructor (NewUserService)` |
 | Circular dependency | `circular dependency detected: %s` | `circular dependency detected: A -> B -> C -> A` |
-| Ambiguous implementation | `multiple injectable structs implement interface %s: %s` | `multiple injectable structs implement interface pkg.IUserRepository: UserRepositoryA, UserRepositoryB` |
-| Bootstrap available | `missing bootstrap code for annotation.App` | - |
+| Unresolvable dependency (interface) | `failed to build dependency graph: unresolvable dependency type: %s` | `failed to build dependency graph: unresolvable dependency type: io.Reader` |
+| Unresolvable dependency (concrete) | `failed to build dependency graph: unresolvable dependency type: %s` | `failed to build dependency graph: unresolvable dependency type: database/sql.DB` |
+| Ambiguous implementation | `failed to build dependency graph: multiple injectable structs implement interface %s: %s` | `failed to build dependency graph: multiple injectable structs implement interface pkg.IUserRepository: UserRepositoryA, UserRepositoryB` |
+| Bootstrap available | `bootstrap code is missing` | - |
 | Bootstrap outdated | `bootstrap code is outdated` | - |
 
 ## Data Models
@@ -882,8 +1005,8 @@ type SuggestedFixBuilder interface {
 ```mermaid
 erDiagram
     AppAnnotation ||--|| MainFunc : references
-    AppAnnotation ||--o{ InjectableFact : triggers_discovery
-    InjectableFact }|--|{ DependencyEdge : participates_in
+    AppAnnotation ||--o{ InjectableInfo : triggers_discovery
+    InjectableInfo }|--|{ DependencyEdge : participates_in
     DependencyEdge }|--|| Graph : belongs_to
     Graph ||--|| TopologicalOrder : produces
     TopologicalOrder ||--|| GeneratedBootstrap : generates
@@ -894,11 +1017,13 @@ erDiagram
         Pos position
     }
 
-    InjectableFact {
+    InjectableInfo {
         string typeName
         string constructorName
         string[] dependencies
         string packagePath
+        bool isPending
+        string[] implements
     }
 
     DependencyEdge {
@@ -931,7 +1056,7 @@ erDiagram
 
 **Business Rules and Invariants**
 
-1. Package must have exactly one `annotation.App(main)` to trigger bootstrap
+1. Package must have at least one `annotation.App(main)` to trigger bootstrap; if multiple exist, the first per file is used
 2. App annotation must reference the `main` function
 3. All injectable structs must have corresponding constructors
 4. Dependency graph must be acyclic
@@ -983,21 +1108,23 @@ const mainReferenceTemplate = `_ = dependency`
 
 The analyzer follows fail-fast for invalid configurations with graceful degradation for optional features:
 
-1. **Multiple App annotations**: Report error and halt bootstrap generation for package
+1. **Multiple App annotations**: Proceed with bootstrap generation using the first per file; warn for same-file duplicates
 2. **Non-main App reference**: Report error and halt bootstrap generation
 3. **Missing constructor**: Report error for each missing constructor; halt bootstrap if any missing
 4. **Circular dependency**: Report error with cycle path; halt bootstrap generation
 5. **Empty graph**: Proceed with empty bootstrap block (not an error)
+6. **Graph build errors**: Report error via `EmitGraphBuildError` for any graph construction failure including unresolved interfaces, unresolvable constructor parameters, or other dependency resolution issues; halt bootstrap generation (see DD-4)
 
 ### Error Categories and Responses
 
 **Configuration Errors (User)**:
-- Multiple App annotations: Report all positions; suggest removing duplicates
+- Multiple App annotations in same file: Report warning positions; suggest removing duplicates
 - Non-main reference: Report position; suggest changing to main function
 - Missing constructor: Report struct position; suggest running with -fix first
 
 **Graph Errors (Logic)**:
 - Circular dependency: Report cycle path; suggest refactoring dependencies
+- Graph build errors: Report via `EmitGraphBuildError` with error context from graph builder; includes unresolved interfaces, unresolvable constructor parameters, and other dependency resolution failures
 
 **Generation Errors (Internal)**:
 - Code formatting failure: Report as bug with generated code snippet
@@ -1016,14 +1143,18 @@ The analyzer follows fail-fast for invalid configurations with graceful degradat
 Core function testing using standard Go testing:
 
 1. **AppDetector.DetectAppAnnotation**: Valid/invalid App annotation detection
-2. **AppDetector.ValidateAppAnnotation**: Multiple annotations, non-main reference
+2. **AppDetector.ValidateAppAnnotation**: Non-main reference only; duplicates handled via deduplication
 3. **TopologicalSort.Sort**: Various graph topologies, cycle detection
-4. **DependencyGraph.BuildGraph**: Edge construction, non-injectable filtering
+4. **DependencyGraph.BuildGraph**: Edge construction, error on unresolvable non-injectable params
 5. **BootstrapGenerator.DeriveFieldName**: Naming rules, conflict handling
 6. **BootstrapGenerator.CheckBootstrapCurrent**: Idempotency verification
 7. **BootstrapGenerator.IsDependencyReferenced**: Detection of dependency usage in main function (including field access like `dependency.handler`)
 8. **InterfaceRegistry.Build**: Interface-to-implementation mapping construction
 9. **InterfaceRegistry.Resolve**: Single implementation resolution, ambiguous detection
+10. **InjectableRegistry.Register**: Registration of injectable info with IsPending flag
+11. **InjectableRegistry.GetAll**: Retrieval of all registered injectables
+12. **InjectableRegistry.Get**: Retrieval by type name, nil for not found
+13. **DependencyGraph.BuildGraph with pending constructors**: Graph construction using InjectableInfo.IsPending flag
 
 ### Integration Tests
 
@@ -1031,8 +1162,8 @@ Using `analysistest.Run` for analyzer behavior:
 
 1. **App detection**: Package with valid App annotation triggers bootstrap
 2. **No App**: Package without App annotation skips bootstrap
-3. **Multiple App**: Error reported for multiple annotations
-4. **Cross-package**: Facts imported from dependencies correctly
+3. **Multiple App**: Warning for same-file duplicates; bootstrap still generated
+4. **Cross-package**: Injectables registered from all packages via GlobalRegistry
 5. **Circular dependency**: Cycle detected and reported with path
 6. **Empty graph**: Empty bootstrap generated when no injectables
 7. **Idempotent**: No diagnostic when bootstrap is current
@@ -1040,6 +1171,11 @@ Using `analysistest.Run` for analyzer behavior:
 9. **Interface resolution**: Interface parameter resolved to implementing injectable
 10. **Ambiguous interface**: Error reported when multiple implementations exist
 11. **Cross-package interface**: Interface in one package, implementation in another
+12. **Unresolved interface**: Error reported via `EmitGraphBuildError` when interface parameter has no injectable implementation
+13. **Single-pass constructor+bootstrap**: Constructor generation and bootstrap generation work in single `go vet -fix` invocation
+14. **Pending constructor dependency resolution**: Bootstrap correctly references constructors marked as IsPending in InjectableInfo
+15. **Module-wide discovery**: All injectables discovered via GlobalRegistry without explicit imports in main
+16. **Unresolvable parameter**: Error reported via `EmitGraphBuildError` when constructor parameter cannot be resolved to injectable type
 
 ### Golden File Tests
 
@@ -1053,46 +1189,122 @@ Using `analysistest.RunWithSuggestedFixes` for output verification:
 6. **Dependency already used**: `_ = dependency` skipped when dependency is already referenced in main
 7. **Interface dependency**: Interface parameter resolved to implementing injectable
 8. **Cross-package interface**: Interface defined locally, implementation from another package
+9. **Single-pass**: Constructor and bootstrap generated in single pass (no existing constructors)
+10. **Module-wide**: Injectables discovered from multiple packages without imports in main
 
 #### Test Directory Structure
 
+All test cases use realistic multi-package architectures. Each test case follows a layered structure with separate packages for domain, repository, and service layers.
+
 ```
-internal/testdata/src/
+internal/testdata/bootstrapgen/
   bootstrap/
     simple/
-      main.go           # Simple App with single injectable
-      main.go.golden    # Expected output after fix
+      main.go                 # annotation.App(main) only
+      repository/
+        user.go               # UserRepository with annotation.Inject
+      service/
+        user.go               # UserService depends on *repository.UserRepository
+      main.go.golden          # Expected output with cross-package imports
     multitype/
-      main.go           # Multiple injectable types
+      main.go                 # annotation.App(main) only
+      repository/
+        user.go               # UserRepository
+        order.go              # OrderRepository
+      service/
+        user.go               # UserService
+        order.go              # OrderService
       main.go.golden
     crosspackage/
-      main.go           # App with imported injectables
-      dep/
-        service.go      # Injectable in dependency package
+      main.go                 # App with imported injectables
+      repository/
+        user.go               # UserRepository
+      service/
+        user.go               # UserService
       main.go.golden
     circular/
-      main.go           # Circular dependency (error case)
+      main.go                 # Circular dependency (error case)
+      service/
+        a.go                  # ServiceA depends on *service.ServiceB
+        b.go                  # ServiceB depends on *service.ServiceA
     noapp/
-      main.go           # No App annotation (no changes)
+      main.go                 # No App annotation (no changes)
+      service/
+        user.go               # UserService (no bootstrap generated)
     update/
-      main.go           # Outdated bootstrap
-      main.go.golden    # Expected updated output
+      main.go                 # Outdated bootstrap
+      repository/
+        user.go               # UserRepository
+      service/
+        user.go               # UserService
+      main.go.golden          # Expected updated output
     depused/
-      main.go           # dependency already referenced in main
-      main.go.golden    # No _ = dependency added
+      main.go                 # dependency already referenced (dependency.userService.Run())
+      service/
+        user.go               # UserService
+      main.go.golden          # No _ = dependency added
     interface/
-      main.go           # Interface dependency resolution
-      main.go.golden    # Expected output with interface resolved
-    ambiguous/
-      main.go           # Multiple implementations of same interface (want "multiple injectable structs")
-    crosspackage_interface/
-      main.go           # Interface defined locally, implementation imported
-      repo/
-        repo.go         # IUserRepository implementation
+      main.go                 # Interface dependency resolution
+      domain/
+        user.go               # IUserRepository interface, User type
+      repository/
+        user.go               # UserRepository implements domain.IUserRepository
+      service/
+        user.go               # UserService depends on domain.IUserRepository
+      main.go.golden          # Expected output with interface resolved
+    singlepass/
+      main.go                 # Injectable structs without existing constructors
+      repository/
+        user.go               # UserRepository (no constructor yet)
+      service/
+        user.go               # UserService (no constructor yet)
+      main.go.golden          # Both constructors and bootstrap generated
+    modulewide/
+      main.go                 # Only annotation.App(main), no explicit imports
+      repository/
+        user.go               # UserRepository with annotation.Inject
+        order.go              # OrderRepository with annotation.Inject
+      service/
+        user.go               # UserService with annotation.Inject
+      main.go.golden          # Bootstrap includes all module injectables
+    pending_ctor/
+      main.go                 # Test pending constructor registry behavior
+      repository/
+        user.go               # UserRepository (constructor being generated)
+      service/
+        user.go               # UserService (constructor being generated)
       main.go.golden
+    ambiguous/
+      main.go                 # Multiple implementations error case
+      domain/
+        user.go               # IUserRepository interface
+      repository/
+        user_a.go             # UserRepositoryA implements IUserRepository
+        user_b.go             # UserRepositoryB implements IUserRepository
+      service/
+        user.go               # UserService depends on domain.IUserRepository
+    unresolved_interface/
+      main.go                 # Interface parameter with no implementation
+      writer/
+        writer.go             # MyWriter depends on io.Reader (no impl)
+    crosspackage_interface/
+      main.go                 # Interface defined locally, implementation imported
+      domain/
+        repository.go         # IUserRepository interface
+      repository/
+        user.go               # UserRepository implements domain.IUserRepository
+      service/
+        user.go               # UserService depends on domain.IUserRepository
+      main.go.golden
+    unresolvable_param/
+      main.go                 # Injectable with unresolvable parameter
+      repository/
+        user.go               # UserRepository depends on *sql.DB (error)
+      service/
+        user.go               # UserService depends on *repository.UserRepository
 ```
 
-#### Example Test Case
+#### Example Test Case: Basic Multi-Package Bootstrap
 
 **Input** (`simple/main.go`):
 ```go
@@ -1103,30 +1315,44 @@ import "github.com/miyamo2/braider/pkg/annotation"
 var _ = annotation.App(main)
 
 func main() {}
+```
+
+**Input** (`simple/repository/user.go`):
+```go
+package repository
+
+import "github.com/miyamo2/braider/pkg/annotation"
 
 type UserRepository struct {
     annotation.Inject
-    db *sql.DB
 }
 
 // NewUserRepository is a constructor for UserRepository.
 //
 // Generated by braider. DO NOT EDIT.
-func NewUserRepository(db *sql.DB) *UserRepository {
-    return &UserRepository{
-        db: db,
-    }
+func NewUserRepository() *UserRepository {
+    return &UserRepository{}
 }
+```
+
+**Input** (`simple/service/user.go`):
+```go
+package service
+
+import (
+    "github.com/miyamo2/braider/pkg/annotation"
+    "example.com/simple/repository"
+)
 
 type UserService struct {
     annotation.Inject
-    repo *UserRepository
+    repo *repository.UserRepository
 }
 
 // NewUserService is a constructor for UserService.
 //
 // Generated by braider. DO NOT EDIT.
-func NewUserService(repo *UserRepository) *UserService {
+func NewUserService(repo *repository.UserRepository) *UserService {
     return &UserService{
         repo: repo,
     }
@@ -1137,7 +1363,11 @@ func NewUserService(repo *UserRepository) *UserService {
 ```go
 package main
 
-import "github.com/miyamo2/braider/pkg/annotation"
+import (
+    "github.com/miyamo2/braider/pkg/annotation"
+    "example.com/simple/repository"
+    "example.com/simple/service"
+)
 
 var _ = annotation.App(main)
 
@@ -1145,51 +1375,24 @@ func main() {
     _ = dependency
 }
 
+// braider:hash:a1b2c3d4
 var dependency = func() struct {
-    userRepository *UserRepository
-    userService    *UserService
+    userRepository *repository.UserRepository
+    userService    *service.UserService
 } {
-    userRepository := NewUserRepository()
-    userService := NewUserService(userRepository)
+    userRepository := repository.NewUserRepository()
+    userService := service.NewUserService(userRepository)
     return struct {
-        userRepository *UserRepository
-        userService    *UserService
+        userRepository *repository.UserRepository
+        userService    *service.UserService
     }{
         userRepository: userRepository,
         userService:    userService,
     }
 }()
-
-type UserRepository struct {
-    annotation.Inject
-    db *sql.DB
-}
-
-// NewUserRepository is a constructor for UserRepository.
-//
-// Generated by braider. DO NOT EDIT.
-func NewUserRepository(db *sql.DB) *UserRepository {
-    return &UserRepository{
-        db: db,
-    }
-}
-
-type UserService struct {
-    annotation.Inject
-    repo *UserRepository
-}
-
-// NewUserService is a constructor for UserService.
-//
-// Generated by braider. DO NOT EDIT.
-func NewUserService(repo *UserRepository) *UserService {
-    return &UserService{
-        repo: repo,
-    }
-}
 ```
 
-**Note**: In the example above, `db *sql.DB` is not an injectable type (external dependency), so it is excluded from the dependency graph. The bootstrap only wires injectable types (`UserRepository`, `UserService`).
+**Note**: The bootstrap code includes import statements for cross-package types. Injectable structs with external type constructor parameters (e.g., `*sql.DB`) cause graph construction to fail, and the error is reported via `EmitGraphBuildError` per DD-4.
 
 #### Example Test Case: Dependency Already Used
 
@@ -1205,6 +1408,13 @@ func main() {
     // dependency is already used, no _ = dependency needed
     dependency.userService.Run()
 }
+```
+
+**Input** (`depused/service/user.go`):
+```go
+package service
+
+import "github.com/miyamo2/braider/pkg/annotation"
 
 type UserService struct {
     annotation.Inject
@@ -1214,13 +1424,18 @@ type UserService struct {
 func NewUserService() *UserService {
     return &UserService{}
 }
+
+func (s *UserService) Run() {}
 ```
 
 **Expected Output** (`depused/main.go.golden`):
 ```go
 package main
 
-import "github.com/miyamo2/braider/pkg/annotation"
+import (
+    "github.com/miyamo2/braider/pkg/annotation"
+    "example.com/depused/service"
+)
 
 var _ = annotation.App(main)
 
@@ -1229,25 +1444,17 @@ func main() {
     dependency.userService.Run()  // Note: _ = dependency is NOT added
 }
 
+// braider:hash:b2c3d4e5
 var dependency = func() struct {
-    userService *UserService
+    userService *service.UserService
 } {
-    userService := NewUserService()
+    userService := service.NewUserService()
     return struct {
-        userService *UserService
+        userService *service.UserService
     }{
         userService: userService,
     }
 }()
-
-type UserService struct {
-    annotation.Inject
-}
-
-// NewUserService is a constructor for UserService.
-func NewUserService() *UserService {
-    return &UserService{}
-}
 ```
 
 **Note**: In this example, `dependency.userService.Run()` already references the `dependency` variable, so the analyzer does not add `_ = dependency` to the main function.
@@ -1263,6 +1470,11 @@ import "github.com/miyamo2/braider/pkg/annotation"
 var _ = annotation.App(main)
 
 func main() {}
+```
+
+**Input** (`interface/domain/user.go`):
+```go
+package domain
 
 type IUserRepository interface {
     FindByID(string) (User, error)
@@ -1272,6 +1484,16 @@ type User struct {
     ID   string
     Name string
 }
+```
+
+**Input** (`interface/repository/user.go`):
+```go
+package repository
+
+import (
+    "github.com/miyamo2/braider/pkg/annotation"
+    "example.com/interface/domain"
+)
 
 type UserRepository struct {
     annotation.Inject
@@ -1281,16 +1503,26 @@ func NewUserRepository() *UserRepository {
     return &UserRepository{}
 }
 
-func (r *UserRepository) FindByID(id string) (User, error) {
-    return User{}, nil
+func (r *UserRepository) FindByID(id string) (domain.User, error) {
+    return domain.User{}, nil
 }
+```
+
+**Input** (`interface/service/user.go`):
+```go
+package service
+
+import (
+    "github.com/miyamo2/braider/pkg/annotation"
+    "example.com/interface/domain"
+)
 
 type UserService struct {
     annotation.Inject
-    repo IUserRepository
+    repo domain.IUserRepository
 }
 
-func NewUserService(repo IUserRepository) *UserService {
+func NewUserService(repo domain.IUserRepository) *UserService {
     return &UserService{repo: repo}
 }
 ```
@@ -1299,7 +1531,11 @@ func NewUserService(repo IUserRepository) *UserService {
 ```go
 package main
 
-import "github.com/miyamo2/braider/pkg/annotation"
+import (
+    "github.com/miyamo2/braider/pkg/annotation"
+    "example.com/interface/repository"
+    "example.com/interface/service"
+)
 
 var _ = annotation.App(main)
 
@@ -1307,53 +1543,24 @@ func main() {
     _ = dependency
 }
 
+// braider:hash:c3d4e5f6
 var dependency = func() struct {
-    userRepository *UserRepository
-    userService    *UserService
+    userRepository *repository.UserRepository
+    userService    *service.UserService
 } {
-    userRepository := NewUserRepository()
-    userService := NewUserService(userRepository)
+    userRepository := repository.NewUserRepository()
+    userService := service.NewUserService(userRepository)
     return struct {
-        userRepository *UserRepository
-        userService    *UserService
+        userRepository *repository.UserRepository
+        userService    *service.UserService
     }{
         userRepository: userRepository,
         userService:    userService,
     }
 }()
-
-type IUserRepository interface {
-    FindByID(string) (User, error)
-}
-
-type User struct {
-    ID   string
-    Name string
-}
-
-type UserRepository struct {
-    annotation.Inject
-}
-
-func NewUserRepository() *UserRepository {
-    return &UserRepository{}
-}
-
-func (r *UserRepository) FindByID(id string) (User, error) {
-    return User{}, nil
-}
-
-type UserService struct {
-    annotation.Inject
-    repo IUserRepository
-}
-
-func NewUserService(repo IUserRepository) *UserService {
-    return &UserService{repo: repo}
-}
 ```
 
-**Note**: In this example, `UserService` depends on `IUserRepository` interface. The analyzer detects that `UserRepository` implements `IUserRepository` and resolves the dependency accordingly. The bootstrap code passes `userRepository` (of type `*UserRepository`) to `NewUserService` which accepts `IUserRepository`.
+**Note**: In this example, `service.UserService` depends on `domain.IUserRepository` interface. The analyzer detects that `repository.UserRepository` implements `domain.IUserRepository` and resolves the dependency accordingly. The bootstrap code passes `userRepository` (of type `*repository.UserRepository`) to `service.NewUserService` which accepts `domain.IUserRepository`.
 
 #### Example Test Case: Ambiguous Interface Implementation
 
@@ -1363,15 +1570,30 @@ package main
 
 import "github.com/miyamo2/braider/pkg/annotation"
 
-var _ = annotation.App(main) // want "multiple injectable structs implement interface main.IUserRepository"
+var _ = annotation.App(main) // want "multiple injectable structs implement interface domain.IUserRepository"
 
 func main() {}
+```
+
+**Input** (`ambiguous/domain/user.go`):
+```go
+package domain
 
 type IUserRepository interface {
     FindByID(string) (User, error)
 }
 
 type User struct{}
+```
+
+**Input** (`ambiguous/repository/user_a.go`):
+```go
+package repository
+
+import (
+    "github.com/miyamo2/braider/pkg/annotation"
+    "example.com/ambiguous/domain"
+)
 
 type UserRepositoryA struct {
     annotation.Inject
@@ -1381,9 +1603,19 @@ func NewUserRepositoryA() *UserRepositoryA {
     return &UserRepositoryA{}
 }
 
-func (r *UserRepositoryA) FindByID(id string) (User, error) {
-    return User{}, nil
+func (r *UserRepositoryA) FindByID(id string) (domain.User, error) {
+    return domain.User{}, nil
 }
+```
+
+**Input** (`ambiguous/repository/user_b.go`):
+```go
+package repository
+
+import (
+    "github.com/miyamo2/braider/pkg/annotation"
+    "example.com/ambiguous/domain"
+)
 
 type UserRepositoryB struct {
     annotation.Inject
@@ -1393,21 +1625,119 @@ func NewUserRepositoryB() *UserRepositoryB {
     return &UserRepositoryB{}
 }
 
-func (r *UserRepositoryB) FindByID(id string) (User, error) {
-    return User{}, nil
+func (r *UserRepositoryB) FindByID(id string) (domain.User, error) {
+    return domain.User{}, nil
 }
+```
+
+**Input** (`ambiguous/service/user.go`):
+```go
+package service
+
+import (
+    "github.com/miyamo2/braider/pkg/annotation"
+    "example.com/ambiguous/domain"
+)
 
 type UserService struct {
     annotation.Inject
-    repo IUserRepository
+    repo domain.IUserRepository
 }
 
-func NewUserService(repo IUserRepository) *UserService {
+func NewUserService(repo domain.IUserRepository) *UserService {
     return &UserService{repo: repo}
 }
 ```
 
-**Note**: In this example, both `UserRepositoryA` and `UserRepositoryB` implement `IUserRepository`. The analyzer reports an error indicating ambiguous implementation.
+**Note**: In this example, both `repository.UserRepositoryA` and `repository.UserRepositoryB` implement `domain.IUserRepository`. The analyzer reports an error indicating ambiguous implementation.
+
+#### Example Test Case: Unresolved Interface
+
+**Input** (`unresolved_interface/main.go`):
+```go
+package main
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+var _ = annotation.App(main) // want "no injectable struct implements interface io.Reader"
+
+func main() {}
+```
+
+**Input** (`unresolved_interface/writer/writer.go`):
+```go
+package writer
+
+import (
+    "io"
+    "github.com/miyamo2/braider/pkg/annotation"
+)
+
+type MyWriter struct {
+    annotation.Inject
+    reader io.Reader // No injectable implements io.Reader
+}
+
+func NewMyWriter(reader io.Reader) *MyWriter {
+    return &MyWriter{reader: reader}
+}
+```
+
+**Note**: In this example, `writer.MyWriter` depends on `io.Reader` interface, but no injectable struct implements it. The analyzer reports an error because interface dependencies must be resolved to injectable implementations (see DD-3).
+
+#### Example Test Case: Unresolvable Constructor Parameter
+
+**Input** (`unresolvable_param/main.go`):
+```go
+package main
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+var _ = annotation.App(main) // want "failed to build dependency graph: unresolvable dependency type: database/sql.DB"
+
+func main() {}
+```
+
+**Input** (`unresolvable_param/repository/user.go`):
+```go
+package repository
+
+import (
+    "database/sql"
+    "github.com/miyamo2/braider/pkg/annotation"
+)
+
+type UserRepository struct {
+    annotation.Inject
+    db *sql.DB
+}
+
+// NewUserRepository is a constructor for UserRepository.
+func NewUserRepository(db *sql.DB) *UserRepository {
+    return &UserRepository{db: db}
+}
+```
+
+**Input** (`unresolvable_param/service/user.go`):
+```go
+package service
+
+import (
+    "github.com/miyamo2/braider/pkg/annotation"
+    "example.com/unresolvable_param/repository"
+)
+
+type UserService struct {
+    annotation.Inject
+    repo *repository.UserRepository
+}
+
+func NewUserService(repo *repository.UserRepository) *UserService {
+    return &UserService{repo: repo}
+}
+```
+
+**Note**: In this example, `repository.UserRepository` has a constructor parameter `db` of type `*sql.DB` which is not an injectable type. Per DD-4, the graph builder returns an error which is reported via `EmitGraphBuildError`. Bootstrap generation halts with a generic graph build error. This is an error case with no golden file (no code changes expected).
 
 ### Performance Tests
 
@@ -1415,7 +1745,7 @@ Not required for initial implementation. Kahn's algorithm is O(V+E) which is eff
 
 ## Supporting References
 
-- [go/analysis Facts documentation](https://pkg.go.dev/golang.org/x/tools/go/analysis#hdr-Modular_analysis_with_Facts) - Cross-package data sharing
+- [go/analysis multichecker documentation](https://pkg.go.dev/golang.org/x/tools/go/analysis/multichecker) - Running multiple analyzers
 - [Writing multi-package analysis tools](https://eli.thegreenplace.net/2020/writing-multi-package-analysis-tools-for-go/) - Multi-package patterns
 - [Kahn's algorithm](https://en.wikipedia.org/wiki/Topological_sorting#Kahn's_algorithm) - Topological sort algorithm
 - [google/wire](https://github.com/google/wire) - Inspiration for DI patterns

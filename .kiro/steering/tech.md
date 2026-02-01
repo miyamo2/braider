@@ -2,7 +2,11 @@
 
 ## Architecture
 
-braider implements the `analysis.Analyzer` interface from `golang.org/x/tools/go/analysis`, enabling integration with the Go toolchain as a vet tool. The analyzer performs static analysis on Go AST and proposes code fixes via `SuggestedFix`.
+braider implements a **multi-analyzer architecture** using `multichecker.Main()` with two coordinated analyzers:
+- **DependencyAnalyzer**: Detects and registers `Provide` and `Inject` structs, generates constructors
+- **AppAnalyzer**: Detects `App` annotations and generates bootstrap IIFE code
+
+Each analyzer implements the `analysis.Analyzer` interface, performs static analysis on Go AST, and proposes code fixes via `SuggestedFix`. Analyzers share state through global registries for cross-package dependency resolution.
 
 ## Core Technologies
 
@@ -15,7 +19,7 @@ braider implements the `analysis.Analyzer` interface from `golang.org/x/tools/go
 - **`golang.org/x/tools/go/analysis`**: Core analyzer interface and diagnostic reporting
 - **`golang.org/x/tools/go/analysis/passes/inspect`**: AST inspection utilities
 - **`golang.org/x/tools/go/ast/inspector`**: Efficient AST traversal
-- **`golang.org/x/tools/go/analysis/singlechecker`**: CLI wrapper for single-analyzer tools
+- **`golang.org/x/tools/go/analysis/multichecker`**: CLI wrapper for running multiple analyzers with shared state
 
 ## Development Standards
 
@@ -65,10 +69,21 @@ Code generation is implemented via `analysis.SuggestedFix` rather than separate 
 - Atomic application of related changes
 
 ### Component-Based Architecture
-The analyzer uses composable components (detectors, generators, reporters) instantiated in `analyzer.go`. Each component has a single responsibility and is testable in isolation.
+The analyzer uses composable components (detectors, generators, reporters) instantiated in `main.go` and passed to analyzer constructors. Each component has a single responsibility and is testable in isolation. Components are organized by concern:
+- **Detectors** (`internal/detect/`): Pattern matching (inject, provide, app, struct, field, constructor)
+- **Generators** (`internal/generate/`): Code generation (constructors, bootstrap IIFE, imports, formatting, hash markers for idempotency)
+- **Reporters** (`internal/report/`): Diagnostic and suggested fix building
+- **Registries** (`internal/registry/`): Global state for cross-package dependency tracking
+- **Graph** (`internal/graph/`): Dependency graph construction, interface resolution, topological sorting
 
 ### AST Inspector Pattern
 Uses `inspect.Analyzer` as a dependency for efficient AST traversal, following the recommended pattern for go/analysis tools.
+
+### Global Registry Pattern
+Uses shared registries (`ProviderRegistry`, `InjectorRegistry`, `PackageTracker`) to accumulate DI information across multiple packages and analyzer passes. This enables cross-package dependency resolution and ensures the `AppAnalyzer` can access all bindings collected by `DependencyAnalyzer`.
+
+### Idempotent Code Generation
+Bootstrap code generation uses hash markers (`// braider:hash:<hash>`) to track dependency graph state. The generator compares current graph hash against existing hash comments to determine if regeneration is needed. This prevents unnecessary rewrites and preserves manual edits in unrelated code sections.
 
 ### Conventional Commits
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/v1.0.0/) specification:
@@ -81,3 +96,5 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ---
 _Document standards and patterns, not every dependency_
+
+_Updated: 2026-02-01 - Added idempotent code generation pattern, refined generator component description to include bootstrap IIFE and utilities_

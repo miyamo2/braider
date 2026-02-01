@@ -1,0 +1,195 @@
+package graph
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+)
+
+// TopologicalSorter provides topological ordering with cycle detection.
+type TopologicalSorter struct{}
+
+// NewTopologicalSorter creates a new topological sorter.
+func NewTopologicalSorter() *TopologicalSorter {
+	return &TopologicalSorter{}
+}
+
+// Sort orders nodes topologically using Kahn's algorithm.
+// Returns ordered node list or error with cycle path if cycle detected.
+func (s *TopologicalSorter) Sort(graph *Graph) ([]string, error) {
+	// Handle empty graph
+	if len(graph.Nodes) == 0 {
+		return []string{}, nil
+	}
+
+	// Create a working copy of in-degrees to avoid modifying the original graph
+	inDegrees := make(map[string]int)
+	for typeName, node := range graph.Nodes {
+		inDegrees[typeName] = node.InDegree
+	}
+
+	// Build reverse edges: dependents[node] = nodes that depend on this node
+	// graph.Edges[A] = [B] means "A depends on B"
+	// We need reverse: when B is processed, decrement A's in-degree
+	dependents := make(map[string][]string)
+	for from, tos := range graph.Edges {
+		for _, to := range tos {
+			dependents[to] = append(dependents[to], from)
+		}
+	}
+
+	// Initialize queue with all zero in-degree nodes (alphabetically sorted)
+	queue := s.findZeroInDegreeNodes(inDegrees)
+
+	// Result list
+	result := []string{}
+
+	// Process nodes using Kahn's algorithm
+	for len(queue) > 0 {
+		// Dequeue (always sorted alphabetically for determinism)
+		current := queue[0]
+		queue = queue[1:]
+		result = append(result, current)
+
+		// For each node that depends on current
+		if deps, ok := dependents[current]; ok {
+			for _, dependent := range deps {
+				// Decrement in-degree of dependent
+				inDegrees[dependent]--
+
+				// If in-degree becomes zero, add to queue (maintaining sorted order)
+				if inDegrees[dependent] == 0 {
+					queue = s.insertSorted(queue, dependent)
+				}
+			}
+		}
+	}
+
+	// Check if all nodes were processed (cycle detection)
+	if len(result) != len(graph.Nodes) {
+		// Reconstruct cycle path
+		cycle := s.findCycle(graph, inDegrees)
+		return nil, &CycleError{Cycle: cycle}
+	}
+
+	return result, nil
+}
+
+// findZeroInDegreeNodes returns all nodes with zero in-degree, sorted alphabetically.
+func (s *TopologicalSorter) findZeroInDegreeNodes(inDegrees map[string]int) []string {
+	zeroNodes := []string{}
+	for typeName, degree := range inDegrees {
+		if degree == 0 {
+			zeroNodes = append(zeroNodes, typeName)
+		}
+	}
+	sort.Strings(zeroNodes)
+	return zeroNodes
+}
+
+// insertSorted inserts a node into a sorted slice maintaining alphabetical order.
+//
+// Performance note: This operation is O(n) due to the slice copy operation.
+// For large dependency graphs with many nodes at the same depth level,
+// this could become a bottleneck during topological sort.
+//
+// TODO: Consider using a heap-based priority queue (container/heap) for better
+// performance with large graphs. A min-heap would provide O(log n) insertion
+// while maintaining alphabetical ordering.
+func (s *TopologicalSorter) insertSorted(slice []string, node string) []string {
+	// Find insertion position (O(log n) binary search)
+	pos := sort.SearchStrings(slice, node)
+	// Insert at position (O(n) due to copy)
+	slice = append(slice, "")
+	copy(slice[pos+1:], slice[pos:])
+	slice[pos] = node
+	return slice
+}
+
+// findCycle reconstructs a cycle path from remaining nodes with non-zero in-degree.
+func (s *TopologicalSorter) findCycle(graph *Graph, inDegrees map[string]int) []string {
+	// Find a node that's part of the cycle (non-zero in-degree)
+	// Sort candidates alphabetically for deterministic cycle paths
+	var candidates []string
+	for typeName, degree := range inDegrees {
+		if degree > 0 {
+			candidates = append(candidates, typeName)
+		}
+	}
+
+	if len(candidates) == 0 {
+		// This shouldn't happen if caller detected cycle correctly
+		return []string{}
+	}
+
+	// Sort alphabetically to ensure deterministic starting node
+	sort.Strings(candidates)
+	startNode := candidates[0]
+
+	// Use DFS to find the cycle path starting from this node
+	visited := make(map[string]bool)
+	path := []string{}
+	cycle := s.dfsFindCycle(graph, startNode, visited, path, inDegrees)
+
+	return cycle
+}
+
+// dfsFindCycle performs DFS to find a cycle path.
+// Only traverses nodes with non-zero in-degree (part of the cycle).
+func (s *TopologicalSorter) dfsFindCycle(
+	graph *Graph,
+	current string,
+	visited map[string]bool,
+	path []string,
+	inDegrees map[string]int,
+) []string {
+	// Create a copy for this branch to avoid slice sharing
+	newPath := make([]string, len(path), len(path)+1)
+	copy(newPath, path)
+	newPath = append(newPath, current)
+
+	visited[current] = true
+
+	// Build path index for O(1) lookup
+	pathIndex := make(map[string]int, len(newPath))
+	for i, node := range newPath {
+		pathIndex[node] = i
+	}
+
+	// Check current node's dependencies
+	if edges, ok := graph.Edges[current]; ok {
+		for _, dep := range edges {
+			// Only follow edges to nodes in the cycle (non-zero in-degree)
+			if inDegrees[dep] == 0 {
+				continue
+			}
+
+			// Check if we've found a cycle (dep is in current path)
+			if cycleStart, inPath := pathIndex[dep]; inPath {
+				// Extract the cycle from path and add dep to complete the cycle
+				cycle := append(newPath[cycleStart:], dep)
+				return cycle
+			}
+
+			// If not visited, continue DFS
+			if !visited[dep] {
+				result := s.dfsFindCycle(graph, dep, visited, newPath, inDegrees)
+				if len(result) > 0 {
+					return result
+				}
+			}
+		}
+	}
+
+	return []string{}
+}
+
+// CycleError represents a circular dependency error.
+type CycleError struct {
+	Cycle []string // Cycle path, e.g., ["A", "B", "C", "A"]
+}
+
+// Error returns the error message.
+func (e *CycleError) Error() string {
+	return fmt.Sprintf("circular dependency detected: %s", strings.Join(e.Cycle, " -> "))
+}

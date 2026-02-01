@@ -16,7 +16,7 @@ The generated bootstrap code creates a `dependency` variable containing an anony
 
 #### Acceptance Criteria
 1. When a package contains `var _ = annotation.App(main)`, the Analyzer shall identify this as a bootstrap target.
-2. When a package contains multiple `annotation.App(main)` declarations, the Analyzer shall report an error diagnostic indicating only one App annotation is allowed per package.
+2. When a package contains multiple `annotation.App(main)` declarations, the Analyzer shall proceed without error using the first detected App annotation as the bootstrap target. If multiple App annotations appear in the same file, the Analyzer shall emit a warning diagnostic for each duplicate and ignore it.
 3. When a package does not contain any `annotation.App` declaration, the Analyzer shall skip bootstrap generation for that package.
 4. When `annotation.App` is called with a function other than `main`, the Analyzer shall report an error diagnostic indicating App must reference the main function.
 
@@ -35,12 +35,12 @@ The generated bootstrap code creates a `dependency` variable containing an anony
 #### Acceptance Criteria
 1. When parsing a constructor function, the Analyzer shall extract its parameter types as dependencies.
 2. When a constructor parameter type matches an `annotation.Inject` struct, the Analyzer shall add a dependency edge from the parameter type to the struct being constructed.
-3. When constructor parameters include non-injectable types (primitives, external types), the Analyzer shall exclude them from the dependency graph.
+3. When constructor parameters include non-injectable types (primitives, external types), the Analyzer shall report a dependency graph build error indicating the unresolvable dependency type.
 4. When a constructor returns multiple values, the Analyzer shall use the first return value as the provided type.
 5. When a constructor parameter is an interface type, the Analyzer shall find an `annotation.Inject` struct that implements that interface and add it as a dependency edge.
 6. When multiple `annotation.Inject` structs implement the same interface required by a constructor parameter, the Analyzer shall report an error diagnostic listing the ambiguous implementations.
-7. When no `annotation.Inject` struct implements a required interface parameter, the Analyzer shall exclude that parameter from the dependency graph (treated as external dependency).
-8. When resolving interface implementations, the Analyzer shall search across all packages in the module via Facts.
+7. When no `annotation.Inject` struct implements a required interface parameter, the Analyzer shall report an error diagnostic indicating the unresolved interface dependency.
+8. When resolving interface implementations, the Analyzer shall search across all packages in the module via the global injector/provider registries populated during analysis.
 
 ### Requirement 4: Circular Dependency Detection
 **Objective:** As a developer, I want braider to detect circular dependencies, so that I can fix invalid dependency graphs before runtime.

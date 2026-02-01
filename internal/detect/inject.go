@@ -8,8 +8,8 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-// InjectAnnotationPath is the import path for the annotation package.
-const InjectAnnotationPath = "github.com/miyamo2/braider/pkg/annotation"
+// AnnotationPath is the import path for the annotation package.
+const AnnotationPath = "github.com/miyamo2/braider/pkg/annotation"
 
 // InjectTypeName is the type name for the Inject annotation.
 const InjectTypeName = "Inject"
@@ -100,5 +100,5 @@ func (d *injectDetector) isNamedInjectType(t types.Type) bool {
 		return false
 	}
 
-	return pkg.Path() == InjectAnnotationPath
+	return pkg.Path() == AnnotationPath
 }

@@ -1,0 +1,29 @@
+package main
+
+import (
+	"crossiface/repository"
+	"crossiface/service"
+	"github.com/miyamo2/braider/pkg/annotation"
+)
+
+var _ = annotation.App(main) // want "bootstrap code is missing"
+
+func main() {
+	_ = dependency
+}
+
+// braider:hash:e54b562330ff90c9
+var dependency = func() struct {
+	userRepository repository.UserRepository
+	userService    service.UserService
+} {
+	userRepository := repository.NewUserRepository()
+	userService := service.NewUserService(userRepository)
+	return struct {
+		userRepository repository.UserRepository
+		userService    service.UserService
+	}{
+		userRepository: userRepository,
+		userService:    userService,
+	}
+}()

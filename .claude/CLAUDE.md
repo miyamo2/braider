@@ -1,17 +1,20 @@
-# CLAUDE.md - braider
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-**braider** is a go vet analyzer that resolves DI (Dependency Injection) bindings and generates wiring code automatically. It leverages the `SuggestedFix` feature of the go/analysis package to auto-generate constructors and DI container wiring.
+**braider** is a go vet analyzer that resolves DI (Dependency Injection) bindings and generates wiring code automatically. It leverages the `SuggestedFix` feature of the go/analysis package to auto-generate constructors and bootstrap code.
 
 ### Key Features
-- Static analysis of Go code to detect DI patterns
+- Static analysis of Go code to detect DI patterns via annotations
 - Automatic generation of constructor functions
 - DI wiring code generation via suggested fixes
+- Bootstrap code generation with IIFE pattern
 - Integration with `go vet` workflow
 
 ### Inspiration
-This project is inspired by [google/wire](https://github.com/google/wire), which provides compile-time dependency injection for Go. braider aims to provide similar functionality through the go vet analyzer interface.
+This project is inspired by [google/wire](https://github.com/google/wire), which provides compile-time dependency injection for Go.
 
 ## Tech Stack
 
@@ -21,47 +24,80 @@ This project is inspired by [google/wire](https://github.com/google/wire), which
 
 ## Architecture & Design
 
-### Analyzer Implementation
+### Multi-Analyzer Architecture
 
-braider implements the `analysis.Analyzer` interface:
+braider uses two specialized analyzers that work together:
+
+1. **DependencyAnalyzer** (`braider_dependency`):
+   - Scans all packages for `annotation.Inject` and `annotation.Provide` structs
+   - Generates constructors for Inject structs via SuggestedFix
+   - Registers providers and injectors to global registries
+   - Validates constructor existence for Provide structs
+
+2. **AppAnalyzer** (`braider_app`):
+   - Detects `annotation.App(main)` annotations
+   - Validates App annotation usage (single annotation, main function reference)
+   - Generates bootstrap code using IIFE pattern
+   - Creates dependency struct with all Inject structs as fields
+
+### Dependency Injection Flow
 
 ```go
-var Analyzer = &analysis.Analyzer{
-    Name: "braider",
-    Doc:  "resolves DI bindings and generates wiring",
-    Run:  run,
+// User code with annotations
+type MyRepository struct {
+    annotation.Inject
 }
+
+type MyService struct {
+    annotation.Inject
+    repo MyRepository
+}
+
+var _ = annotation.App(main)
+
+func main() {}
 ```
 
-### Code Generation via SuggestedFix
+Analyzer generates:
+1. Constructors: `NewMyRepository()`, `NewMyService(repo MyRepository)`
+2. Bootstrap code in main with topologically sorted initialization
 
-The analyzer uses `analysis.SuggestedFix` to propose code changes that can be automatically applied:
+### Core Components
 
-```go
-analysis.Diagnostic{
-    Pos:     pos,
-    Message: "missing constructor",
-    SuggestedFixes: []analysis.SuggestedFix{
-        {
-            Message: "generate constructor",
-            TextEdits: []analysis.TextEdit{
-                {
-                    Pos:     pos,
-                    End:     end,
-                    NewText: []byte(generatedCode),
-                },
-            },
-        },
-    },
-}
-```
+#### Registries (shared state across analyzers)
+- **ProviderRegistry**: Tracks Provide-annotated structs and their dependencies
+- **InjectorRegistry**: Tracks Inject-annotated structs and their dependencies
+- **PackageTracker**: Monitors which packages have been scanned
 
-### DI Wiring Patterns
+#### Detectors (pattern recognition)
+- **AppDetector**: Detects and validates `annotation.App(main)` annotations
+- **ProvideDetector**: Detects `annotation.Provide` fields in structs
+- **InjectDetector**: Detects `annotation.Inject` fields in structs
+- **ProvideStructDetector**: Combines struct + Provide field detection
+- **StructDetector**: Combines struct + Inject field detection
+- **FieldAnalyzer**: Extracts injectable fields from structs (excluding annotation fields)
+- **ConstructorAnalyzer**: Analyzes existing constructors and extracts dependencies
 
-braider analyzes struct dependencies and generates wiring code that:
-- Identifies injectable dependencies
-- Resolves dependency graphs
-- Generates initialization code in topological order
+#### Generators
+- **ConstructorGenerator**: Generates constructor function code
+- **BootstrapGenerator**: Generates IIFE bootstrap code (TODO)
+
+#### Reporters
+- **SuggestedFixBuilder**: Builds `analysis.SuggestedFix` for code generation
+- **DiagnosticEmitter**: Emits diagnostics with suggested fixes
+
+#### Graph Processing
+- **DependencyGraph**: Builds dependency graph from providers and injectors
+- **TopologicalSort**: Resolves initialization order
+- **InterfaceRegistry**: Maps interface types to implementing structs
+
+### Dependency Injection System
+
+The DI system uses three marker types:
+
+1. **`annotation.Inject`**: Marks structs as DI targets (become fields in dependency struct)
+2. **`annotation.Provide`**: Marks structs as DI providers (local variables only)
+3. **`annotation.App(main)`**: Triggers bootstrap code generation in main function
 
 ## Development Guidelines
 
@@ -71,15 +107,11 @@ braider analyzes struct dependencies and generates wiring code that:
 - Use meaningful variable and function names
 - Keep functions focused and small
 
-### Error Messages
-- Error messages should be clear and actionable
-- Include position information for easy navigation
-- Suggest fixes when possible
-
 ### Testing
 - Use `analysistest` package for analyzer testing
 - Create testdata directories with Go source files
 - Test both positive cases (should report) and negative cases (should not report)
+- Example testdata location: `internal/analyzer/testdata/`
 
 ### Commit Messages
 - Follow [Conventional Commits](https://www.conventionalcommits.org/v1.0.0/) specification
@@ -94,15 +126,17 @@ braider analyzes struct dependencies and generates wiring code that:
 - `test`: Adding or modifying tests
 - `chore`: Maintenance tasks (build process, dependencies, etc.)
 
-#### Examples
-```
-feat(analyzer): add support for interface injection
-fix(wiring): resolve circular dependency detection
-docs: update README with installation instructions
-test(analyzer): add test cases for nested structs
-refactor(core): simplify dependency graph traversal
-chore: update golang.org/x/tools dependency
-```
+### AI Assistant Documentation
+
+When running the `/init` command to create or update this CLAUDE.md file, also update the following AI assistant documentation files to maintain consistency:
+
+- `.github/copilot-instructions.md` - GitHub Copilot instructions
+- `.gemini/GEMINI.md` - Gemini CLI instructions
+
+All three files should contain the same architectural information and development guidelines, with only AI-specific commit trailer differences:
+- Claude Code: (no specific trailer required)
+- GitHub Copilot: `Co-authored-by: Copilot <175728472+Copilot@users.noreply.github.com>`
+- Gemini CLI: `Co-Authored-By: gemini-cli <218195315+gemini-cli@users.noreply.github.com>`
 
 ## Build & Test Commands
 
@@ -116,6 +150,15 @@ go test ./...
 # Run tests with verbose output
 go test -v ./...
 
+# Run a single test file
+go test -v ./internal/analyzer/app_test.go
+
+# Run a specific test
+go test -v -run TestAppAnalyzer ./internal/analyzer
+
+# Build the analyzer binary
+go build -o braider ./cmd/braider
+
 # Run the analyzer via go vet
 go vet -vettool=$(which braider) ./...
 
@@ -127,26 +170,26 @@ go vet -vettool=$(which braider) -fix ./...
 
 ```
 braider/
-├── .claude/
-│   └── CLAUDE.md        # This file
-├── README.md            # Project readme
-├── go.mod               # Go module definition
-├── go.sum               # Dependency checksums
 ├── cmd/
 │   └── braider/
-│       └── main.go      # CLI entry point
+│       └── main.go              # CLI entry point with DI wiring
+├── pkg/
+│   └── annotation/
+│       └── annotation.go        # Public annotation types
 ├── internal/
-│   ├── analyzer.go      # Main analyzer implementation
-│   └── analyzer_test.go # Analyzer tests
-└── testdata/
-    └── src/
-        └── example/     # Test fixtures
-            └── *.go
+│   ├── analyzer/
+│   │   ├── app.go              # AppAnalyzer implementation
+│   │   ├── dependency.go       # DependencyAnalyzer implementation
+│   │   └── testdata/           # Test fixtures
+│   ├── detect/                 # Pattern detection components
+│   ├── generate/               # Code generation components
+│   ├── graph/                  # Dependency graph and sorting
+│   ├── loader/                 # Package loading utilities
+│   ├── registry/               # Global registries
+│   └── report/                 # Diagnostic and fix reporting
 ```
 
 ## Usage Example
-
-Once implemented, braider can be used as follows:
 
 ```bash
 # Install

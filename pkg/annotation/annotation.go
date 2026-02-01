@@ -9,7 +9,18 @@ package annotation
 //
 // When a struct is annotated with Inject, braider generates a constructor and
 // the required wiring code to resolve and provide its dependencies.
+// Inject-annotated structs become fields in the dependency struct returned
+// by the bootstrap IIFE.
 type Inject struct{}
+
+// Provide marks a struct as a dependency provider.
+//
+// When a struct is annotated with Provide, braider registers it in the
+// provider registry and generates a local variable in the bootstrap IIFE.
+// Unlike Inject-annotated structs which become fields in the dependency
+// struct, Provide-annotated structs are only available as local variables
+// within the bootstrap function and are not exposed externally.
+type Provide struct{}
 
 // App marks a struct as the top-level dependency injection target.
 //
