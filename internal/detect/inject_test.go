@@ -593,3 +593,74 @@ func TestInjectDetector_FindInjectField_NilStructFields(t *testing.T) {
 		t.Errorf("FindInjectField() with nil struct fields = %v, want nil", field)
 	}
 }
+
+func TestInjectDetector_TypeCheckingEdgeCases(t *testing.T) {
+	wrongPkg := createWrongAnnotationPackage()
+
+	tests := []struct {
+		name         string
+		src          string
+		pkgs         map[string]*types.Package
+		expectInject bool
+		description  string
+	}{
+		{
+			name: "inject with wrong package path",
+			src: `package test
+
+import "github.com/other/annotation"
+
+type MyService struct {
+	annotation.Inject
+}
+`,
+			pkgs:         map[string]*types.Package{"github.com/other/annotation": wrongPkg},
+			expectInject: false,
+			description:  "Inject from wrong package should not be detected",
+		},
+		{
+			name: "inject with wrong type name",
+			src: `package test
+
+type Inject struct{}
+
+type MyService struct {
+	Inject
+}
+`,
+			pkgs:         nil,
+			expectInject: false,
+			description:  "Local Inject type should not be detected",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass, file := mockPass(t, tt.src, tt.pkgs)
+
+			var structType *ast.StructType
+			ast.Inspect(file, func(n ast.Node) bool {
+				if ts, ok := n.(*ast.TypeSpec); ok {
+					if st, ok := ts.Type.(*ast.StructType); ok {
+						if ts.Name.Name == "MyService" {
+							structType = st
+							return false
+						}
+					}
+				}
+				return true
+			})
+
+			if structType == nil {
+				t.Fatal("MyService struct not found")
+			}
+
+			detector := detect.NewInjectDetector()
+			hasInject := detector.HasInjectAnnotation(pass, structType)
+
+			if hasInject != tt.expectInject {
+				t.Errorf("HasInjectAnnotation() = %v, want %v (%s)", hasInject, tt.expectInject, tt.description)
+			}
+		})
+	}
+}

@@ -678,3 +678,129 @@ func main() {}
 		t.Error("ValidateAppAnnotations() should error when referencing non-function")
 	}
 }
+
+func TestAppDetector_DetectAppAnnotations_EdgeCases(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithApp()
+
+	tests := []struct {
+		name          string
+		src           string
+		pkgs          map[string]*types.Package
+		expectedCount int
+		description   string
+	}{
+		{
+			name: "call expression not a selector",
+			src: `package main
+
+var _ = someFunc()
+
+func someFunc() struct{} { return struct{}{} }
+func main() {}
+`,
+			pkgs:          nil,
+			expectedCount: 0,
+			description:   "Non-selector call should not be detected",
+		},
+		{
+			name: "wrong function name",
+			src: `package main
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+var _ = annotation.NotApp(main)
+
+func main() {}
+`,
+			pkgs:          map[string]*types.Package{detect.AnnotationPath: annotationPkg},
+			expectedCount: 0,
+			description:   "Wrong function name should not be detected",
+		},
+		{
+			name: "wrong package path",
+			src: `package main
+
+import ann "github.com/other/annotation"
+
+var _ = ann.App(main)
+
+func main() {}
+`,
+			pkgs:          nil,
+			expectedCount: 0,
+			description:   "Wrong package path should not be detected",
+		},
+		{
+			name: "selector X is not identifier",
+			src: `package main
+
+var _ = (struct{App func()}{}).App()
+
+func main() {}
+`,
+			pkgs:          nil,
+			expectedCount: 0,
+			description:   "Selector X not being an identifier should not be detected",
+		},
+		{
+			name: "multiple values in var spec",
+			src: `package main
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+var _, x = annotation.App(main), 42
+
+func main() {}
+`,
+			pkgs:          map[string]*types.Package{detect.AnnotationPath: annotationPkg},
+			expectedCount: 0,
+			description:   "Multiple values in var spec should not be detected",
+		},
+		{
+			name: "valuespec not a call expression",
+			src: `package main
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+var _ = 42
+
+func main() {}
+`,
+			pkgs:          map[string]*types.Package{detect.AnnotationPath: annotationPkg},
+			expectedCount: 0,
+			description:   "Non-call expression value should not be detected",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass, _ := mockPassForApp(t, tt.src, tt.pkgs)
+
+			detector := detect.NewAppDetector()
+			apps := detector.DetectAppAnnotations(pass)
+
+			if len(apps) != tt.expectedCount {
+				t.Errorf("DetectAppAnnotations() returned %d annotations, want %d (%s)", len(apps), tt.expectedCount, tt.description)
+			}
+		})
+	}
+}
+
+func TestAppDetector_FindFileForNode_NoFileFound(t *testing.T) {
+	// Create a pass with no files
+	fset := token.NewFileSet()
+	pass := &analysis.Pass{
+		Fset:  fset,
+		Files: []*ast.File{}, // Empty files
+	}
+
+	detector := detect.NewAppDetector()
+	// Since findFileForNode is private, we test it indirectly through DetectAppAnnotations
+	// With empty files, should return empty
+	apps := detector.DetectAppAnnotations(pass)
+
+	// With empty files, should return empty
+	if len(apps) != 0 {
+		t.Errorf("DetectAppAnnotations() with empty files returned %d, want 0", len(apps))
+	}
+}
