@@ -509,3 +509,87 @@ type Repository interface{}
 		t.Error("FindInjectField() = nil, want non-nil for aliased import")
 	}
 }
+
+func TestInjectDetector_EdgeCases(t *testing.T) {
+	annotationPkg := createAnnotationPackage()
+
+	tests := []struct {
+		name           string
+		src            string
+		pkgs           map[string]*types.Package
+		expectInject   bool
+		description    string
+	}{
+		{
+			name: "nil struct fields",
+			src: `package test
+
+type MyService struct {
+}
+`,
+			pkgs:         map[string]*types.Package{detect.AnnotationPath: annotationPkg},
+			expectInject: false,
+			description:  "Empty struct should not have inject",
+		},
+		{
+			name: "struct with only named fields",
+			src: `package test
+
+type MyService struct {
+	repo Repository
+}
+
+type Repository interface{}
+`,
+			pkgs:         map[string]*types.Package{detect.AnnotationPath: annotationPkg},
+			expectInject: false,
+			description:  "Struct with only named fields should not have inject",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass, file := mockPass(t, tt.src, tt.pkgs)
+
+			var structType *ast.StructType
+			ast.Inspect(file, func(n ast.Node) bool {
+				if ts, ok := n.(*ast.TypeSpec); ok {
+					if st, ok := ts.Type.(*ast.StructType); ok {
+						if ts.Name.Name == "MyService" {
+							structType = st
+							return false
+						}
+					}
+				}
+				return true
+			})
+
+			if structType == nil {
+				t.Fatal("MyService struct not found")
+			}
+
+			detector := detect.NewInjectDetector()
+			hasInject := detector.HasInjectAnnotation(pass, structType)
+
+			if hasInject != tt.expectInject {
+				t.Errorf("HasInjectAnnotation() = %v, want %v (%s)", hasInject, tt.expectInject, tt.description)
+			}
+		})
+	}
+}
+
+func TestInjectDetector_FindInjectField_NilStructFields(t *testing.T) {
+	// Test with a struct that has nil Fields
+	pass, _ := mockPass(t, "package test", nil)
+
+	structType := &ast.StructType{
+		Fields: nil, // Explicitly nil
+	}
+
+	detector := detect.NewInjectDetector()
+	field := detector.FindInjectField(pass, structType)
+
+	if field != nil {
+		t.Errorf("FindInjectField() with nil struct fields = %v, want nil", field)
+	}
+}

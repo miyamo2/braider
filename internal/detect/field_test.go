@@ -458,3 +458,110 @@ type Fourth struct{}
 		})
 	}
 }
+
+func TestFieldAnalyzer_AnalyzeFields_MultipleNamesInSingleField(t *testing.T) {
+	annotationPkg := createAnnotationPackage()
+
+	src := `package test
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+type MyService struct {
+	annotation.Inject
+	a, b, c int
+}
+`
+	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
+	pass, file := mockPass(t, src, pkgs)
+
+	var structType *ast.StructType
+	ast.Inspect(file, func(n ast.Node) bool {
+		if ts, ok := n.(*ast.TypeSpec); ok {
+			if st, ok := ts.Type.(*ast.StructType); ok {
+				if ts.Name.Name == "MyService" {
+					structType = st
+					return false
+				}
+			}
+		}
+		return true
+	})
+
+	if structType == nil {
+		t.Fatal("MyService struct not found")
+	}
+
+	injectDetector := detect.NewInjectDetector()
+	injectField := injectDetector.FindInjectField(pass, structType)
+
+	fieldAnalyzer := detect.NewFieldAnalyzer()
+	fields := fieldAnalyzer.AnalyzeFields(pass, structType, injectField)
+
+	// Should have 3 fields (a, b, c)
+	if len(fields) != 3 {
+		t.Errorf("AnalyzeFields() returned %d fields, want 3", len(fields))
+	}
+
+	expectedNames := []string{"a", "b", "c"}
+	for i, name := range expectedNames {
+		if i >= len(fields) {
+			break
+		}
+		if fields[i].Name != name {
+			t.Errorf("fields[%d].Name = %s, want %s", i, fields[i].Name, name)
+		}
+	}
+}
+
+func TestFieldAnalyzer_AnalyzeFields_SkipEmbeddedFields(t *testing.T) {
+	annotationPkg := createAnnotationPackage()
+
+	src := `package test
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+type Base struct {
+	BaseField string
+}
+
+type MyService struct {
+	annotation.Inject
+	Base  // embedded field, should be skipped
+	normalField string
+}
+`
+	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
+	pass, file := mockPass(t, src, pkgs)
+
+	var structType *ast.StructType
+	ast.Inspect(file, func(n ast.Node) bool {
+		if ts, ok := n.(*ast.TypeSpec); ok {
+			if st, ok := ts.Type.(*ast.StructType); ok {
+				if ts.Name.Name == "MyService" {
+					structType = st
+					return false
+				}
+			}
+		}
+		return true
+	})
+
+	if structType == nil {
+		t.Fatal("MyService struct not found")
+	}
+
+	injectDetector := detect.NewInjectDetector()
+	injectField := injectDetector.FindInjectField(pass, structType)
+
+	fieldAnalyzer := detect.NewFieldAnalyzer()
+	fields := fieldAnalyzer.AnalyzeFields(pass, structType, injectField)
+
+	// Should only have normalField (Base is embedded and should be skipped)
+	if len(fields) != 1 {
+		t.Errorf("AnalyzeFields() returned %d fields, want 1 (embedded fields should be skipped)", len(fields))
+	}
+
+	if len(fields) > 0 && fields[0].Name != "normalField" {
+		t.Errorf("fields[0].Name = %s, want normalField", fields[0].Name)
+	}
+}

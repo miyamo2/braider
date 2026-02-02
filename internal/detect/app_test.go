@@ -451,3 +451,230 @@ func main() {}
 		t.Error("AppAnnotation.Pos should be non-zero")
 	}
 }
+
+func TestAppDetector_DeduplicateAppsByFile(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithApp()
+
+	tests := []struct {
+		name          string
+		src           string
+		pkgs          map[string]*types.Package
+		expectedCount int
+		description   string
+	}{
+		{
+			name: "empty list returns empty",
+			src: `package main
+
+func main() {}
+`,
+			pkgs:          nil,
+			expectedCount: 0,
+			description:   "Empty input should return empty output",
+		},
+		{
+			name: "single annotation returns single",
+			src: `package main
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+var _ = annotation.App(main)
+
+func main() {}
+`,
+			pkgs:          map[string]*types.Package{detect.AnnotationPath: annotationPkg},
+			expectedCount: 1,
+			description:   "Single annotation should be preserved",
+		},
+		{
+			name: "multiple annotations in same file returns first only",
+			src: `package main
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+var _ = annotation.App(main)
+var _ = annotation.App(main)
+var _ = annotation.App(main)
+
+func main() {}
+`,
+			pkgs:          map[string]*types.Package{detect.AnnotationPath: annotationPkg},
+			expectedCount: 1,
+			description:   "Multiple annotations in same file should deduplicate to first one",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass, _ := mockPassForApp(t, tt.src, tt.pkgs)
+
+			detector := detect.NewAppDetector()
+			apps := detector.DetectAppAnnotations(pass)
+			deduplicated := detector.DeduplicateAppsByFile(apps)
+
+			if len(deduplicated) != tt.expectedCount {
+				t.Errorf("DeduplicateAppsByFile() returned %d annotations, want %d (%s)", len(deduplicated), tt.expectedCount, tt.description)
+			}
+
+			// Verify all returned apps have File set
+			for i, app := range deduplicated {
+				if app.File == nil && tt.expectedCount > 0 {
+					t.Errorf("deduplicated[%d].File should not be nil", i)
+				}
+			}
+		})
+	}
+}
+
+func TestAppDetector_DeduplicateAppsByFile_NilFile(t *testing.T) {
+	// Test the fallback behavior when File is nil
+	detector := detect.NewAppDetector()
+
+	// Create annotations with nil File (edge case)
+	apps := []*detect.AppAnnotation{
+		{
+			CallExpr: &ast.CallExpr{},
+			Pos:      1,
+			File:     nil, // Explicitly nil
+		},
+		{
+			CallExpr: &ast.CallExpr{},
+			Pos:      2,
+			File:     nil, // Explicitly nil
+		},
+	}
+
+	deduplicated := detector.DeduplicateAppsByFile(apps)
+
+	// When File is nil, all apps should be included (fallback behavior)
+	if len(deduplicated) != 2 {
+		t.Errorf("DeduplicateAppsByFile() with nil Files returned %d annotations, want 2", len(deduplicated))
+	}
+}
+
+func TestAppValidationError_Error_DefaultCase(t *testing.T) {
+	// Test the default case in Error() method
+	err := &detect.AppValidationError{
+		Type:      detect.AppValidationErrorType(999), // Invalid type
+		Positions: []token.Pos{1},
+		FuncName:  "test",
+	}
+
+	result := err.Error()
+	expected := "invalid App annotation"
+	if result != expected {
+		t.Errorf("Error() = %q, want %q", result, expected)
+	}
+}
+
+func TestAppDetector_ValidateAppAnnotations_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupApps   func() []*detect.AppAnnotation
+		pass        *analysis.Pass
+		expectError bool
+		description string
+	}{
+		{
+			name: "annotation with nil MainFunc",
+			setupApps: func() []*detect.AppAnnotation {
+				return []*detect.AppAnnotation{
+					{
+						CallExpr: &ast.CallExpr{},
+						Pos:      1,
+						MainFunc: nil, // Nil MainFunc
+					},
+				}
+			},
+			expectError: true,
+			description: "Should error when MainFunc is nil",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a minimal pass for validation
+			fset := token.NewFileSet()
+			file, _ := parser.ParseFile(fset, "test.go", "package main\nfunc main() {}", 0)
+
+			info := &types.Info{
+				Types: make(map[ast.Expr]types.TypeAndValue),
+				Defs:  make(map[*ast.Ident]types.Object),
+				Uses:  make(map[*ast.Ident]types.Object),
+			}
+
+			pass := &analysis.Pass{
+				Fset:      fset,
+				Files:     []*ast.File{file},
+				TypesInfo: info,
+			}
+
+			detector := detect.NewAppDetector()
+			apps := tt.setupApps()
+			err := detector.ValidateAppAnnotations(pass, apps)
+
+			if tt.expectError && err == nil {
+				t.Errorf("ValidateAppAnnotations() = nil, want error (%s)", tt.description)
+			} else if !tt.expectError && err != nil {
+				t.Errorf("ValidateAppAnnotations() = %v, want nil (%s)", err, tt.description)
+			}
+		})
+	}
+}
+
+func TestAppDetector_ValidateAppAnnotations_UnknownIdentifier(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithApp()
+
+	src := `package main
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+var _ = annotation.App(undefinedFunc)
+
+func main() {}
+`
+	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
+	pass, _ := mockPassForApp(t, src, pkgs)
+
+	detector := detect.NewAppDetector()
+	apps := detector.DetectAppAnnotations(pass)
+
+	// Should find the annotation but validation should fail
+	if len(apps) != 1 {
+		t.Fatalf("expected 1 App annotation, got %d", len(apps))
+	}
+
+	err := detector.ValidateAppAnnotations(pass, apps)
+	if err == nil {
+		t.Error("ValidateAppAnnotations() should error for undefined function reference")
+	}
+}
+
+func TestAppDetector_ValidateAppAnnotations_NonFunctionObject(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithApp()
+
+	src := `package main
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+const myConst = 42
+var _ = annotation.App(myConst)
+
+func main() {}
+`
+	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
+	pass, _ := mockPassForApp(t, src, pkgs)
+
+	detector := detect.NewAppDetector()
+	apps := detector.DetectAppAnnotations(pass)
+
+	// Should find the annotation
+	if len(apps) != 1 {
+		t.Fatalf("expected 1 App annotation, got %d", len(apps))
+	}
+
+	err := detector.ValidateAppAnnotations(pass, apps)
+	if err == nil {
+		t.Error("ValidateAppAnnotations() should error when referencing non-function")
+	}
+}
