@@ -7,7 +7,7 @@ coverage:
   paths:
     - 'coverage.out'
   badge:
-    path: .assets/coverage.svg
+    path: .assets/test_cov.svg
 codeToTestRatio:
   code:
     - '**/*.go'
