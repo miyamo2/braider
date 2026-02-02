@@ -2,7 +2,7 @@
 
 ![Coverage](https://github.com/miyamo2/braider/blob/main/.assets/test_cov.svg?raw=true)
 ![Code to Test Ratio](https://github.com/miyamo2/braider/blob/main/.assets/ratio.svg?raw=true)
-![Test Execution Time](https://github.com/miyamo2/braider/blob/main/badges/.assets/time.svg?raw=true)
+![Test Execution Time](https://github.com/miyamo2/braider/blob/main/.assets/time.svg?raw=true)
 
 braider is a `go vet` analyzer that resolves dependency injection (DI) bindings and generates constructors and bootstrap wiring using `analysis.SuggestedFix`. It integrates with the standard Go toolchain, produces plain Go code with no runtime container, and is inspired by google/wire.
 
