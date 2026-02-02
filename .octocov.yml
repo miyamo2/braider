@@ -16,6 +16,8 @@ codeToTestRatio:
     - '!**/*_test.go'
   test:
     - '**/*_test.go'
+  badge:
+    path: .assets/ratio.svg
 testExecutionTime:
   if: true
   badge:
