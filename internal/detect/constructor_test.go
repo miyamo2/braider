@@ -232,3 +232,155 @@ func NoParams() {}
 		t.Errorf("ExtractDependencies() = %v, want empty slice", deps)
 	}
 }
+
+func TestConstructorAnalyzer_ExtractDependencies_Extended(t *testing.T) {
+	tests := []struct {
+		name         string
+		src          string
+		funcName     string
+		expectedDeps []string
+	}{
+		{
+			name: "array parameter treated as slice",
+			src: `package test
+
+func NewService(items [5]int) *Service {
+	return &Service{}
+}
+
+type Service struct{}
+`,
+			funcName:     "NewService",
+			expectedDeps: []string{"[]int"},
+		},
+		{
+			name: "anonymous interface parameter",
+			src: `package test
+
+func NewService(reader interface{ Read() }) *Service {
+	return &Service{}
+}
+
+type Service struct{}
+`,
+			funcName:     "NewService",
+			expectedDeps: []string{}, // anonymous interface returns empty string
+		},
+		{
+			name: "anonymous struct parameter",
+			src: `package test
+
+func NewService(cfg struct{ F int }) *Service {
+	return &Service{}
+}
+
+type Service struct{}
+`,
+			funcName:     "NewService",
+			expectedDeps: []string{}, // anonymous struct hits default case, returns empty
+		},
+		{
+			name: "slice of anonymous interface",
+			src: `package test
+
+func NewService(readers []interface{ Read() }) *Service {
+	return &Service{}
+}
+
+type Service struct{}
+`,
+			funcName:     "NewService",
+			expectedDeps: []string{}, // slice with empty element type returns empty
+		},
+		{
+			name: "map with anonymous interface as value",
+			src: `package test
+
+func NewService(handlers map[string]interface{ Handle() }) *Service {
+	return &Service{}
+}
+
+type Service struct{}
+`,
+			funcName:     "NewService",
+			expectedDeps: []string{}, // map with empty value type returns empty
+		},
+		{
+			name: "pointer to anonymous struct",
+			src: `package test
+
+func NewService(cfg *struct{ F int }) *Service {
+	return &Service{}
+}
+
+type Service struct{}
+`,
+			funcName:     "NewService",
+			expectedDeps: []string{}, // pointer to empty type returns empty
+		},
+		{
+			name: "array of anonymous interface",
+			src: `package test
+
+func NewService(readers [3]interface{ Read() }) *Service {
+	return &Service{}
+}
+
+type Service struct{}
+`,
+			funcName:     "NewService",
+			expectedDeps: []string{}, // array with empty element type returns empty
+		},
+		{
+			name: "map with anonymous interface as key",
+			src: `package test
+
+func NewService(handlers map[interface{ Key() }]string) *Service {
+	return &Service{}
+}
+
+type Service struct{}
+`,
+			funcName:     "NewService",
+			expectedDeps: []string{}, // map with empty key type returns empty
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass, file := mockPass(t, tt.src, nil)
+
+			// Find the function declaration
+			var funcDecl *ast.FuncDecl
+			ast.Inspect(file, func(n ast.Node) bool {
+				if fn, ok := n.(*ast.FuncDecl); ok {
+					if fn.Name.Name == tt.funcName {
+						funcDecl = fn
+						return false
+					}
+				}
+				return true
+			})
+
+			if funcDecl == nil {
+				t.Fatalf("function %s not found", tt.funcName)
+			}
+
+			analyzer := detect.NewConstructorAnalyzer()
+			deps := analyzer.ExtractDependencies(pass, funcDecl)
+
+			if len(deps) != len(tt.expectedDeps) {
+				t.Errorf("ExtractDependencies() returned %d deps, want %d", len(deps), len(tt.expectedDeps))
+				t.Logf("got: %v", deps)
+				t.Logf("want: %v", tt.expectedDeps)
+				return
+			}
+
+			for i, expected := range tt.expectedDeps {
+				if deps[i] != expected {
+					t.Errorf("deps[%d] = %q, want %q", i, deps[i], expected)
+				}
+			}
+		})
+	}
+}
