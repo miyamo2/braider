@@ -384,3 +384,76 @@ type Service struct{}
 		})
 	}
 }
+
+func TestConstructorAnalyzer_ExtractDependencies_BuiltInTypes(t *testing.T) {
+	tests := []struct {
+		name         string
+		src          string
+		funcName     string
+		expectedDeps []string
+	}{
+		{
+			name: "error interface (built-in)",
+			src: `package test
+
+func NewService(err error) *Service {
+	return &Service{}
+}
+
+type Service struct{}
+`,
+			funcName:     "NewService",
+			expectedDeps: []string{"error"}, // error is a predeclared identifier
+		},
+		{
+			name: "basic types",
+			src: `package test
+
+func NewService(s string, i int, b bool) *Service {
+	return &Service{}
+}
+
+type Service struct{}
+`,
+			funcName:     "NewService",
+			expectedDeps: []string{"string", "int", "bool"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass, file := mockPass(t, tt.src, nil)
+
+var funcDecl *ast.FuncDecl
+ast.Inspect(file, func(n ast.Node) bool {
+if fn, ok := n.(*ast.FuncDecl); ok {
+if fn.Name.Name == tt.funcName {
+funcDecl = fn
+return false
+}
+}
+return true
+})
+
+if funcDecl == nil {
+t.Fatalf("function %s not found", tt.funcName)
+}
+
+analyzer := detect.NewConstructorAnalyzer()
+deps := analyzer.ExtractDependencies(pass, funcDecl)
+
+if len(deps) != len(tt.expectedDeps) {
+t.Errorf("ExtractDependencies() returned %d deps, want %d", len(deps), len(tt.expectedDeps))
+t.Logf("got: %v", deps)
+t.Logf("want: %v", tt.expectedDeps)
+return
+}
+
+for i, expected := range tt.expectedDeps {
+if deps[i] != expected {
+t.Errorf("deps[%d] = %q, want %q", i, deps[i], expected)
+}
+}
+})
+}
+}

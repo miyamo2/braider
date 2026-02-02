@@ -477,3 +477,158 @@ type MyRepository struct {
 		t.Error("FindProvideField() = nil, want non-nil for aliased import")
 	}
 }
+
+func TestProvideDetector_EdgeCases(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithProvide()
+
+	tests := []struct {
+		name           string
+		src            string
+		pkgs           map[string]*types.Package
+		expectProvide  bool
+		description    string
+	}{
+		{
+			name: "nil struct fields",
+			src: `package test
+
+type MyService struct {
+}
+`,
+			pkgs:          map[string]*types.Package{detect.AnnotationPath: annotationPkg},
+			expectProvide: false,
+			description:   "Empty struct should not have provide",
+		},
+		{
+			name: "struct with only named fields",
+			src: `package test
+
+type MyService struct {
+	repo Repository
+}
+
+type Repository interface{}
+`,
+			pkgs:          map[string]*types.Package{detect.AnnotationPath: annotationPkg},
+			expectProvide: false,
+			description:   "Struct with only named fields should not have provide",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass, file := mockPassForProvide(t, tt.src, tt.pkgs)
+
+			var structType *ast.StructType
+			ast.Inspect(file, func(n ast.Node) bool {
+				if ts, ok := n.(*ast.TypeSpec); ok {
+					if st, ok := ts.Type.(*ast.StructType); ok {
+						if ts.Name.Name == "MyService" {
+							structType = st
+							return false
+						}
+					}
+				}
+				return true
+			})
+
+			if structType == nil {
+				t.Fatal("MyService struct not found")
+			}
+
+			detector := detect.NewProvideDetector()
+			hasProvide := detector.HasProvideAnnotation(pass, structType)
+
+			if hasProvide != tt.expectProvide {
+				t.Errorf("HasProvideAnnotation() = %v, want %v (%s)", hasProvide, tt.expectProvide, tt.description)
+			}
+		})
+	}
+}
+
+func TestProvideDetector_FindProvideField_NilStructFields(t *testing.T) {
+	// Test with a struct that has nil Fields
+	pass, _ := mockPassForProvide(t, "package test", nil)
+
+	structType := &ast.StructType{
+		Fields: nil, // Explicitly nil
+	}
+
+	detector := detect.NewProvideDetector()
+	field := detector.FindProvideField(pass, structType)
+
+	if field != nil {
+		t.Errorf("FindProvideField() with nil struct fields = %v, want nil", field)
+	}
+}
+
+func TestProvideDetector_TypeCheckingEdgeCases(t *testing.T) {
+	wrongPkg := createWrongAnnotationPackageWithProvide()
+
+	tests := []struct {
+		name          string
+		src           string
+		pkgs          map[string]*types.Package
+		expectProvide bool
+		description   string
+	}{
+		{
+			name: "provide with wrong package path",
+			src: `package test
+
+import "github.com/other/annotation"
+
+type MyService struct {
+	annotation.Provide
+}
+`,
+			pkgs:          map[string]*types.Package{"github.com/other/annotation": wrongPkg},
+			expectProvide: false,
+			description:   "Provide from wrong package should not be detected",
+		},
+		{
+			name: "provide with wrong type name",
+			src: `package test
+
+type Provide struct{}
+
+type MyService struct {
+	Provide
+}
+`,
+			pkgs:          nil,
+			expectProvide: false,
+			description:   "Local Provide type should not be detected",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass, file := mockPassForProvide(t, tt.src, tt.pkgs)
+
+			var structType *ast.StructType
+			ast.Inspect(file, func(n ast.Node) bool {
+				if ts, ok := n.(*ast.TypeSpec); ok {
+					if st, ok := ts.Type.(*ast.StructType); ok {
+						if ts.Name.Name == "MyService" {
+							structType = st
+							return false
+						}
+					}
+				}
+				return true
+			})
+
+			if structType == nil {
+				t.Fatal("MyService struct not found")
+			}
+
+			detector := detect.NewProvideDetector()
+			hasProvide := detector.HasProvideAnnotation(pass, structType)
+
+			if hasProvide != tt.expectProvide {
+				t.Errorf("HasProvideAnnotation() = %v, want %v (%s)", hasProvide, tt.expectProvide, tt.description)
+			}
+		})
+	}
+}
