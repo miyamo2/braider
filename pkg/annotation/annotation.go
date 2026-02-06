@@ -5,26 +5,84 @@
 // to generate constructors, wiring code, and main function bootstrapping.
 package annotation
 
-// Inject marks a struct as a dependency injection target.
-//
-// When a struct is annotated with Inject, braider generates a constructor and
-// the required wiring code to resolve and provide its dependencies.
-// Inject-annotated structs become fields in the dependency struct returned
-// by the bootstrap IIFE.
-type Inject struct{}
+import (
+	"github.com/miyamo2/braider/pkg/annotation/inject"
+	"github.com/miyamo2/braider/pkg/annotation/provide"
+)
 
-// Provide marks a struct as a dependency provider.
+// Injectable marks a struct as a dependency to be injected.
 //
-// When a struct is annotated with Provide, braider registers it in the
-// provider registry and generates a local variable in the bootstrap IIFE.
-// Unlike Inject-annotated structs which become fields in the dependency
-// struct, Provide-annotated structs are only available as local variables
-// within the bootstrap function and are not exposed externally.
-type Provide struct{}
+// When a struct is annotated with Injectable, braider generates a constructor
+// function for the struct and registers it in the provider registry.
+// The constructor function is expected to accept all dependencies as parameters.
+//
+// Example:
+//
+//	package service
+//
+//	import (
+//		"github.com/miyamo2/braider/pkg/annotation"
+//		"github.com/miyamo2/braider/pkg/annotation/inject"
+//	)
+//
+//	type MyService interface {
+//	    DoSomething() error
+//	}
+//
+//	type myService struct {
+//	    annotation.Injectable[inject.Default]
+//	    myRepository MyRepository
+//	}
+//
+//	func (s *myService) DoSomething() error { ... }
+//
+// Example generated constructor function:
+//
+//	package service
+//
+//	import (
+//		"github.com/miyamo2/braider/pkg/annotation"
+//		"github.com/miyamo2/braider/pkg/annotation/inject"
+//	)
+//
+//	type MyService interface {
+//	    DoSomething() error
+//	}
+//
+//	type myService struct {
+//	    annotation.Injectable[inject.Default]
+//	    myRepository MyRepository
+//	}
+//
+//	func (s *myService) DoSomething() error { ... }
+//
+//	func NewMyService(myRepository MyRepository) *myService {
+//	    return &myService{
+//	        myRepository: myRepository,
+//	    }
+//	}
+type Injectable[T inject.Option] interface {
+	isInjectable()
+	option() T
+}
 
-// ProvideFunc marks a function as a dependency provider.
+type Provider[T provide.Option] interface {
+	isProvider()
+	option() T
+}
+
+type provider[T provide.Option] struct{}
+
+func (p provider[T]) isProvider() {}
+
+func (p provider[T]) option() T {
+	var zero T
+	return zero
+}
+
+// Provide marks a function as a dependency provider.
 //
-// When a function is annotated with ProvideFunc, braider registers it in the
+// When a function is annotated with Provide, braider registers it in the
 // provider registry and generates a local variable in the bootstrap IIFE.
 // The function is expected to return an instance of the provided dependency.
 //
@@ -32,7 +90,10 @@ type Provide struct{}
 //
 //	package repository
 //
-//	import "github.com/miyamo2/braider/pkg/annotation"
+//	import (
+//		"github.com/miyamo2/braider/pkg/annotation"
+//		"github.com/miyamo2/braider/pkg/annotation/provide"
+//	)
 //
 //	var _ MyRepository = (*myRepository)(nil)
 //
@@ -44,14 +105,14 @@ type Provide struct{}
 //
 //	func (r *myRepository) GetData(id string) (string, error) { ... }
 //
-//	var _ = annotation.ProvideFunc(NewMyRepository)
+//	var _ = annotation.Provide[provide.Typed[MyRepository]](NewMyRepository)
 //
-//	func NewMyRepository() *MyRepository {
+//	func NewMyRepository() *myRepository {
 //	    return &myRepository{}
 //	}
-func ProvideFunc(providerFunc any) struct{} {
+func Provide[T provide.Option](providerFunc any) Provider[T] {
 	_ = providerFunc
-	return struct{}{}
+	return provider[T]{}
 }
 
 // App marks a struct as the top-level dependency injection target.
