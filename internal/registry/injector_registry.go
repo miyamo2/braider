@@ -46,6 +46,10 @@ func (i *InjectorInfo) GetDependencies() []string {
 	return i.Dependencies
 }
 
+func (i *InjectorInfo) GetName() string {
+	return i.Name
+}
+
 // InjectorRegistry stores all discovered injector structs globally.
 // Thread-safe for potential parallel analyzer execution.
 // Uses RWMutex to allow concurrent reads for improved performance.

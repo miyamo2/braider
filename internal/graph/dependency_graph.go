@@ -2,6 +2,7 @@ package graph
 
 import (
 	"fmt"
+	"go/types"
 
 	"github.com/miyamo2/braider/internal/registry"
 	"golang.org/x/tools/go/analysis"
@@ -30,15 +31,17 @@ type Graph struct {
 
 // Node represents an injectable type in the graph.
 type Node struct {
-	TypeName        string   // Fully qualified type name
-	PackagePath     string   // Import path
-	PackageName     string   // Actual package name from go/types.Package
-	PackageAlias    string   // Alias when name collision occurs (empty = no alias)
-	LocalName       string   // Type name without package
-	ConstructorName string   // New<TypeName>
-	Dependencies    []string // Types this depends on
-	InDegree        int      // Number of types that depend on this node (for Kahn's algorithm)
-	IsField         bool     // True for Inject structs (dependency struct fields), false for Provide structs (local variables only)
+	TypeName        string      // Fully qualified type name
+	PackagePath     string      // Import path
+	PackageName     string      // Actual package name from go/types.Package
+	PackageAlias    string      // Alias when name collision occurs (empty = no alias)
+	LocalName       string      // Type name without package
+	ConstructorName string      // New<TypeName>
+	Dependencies    []string    // Types this depends on
+	InDegree        int         // Number of types that depend on this node (for Kahn's algorithm)
+	IsField         bool        // True for Inject structs (dependency struct fields), false for Provide structs (local variables only)
+	RegisteredType  types.Type  // Interface type for Typed[I], concrete type otherwise (nil = use concrete type)
+	Name            string      // Dependency name from Named[N], empty if unnamed
 }
 
 // UnresolvableTypeError represents a dependency type that cannot be resolved.
@@ -60,6 +63,16 @@ func NewDependencyGraphBuilder() *DependencyGraphBuilder {
 	return &DependencyGraphBuilder{
 		interfaceRegistry: NewInterfaceRegistry(),
 	}
+}
+
+// makeNodeKey creates a composite key for a dependency.
+// For named dependencies, returns "TypeName#Name".
+// For unnamed dependencies, returns "TypeName".
+func makeNodeKey(typeName, name string) string {
+	if name != "" {
+		return typeName + "#" + name
+	}
+	return typeName
 }
 
 // BuildGraph constructs the dependency graph from registered providers and injectors.
@@ -91,6 +104,7 @@ func (b *DependencyGraphBuilder) BuildGraph(
 
 	// Add provider nodes (IsField = false)
 	for _, provider := range providers {
+		nodeKey := makeNodeKey(provider.TypeName, provider.Name)
 		node := &Node{
 			TypeName:        provider.TypeName,
 			PackagePath:     provider.PackagePath,
@@ -100,12 +114,15 @@ func (b *DependencyGraphBuilder) BuildGraph(
 			Dependencies:    []string{},
 			InDegree:        0,
 			IsField:         false, // Providers are local variables in IIFE
+			RegisteredType:  provider.RegisteredType,
+			Name:            provider.Name,
 		}
-		graph.Nodes[provider.TypeName] = node
+		graph.Nodes[nodeKey] = node
 	}
 
 	// Add injector nodes (IsField = true)
 	for _, injector := range injectors {
+		nodeKey := makeNodeKey(injector.TypeName, injector.Name)
 		node := &Node{
 			TypeName:        injector.TypeName,
 			PackagePath:     injector.PackagePath,
@@ -115,8 +132,10 @@ func (b *DependencyGraphBuilder) BuildGraph(
 			Dependencies:    []string{},
 			InDegree:        0,
 			IsField:         true, // Injectors are fields in dependency struct
+			RegisteredType:  injector.RegisteredType,
+			Name:            injector.Name,
 		}
-		graph.Nodes[injector.TypeName] = node
+		graph.Nodes[nodeKey] = node
 	}
 
 	// Build edges from dependencies
@@ -149,6 +168,7 @@ func (b *DependencyGraphBuilder) buildEdgesFromInjectors(
 type dependencyInfo interface {
 	GetTypeName() string
 	GetDependencies() []string
+	GetName() string
 }
 
 func buildEdges[T dependencyInfo](
@@ -157,10 +177,12 @@ func buildEdges[T dependencyInfo](
 	builder *DependencyGraphBuilder,
 ) error {
 	for _, info := range infos {
-		node := graph.Nodes[info.GetTypeName()]
+		// Use composite key for the node
+		nodeKey := makeNodeKey(info.GetTypeName(), info.GetName())
+		node := graph.Nodes[nodeKey]
 		edges := make([]string, 0, len(info.GetDependencies()))
 		for _, dep := range info.GetDependencies() {
-			// Resolve dependency (may be interface type)
+			// Resolve dependency (may be interface type or named dependency)
 			resolvedDep, err := builder.resolveDependency(graph, dep)
 			if err != nil {
 				return err
@@ -175,16 +197,22 @@ func buildEdges[T dependencyInfo](
 			// Since this node depends on resolvedDep, it must wait until resolvedDep is constructed
 			node.InDegree++
 		}
-		graph.Edges[info.GetTypeName()] = edges
+		graph.Edges[nodeKey] = edges
 	}
 	return nil
 }
 
-// resolveDependency resolves a dependency type name, handling interface types.
+// resolveDependency resolves a dependency type name, handling interface types and named dependencies.
+// If the dependency is a composite key (TypeName#Name), return as-is if found in graph.
 // If the dependency is a concrete type already registered in the graph, return as-is.
 // If the dependency is an interface type, resolve to implementing injectable struct.
 // Returns error if the dependency cannot be resolved.
 func (b *DependencyGraphBuilder) resolveDependency(graph *Graph, typeName string) (string, error) {
+	// Check if it's a composite key (named dependency) already in the graph
+	if graph.Nodes[typeName] != nil {
+		return typeName, nil
+	}
+
 	// Try to resolve as interface first
 	if impl, err := b.interfaceRegistry.Resolve(typeName); err == nil {
 		return impl, nil
@@ -195,11 +223,6 @@ func (b *DependencyGraphBuilder) resolveDependency(graph *Graph, typeName string
 		}
 		// UnresolvedInterfaceError is not necessarily an error - the type may be concrete
 		// Continue to check if it's a concrete type in the graph
-	}
-
-	// Check if it's a concrete type in the graph
-	if graph.Nodes[typeName] != nil {
-		return typeName, nil
 	}
 
 	// Neither interface nor concrete type found

@@ -51,6 +51,10 @@ func (i *ProviderInfo) GetDependencies() []string {
 	return i.Dependencies
 }
 
+func (i *ProviderInfo) GetName() string {
+	return i.Name
+}
+
 // ProviderRegistry stores all discovered provider structs globally.
 // Thread-safe for potential parallel analyzer execution.
 // Uses RWMutex to allow concurrent reads for improved performance.

@@ -65,6 +65,172 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 			},
 		},
 		{
+			name: "inject with interface RegisteredType",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"example.com/pkg.Service": {
+						TypeName:        "example.com/pkg.Service",
+						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
+						LocalName:       "Service",
+						ConstructorName: "NewService",
+						Dependencies:    []string{},
+						IsField:         true,
+						RegisteredType:  types.NewInterfaceType([]*types.Func{}, []types.Type{}), // Mock interface type
+					},
+				},
+				Edges: map[string][]string{
+					"example.com/pkg.Service": {},
+				},
+			},
+			sortedTypes: []string{"example.com/pkg.Service"},
+			wantErr:     false,
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				// Should use RegisteredType for variable declaration
+				if !strings.Contains(bootstrap.DependencyVar, "service interface{}") {
+					t.Error("missing interface-typed service field")
+				}
+				if !strings.Contains(bootstrap.DependencyVar, "service := pkg.NewService()") {
+					t.Error("missing NewService call")
+				}
+			},
+		},
+		{
+			name: "provide with interface RegisteredType",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"example.com/pkg.Repository": {
+						TypeName:        "example.com/pkg.Repository",
+						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
+						LocalName:       "Repository",
+						ConstructorName: "NewRepository",
+						Dependencies:    []string{},
+						IsField:         false, // Provide - not in return struct
+						RegisteredType:  types.NewInterfaceType([]*types.Func{}, []types.Type{}), // Mock interface type
+					},
+					"example.com/pkg.Service": {
+						TypeName:        "example.com/pkg.Service",
+						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
+						LocalName:       "Service",
+						ConstructorName: "NewService",
+						Dependencies:    []string{"example.com/pkg.Repository"},
+						IsField:         true, // Inject - in return struct
+					},
+				},
+				Edges: map[string][]string{
+					"example.com/pkg.Repository": {},
+					"example.com/pkg.Service":    {"example.com/pkg.Repository"},
+				},
+			},
+			sortedTypes: []string{"example.com/pkg.Repository", "example.com/pkg.Service"},
+			wantErr:     false,
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				// Repository (Provide) should NOT appear in struct fields
+				if strings.Contains(bootstrap.DependencyVar, "repository interface{}") && strings.Contains(bootstrap.DependencyVar, "struct {") {
+					t.Error("Provide type should not be in struct fields")
+				}
+				// Repository should be initialized with interface type
+				if !strings.Contains(bootstrap.DependencyVar, "repository := pkg.NewRepository()") {
+					t.Error("missing NewRepository call for Provide")
+				}
+				// Service should depend on repository
+				if !strings.Contains(bootstrap.DependencyVar, "service := pkg.NewService(repository)") {
+					t.Error("Service should use repository as dependency")
+				}
+			},
+		},
+		{
+			name: "inject with named dependency",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"example.com/pkg.Service": {
+						TypeName:        "example.com/pkg.Service",
+						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
+						LocalName:       "Service",
+						ConstructorName: "NewService",
+						Dependencies:    []string{},
+						IsField:         true,
+						Name:            "primaryService", // Named dependency
+					},
+				},
+				Edges: map[string][]string{
+					"example.com/pkg.Service": {},
+				},
+			},
+			sortedTypes: []string{"example.com/pkg.Service"},
+			wantErr:     false,
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				// Should use custom name "primaryService" instead of default "service"
+				if !strings.Contains(bootstrap.DependencyVar, "primaryService pkg.Service") {
+					t.Error("missing named field primaryService")
+				}
+				if !strings.Contains(bootstrap.DependencyVar, "primaryService := pkg.NewService()") {
+					t.Error("missing NewService call with named variable")
+				}
+				// Should NOT contain default name
+				if strings.Contains(bootstrap.DependencyVar, "service pkg.Service") && !strings.Contains(bootstrap.DependencyVar, "primaryService pkg.Service") {
+					t.Error("should use custom name, not default")
+				}
+			},
+		},
+		{
+			name: "provide with named dependency used by inject",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"example.com/pkg.Repository": {
+						TypeName:        "example.com/pkg.Repository",
+						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
+						LocalName:       "Repository",
+						ConstructorName: "NewRepository",
+						Dependencies:    []string{},
+						IsField:         false, // Provide
+						Name:            "userRepo", // Named dependency
+					},
+					"example.com/pkg.Service": {
+						TypeName:        "example.com/pkg.Service",
+						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
+						LocalName:       "Service",
+						ConstructorName: "NewService",
+						Dependencies:    []string{"example.com/pkg.Repository"},
+						IsField:         true, // Inject
+					},
+				},
+				Edges: map[string][]string{
+					"example.com/pkg.Repository": {},
+					"example.com/pkg.Service":    {"example.com/pkg.Repository"},
+				},
+			},
+			sortedTypes: []string{"example.com/pkg.Repository", "example.com/pkg.Service"},
+			wantErr:     false,
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				// Repository should use named variable "userRepo"
+				if !strings.Contains(bootstrap.DependencyVar, "userRepo := pkg.NewRepository()") {
+					t.Error("missing named variable userRepo for Repository")
+				}
+				// Service should use userRepo as dependency
+				if !strings.Contains(bootstrap.DependencyVar, "service := pkg.NewService(userRepo)") {
+					t.Error("Service should use userRepo as dependency")
+				}
+			},
+		},
+		{
 			name: "inject with provide dependency",
 			graph: &graph.Graph{
 				Nodes: map[string]*graph.Node{

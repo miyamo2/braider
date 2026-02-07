@@ -475,3 +475,80 @@ func createMockPassForGraph(t *testing.T) *analysis.Pass {
 		TypesInfo: info,
 	}
 }
+
+// TestDependencyGraph_BuildGraph_NamedDependencies tests graph construction with named dependencies.
+func TestDependencyGraph_BuildGraph_NamedDependencies(t *testing.T) {
+	// Scenario: Two instances of Repository with different names, Service depends on one
+	providers := []*registry.ProviderInfo{
+		{
+			TypeName:        "example.com/repo.Repository",
+			PackagePath:     "example.com/repo",
+			PackageName:     "repo",
+			LocalName:       "Repository",
+			ConstructorName: "NewRepository",
+			Dependencies:    []string{},
+			Name:            "primaryRepo",
+		},
+		{
+			TypeName:        "example.com/repo.Repository",
+			PackagePath:     "example.com/repo",
+			PackageName:     "repo",
+			LocalName:       "Repository",
+			ConstructorName: "NewRepository",
+			Dependencies:    []string{},
+			Name:            "secondaryRepo",
+		},
+	}
+
+	injectors := []*registry.InjectorInfo{
+		{
+			TypeName:        "example.com/service.Service",
+			PackagePath:     "example.com/service",
+			PackageName:     "service",
+			LocalName:       "Service",
+			ConstructorName: "NewService",
+			Dependencies:    []string{"example.com/repo.Repository#primaryRepo"},
+		},
+	}
+
+	builder := NewDependencyGraphBuilder()
+	pass := createMockPassForGraph(t)
+
+	graph, err := builder.BuildGraph(pass, providers, injectors)
+	if err != nil {
+		t.Fatalf("BuildGraph() unexpected error = %v", err)
+	}
+
+	// Check that both named Repository instances are in the graph with composite keys
+	expectedKeys := []string{
+		"example.com/repo.Repository#primaryRepo",
+		"example.com/repo.Repository#secondaryRepo",
+		"example.com/service.Service",
+	}
+
+	for _, key := range expectedKeys {
+		if _, exists := graph.Nodes[key]; !exists {
+			t.Errorf("Expected node %s not found in graph", key)
+		}
+	}
+
+	// Check that Service depends on the named Repository
+	serviceEdges := graph.Edges["example.com/service.Service"]
+	if len(serviceEdges) != 1 {
+		t.Fatalf("Service should have 1 dependency, got %d", len(serviceEdges))
+	}
+	if serviceEdges[0] != "example.com/repo.Repository#primaryRepo" {
+		t.Errorf("Service should depend on primaryRepo, got %s", serviceEdges[0])
+	}
+
+	// Check Name field is preserved
+	primaryRepoNode := graph.Nodes["example.com/repo.Repository#primaryRepo"]
+	if primaryRepoNode.Name != "primaryRepo" {
+		t.Errorf("primaryRepo node should have Name=primaryRepo, got %s", primaryRepoNode.Name)
+	}
+
+	secondaryRepoNode := graph.Nodes["example.com/repo.Repository#secondaryRepo"]
+	if secondaryRepoNode.Name != "secondaryRepo" {
+		t.Errorf("secondaryRepo node should have Name=secondaryRepo, got %s", secondaryRepoNode.Name)
+	}
+}

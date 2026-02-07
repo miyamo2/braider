@@ -107,7 +107,7 @@
   - Continue processing remaining dependencies to report all correlation errors in single pass
   - _Requirements: 8.6_
 
-- [ ] 5. Extend ConstructorGenerator for option-based code generation
+- [x] 5. Extend ConstructorGenerator for option-based code generation
 - [x] 5.1 Implement option-aware return type selection
   - Check `info.OptionMetadata.WithoutConstructor` flag; if true, skip generation and emit validation diagnostic if manual constructor missing
   - Check `info.OptionMetadata.TypedInterface`; if non-nil, use interface type as constructor return type rendered via `types.TypeString(registeredType, qualifier)`
@@ -120,20 +120,20 @@
   - Ensure parameter names are valid Go identifiers and do not conflict with keywords
   - _Requirements: 6.3_
 
-- [ ] 6. Extend BootstrapGenerator for typed and named variables
-- [ ] 6.1 Implement interface-typed variable declarations
+- [x] 6. Extend BootstrapGenerator for typed and named variables
+- [x] 6.1 Implement interface-typed variable declarations
   - For each `InjectorInfo`, use `info.RegisteredType` for variable type instead of concrete struct type
   - Render variable type using `types.TypeString(info.RegisteredType, qualifier)` to handle package-qualified interface types
   - For `ProviderInfo` with `Typed[I]`, declare variable with interface type `I` and assign provider function result
   - _Requirements: 7.1, 7.2_
 
-- [ ] 6.2 Implement named variable naming
+- [x] 6.2 Implement named variable naming
   - Check `info.Name` field; if non-empty, use as variable identifier in IIFE bootstrap code
   - Default to `lowerCamelCase(info.LocalName)` for unnamed dependencies
   - Validate variable name uniqueness within IIFE scope using registry duplicate checks
   - _Requirements: 4.4_
 
-- [ ] 6.3 Update topological sort for named dependencies
+- [x] 6.3 Update topological sort for named dependencies
   - Treat named dependencies as distinct nodes in dependency graph with key `(TypeName, Name)`
   - Update dependency edge resolution to support looking up both unnamed and named dependencies
   - Ensure initialization order respects dependency edges for both typed and named dependencies
