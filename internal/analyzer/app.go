@@ -26,6 +26,7 @@ func AppAnalyzer(
 	provideRegistry *registry.ProviderRegistry,
 	packageLoader loader.PackageLoader,
 	packageTracker *registry.PackageTracker,
+	validationContext *registry.ValidationContext,
 	graphBuilder *graph.DependencyGraphBuilder,
 	sorter *graph.TopologicalSorter,
 	bootstrapGen generate.BootstrapGenerator,
@@ -41,6 +42,7 @@ func AppAnalyzer(
 			provideRegistry,
 			packageLoader,
 			packageTracker,
+			validationContext,
 			graphBuilder,
 			sorter,
 			bootstrapGen,
@@ -57,6 +59,7 @@ type AppAnalyzeRunner struct {
 	provideRegistry   *registry.ProviderRegistry
 	packageLoader     loader.PackageLoader
 	packageTracker    *registry.PackageTracker
+	validationContext *registry.ValidationContext
 	graphBuilder      *graph.DependencyGraphBuilder
 	sorter            *graph.TopologicalSorter
 	bootstrapGen      generate.BootstrapGenerator
@@ -70,6 +73,7 @@ func NewAppAnalyzeRunner(
 	provideRegistry *registry.ProviderRegistry,
 	packageLoader loader.PackageLoader,
 	packageTracker *registry.PackageTracker,
+	validationContext *registry.ValidationContext,
 	graphBuilder *graph.DependencyGraphBuilder,
 	sorter *graph.TopologicalSorter,
 	bootstrapGen generate.BootstrapGenerator,
@@ -82,6 +86,7 @@ func NewAppAnalyzeRunner(
 		provideRegistry:   provideRegistry,
 		packageLoader:     packageLoader,
 		packageTracker:    packageTracker,
+		validationContext: validationContext,
 		graphBuilder:      graphBuilder,
 		sorter:            sorter,
 		bootstrapGen:      bootstrapGen,
@@ -92,6 +97,13 @@ func NewAppAnalyzeRunner(
 
 func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 	reporter := &passReporter{pass: pass}
+
+	// Phase 0: Check for validation context cancellation (fatal errors in DependencyAnalyzer)
+	// Requirement 8.5: Cancel AppAnalyzer processing on validation errors
+	if r.validationContext != nil && r.validationContext.IsCancelled() {
+		// DependencyAnalyzer encountered fatal validation errors, skip bootstrap generation
+		return nil, nil
+	}
 
 	// Phase 1: Detect App annotations
 	apps := r.appDetector.DetectAppAnnotations(pass)

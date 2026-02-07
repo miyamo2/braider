@@ -118,7 +118,14 @@ func (e *optionExtractorImpl) isDefaultOption(typ types.Type) bool {
 		return false
 	}
 
-	return obj.Name() == "Default"
+	pkg := obj.Pkg()
+	// When Importer is nil in tests, pkg may be nil for external packages
+	// In such cases, check only the type name
+	if pkg == nil {
+		return obj.Name() == "Default"
+	}
+
+	return obj.Name() == "Default" && pkg.Path() == "github.com/miyamo2/braider/pkg/annotation/inject"
 }
 
 // isWithoutConstructorOption checks if the type is inject.WithoutConstructor
@@ -133,7 +140,14 @@ func (e *optionExtractorImpl) isWithoutConstructorOption(typ types.Type) bool {
 		return false
 	}
 
-	return obj.Name() == "WithoutConstructor"
+	pkg := obj.Pkg()
+	// When Importer is nil in tests, pkg may be nil for external packages
+	// In such cases, check only the type name
+	if pkg == nil {
+		return obj.Name() == "WithoutConstructor"
+	}
+
+	return obj.Name() == "WithoutConstructor" && pkg.Path() == "github.com/miyamo2/braider/pkg/annotation/inject"
 }
 
 // extractTypedInterface extracts the interface type from Typed[I] option

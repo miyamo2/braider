@@ -16,6 +16,7 @@ func setupDependencyAnalyzerDeps() (
 	*registry.ProviderRegistry,
 	*registry.InjectorRegistry,
 	*registry.PackageTracker,
+	*registry.ValidationContext,
 	detect.ProvideDetector,
 	detect.ProvideStructDetector,
 	detect.InjectDetector,
@@ -29,6 +30,7 @@ func setupDependencyAnalyzerDeps() (
 	providerRegistry := registry.NewProviderRegistry()
 	injectorRegistry := registry.NewInjectorRegistry()
 	packageTracker := registry.NewPackageTracker()
+	validationContext := registry.NewValidationContext()
 
 	provideDetector := detect.NewProvideDetector()
 	injectDetector := detect.NewInjectDetector()
@@ -42,7 +44,7 @@ func setupDependencyAnalyzerDeps() (
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 
-	return providerRegistry, injectorRegistry, packageTracker,
+	return providerRegistry, injectorRegistry, packageTracker, validationContext,
 		provideDetector, provideStructDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter
@@ -53,6 +55,7 @@ func createDependencyAnalyzer(
 	providerRegistry *registry.ProviderRegistry,
 	injectorRegistry *registry.InjectorRegistry,
 	packageTracker *registry.PackageTracker,
+	validationContext *registry.ValidationContext,
 	provideDetector detect.ProvideDetector,
 	provideStructDetector detect.ProvideStructDetector,
 	injectDetector detect.InjectDetector,
@@ -64,7 +67,7 @@ func createDependencyAnalyzer(
 	diagnosticEmitter report.DiagnosticEmitter,
 ) *analysis.Analyzer {
 	return DependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker,
+		providerRegistry, injectorRegistry, packageTracker, validationContext,
 		provideDetector, provideStructDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
@@ -72,13 +75,13 @@ func createDependencyAnalyzer(
 }
 
 func TestDependencyAnalyzer(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker,
+	providerRegistry, injectorRegistry, packageTracker, validationContext,
 		provideDetector, provideStructDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter := setupDependencyAnalyzerDeps()
 
 	analyzer := createDependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker,
+		providerRegistry, injectorRegistry, packageTracker, validationContext,
 		provideDetector, provideStructDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
@@ -105,13 +108,13 @@ func TestDependencyAnalyzer(t *testing.T) {
 }
 
 func TestDependencyAnalyzer_SuggestedFixes(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker,
+	providerRegistry, injectorRegistry, packageTracker, validationContext,
 		provideDetector, provideStructDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter := setupDependencyAnalyzerDeps()
 
 	analyzer := createDependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker,
+		providerRegistry, injectorRegistry, packageTracker, validationContext,
 		provideDetector, provideStructDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
@@ -123,13 +126,13 @@ func TestDependencyAnalyzer_SuggestedFixes(t *testing.T) {
 }
 
 func TestDependencyAnalyzer_MissingProvideConstructor(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker,
+	providerRegistry, injectorRegistry, packageTracker, validationContext,
 		provideDetector, provideStructDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter := setupDependencyAnalyzerDeps()
 
 	analyzer := createDependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker,
+		providerRegistry, injectorRegistry, packageTracker, validationContext,
 		provideDetector, provideStructDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
@@ -145,13 +148,13 @@ func TestDependencyAnalyzer_MissingProvideConstructor(t *testing.T) {
 }
 
 func TestDependencyAnalyzer_CrossPackage(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker,
+	providerRegistry, injectorRegistry, packageTracker, validationContext,
 		provideDetector, provideStructDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter := setupDependencyAnalyzerDeps()
 
 	analyzer := createDependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker,
+		providerRegistry, injectorRegistry, packageTracker, validationContext,
 		provideDetector, provideStructDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
@@ -179,13 +182,13 @@ func TestDependencyAnalyzer_CrossPackage(t *testing.T) {
 }
 
 func TestDependencyAnalyzer_InterfaceImplementation(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker,
+	providerRegistry, injectorRegistry, packageTracker, validationContext,
 		provideDetector, provideStructDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter := setupDependencyAnalyzerDeps()
 
 	analyzer := createDependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker,
+		providerRegistry, injectorRegistry, packageTracker, validationContext,
 		provideDetector, provideStructDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,

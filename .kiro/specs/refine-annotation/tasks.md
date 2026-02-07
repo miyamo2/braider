@@ -2,7 +2,7 @@
 
 ## Task Breakdown
 
-- [ ] 1. Implement public API layer for generic annotations
+- [x] 1. Implement public API layer for generic annotations
 - [x] 1.1 (P) Update annotation package with generic interfaces
   - Define `Injectable[T inject.Option]` interface with `isInjectable()` and `option() T` marker methods
   - Define `Provider[T provide.Option]` interface with `isProvider()` and `option() T` marker methods
@@ -46,7 +46,7 @@
   - Implement duplicate `(TypeName, Name)` pair validation in `ProviderRegistry.Register()` with correlation error diagnostic
   - _Requirements: 4.5_
 
-- [ ] 3. Implement detection domain components for option extraction
+- [x] 3. Implement detection domain components for option extraction
 - [x] 3.1 Create PackageLoader for module-wide package AST access
   - Create `PackageLoader` interface in `internal/loader` with:
     - `LoadModulePackages(dir string) ([]string, error)` — lightweight path listing
@@ -94,15 +94,15 @@
   - Store returned `OptionMetadata` in detection result for registry registration
   - _Requirements: 1.4, 3.4, 3.5, 3.6, 3.7_
 
-- [ ] 4. Integrate option extraction into DependencyAnalyzer with error handling
-- [ ] 4.1 Add context cancellation for fatal validation errors
+- [x] 4. Integrate option extraction into DependencyAnalyzer with error handling
+- [x] 4.1 Add context cancellation for fatal validation errors
   - Create `context.WithCancel()` from `pass.Context` at start of `DependencyAnalyzer.Run()`
   - When `OptionExtractor` returns validation error (constraint violation, interface implementation failure, non-literal Namer), call `pass.Report()` with diagnostic and `cancel()` context
   - Pass cancelled context to downstream components to halt processing
   - Update `InjectorRegistry.Register()` and `ProviderRegistry.Register()` to populate `OptionMetadata`, `RegisteredType`, `Name` fields from extractor output
   - _Requirements: 8.5_
 
-- [ ] 4.2 Handle correlation errors as non-fatal
+- [x] 4.2 Handle correlation errors as non-fatal
   - When duplicate `(TypeName, Name)` pair detected during registration, emit diagnostic via `pass.Report()` but do not cancel context
   - Continue processing remaining dependencies to report all correlation errors in single pass
   - _Requirements: 8.6_

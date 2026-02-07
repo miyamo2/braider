@@ -61,6 +61,12 @@ type DiagnosticEmitter interface {
 
 	// EmitGraphBuildError reports a dependency graph construction error.
 	EmitGraphBuildError(reporter Reporter, pos token.Pos, reason string)
+
+	// EmitDuplicateNamedDependencyWarning reports duplicate (TypeName, Name) pairs (non-fatal).
+	EmitDuplicateNamedDependencyWarning(reporter Reporter, pos token.Pos, typeName string, name string, location1 string, location2 string)
+
+	// EmitOptionValidationError reports a fatal option validation error (constraint violation, interface mismatch, non-literal Namer).
+	EmitOptionValidationError(reporter Reporter, pos token.Pos, reason string)
 }
 
 // diagnosticEmitter is the default implementation of DiagnosticEmitter.
@@ -203,6 +209,26 @@ func (e *diagnosticEmitter) EmitGraphBuildError(reporter Reporter, pos token.Pos
 		analysis.Diagnostic{
 			Pos:     pos,
 			Message: fmt.Sprintf("failed to build dependency graph: %s", reason),
+		},
+	)
+}
+
+// EmitDuplicateNamedDependencyWarning reports duplicate (TypeName, Name) pairs (non-fatal correlation error).
+func (e *diagnosticEmitter) EmitDuplicateNamedDependencyWarning(reporter Reporter, pos token.Pos, typeName string, name string, location1 string, location2 string) {
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:     pos,
+			Message: fmt.Sprintf("duplicate dependency name %q for type %s (first: %s, duplicate: %s)", name, typeName, location1, location2),
+		},
+	)
+}
+
+// EmitOptionValidationError reports a fatal option validation error.
+func (e *diagnosticEmitter) EmitOptionValidationError(reporter Reporter, pos token.Pos, reason string) {
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:     pos,
+			Message: fmt.Sprintf("option validation error: %s", reason),
 		},
 	)
 }

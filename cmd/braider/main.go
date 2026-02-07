@@ -12,10 +12,11 @@ import (
 )
 
 func main() {
-	// Step 1: Registries
+	// Step 1: Registries and shared context
 	providerRegistry := registry.NewProviderRegistry()
 	injectorRegistry := registry.NewInjectorRegistry()
 	packageTracker := registry.NewPackageTracker()
+	validationContext := registry.NewValidationContext()
 
 	// Step 2: Loaders
 	packageLoader := loader.NewPackageLoader()
@@ -46,6 +47,7 @@ func main() {
 		providerRegistry,
 		injectorRegistry,
 		packageTracker,
+		validationContext,
 		provideDetector,
 		provideStructDetector,
 		injectDetector,
@@ -63,6 +65,7 @@ func main() {
 		providerRegistry,
 		packageLoader,
 		packageTracker,
+		validationContext,
 		graphBuilder,
 		sorter,
 		bootstrapGenerator,

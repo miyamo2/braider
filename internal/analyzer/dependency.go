@@ -15,6 +15,7 @@ func DependencyAnalyzer(
 	provideRegistry *registry.ProviderRegistry,
 	injectRegistry *registry.InjectorRegistry,
 	packageTracker *registry.PackageTracker,
+	validationContext *registry.ValidationContext,
 	provideDetector detect.ProvideDetector,
 	provideStructDetector detect.ProvideStructDetector,
 	injectDetector detect.InjectDetector,
@@ -32,6 +33,7 @@ func DependencyAnalyzer(
 			provideRegistry,
 			injectRegistry,
 			packageTracker,
+			validationContext,
 			provideDetector,
 			provideStructDetector,
 			injectDetector,
@@ -50,6 +52,7 @@ type DependencyAnalyzeRunner struct {
 	provideRegistry       *registry.ProviderRegistry
 	injectRegistry        *registry.InjectorRegistry
 	packageTracker        *registry.PackageTracker
+	validationContext     *registry.ValidationContext
 	provideDetector       detect.ProvideDetector
 	provideStructDetector detect.ProvideStructDetector
 	injectDetector        detect.InjectDetector
@@ -65,6 +68,7 @@ func NewDependencyAnalyzeRunner(
 	provideRegistry *registry.ProviderRegistry,
 	injectRegistry *registry.InjectorRegistry,
 	packageTracker *registry.PackageTracker,
+	validationContext *registry.ValidationContext,
 	provideDetector detect.ProvideDetector,
 	provideStructDetector detect.ProvideStructDetector,
 	injectDetector detect.InjectDetector,
@@ -79,6 +83,7 @@ func NewDependencyAnalyzeRunner(
 		provideRegistry:       provideRegistry,
 		injectRegistry:        injectRegistry,
 		packageTracker:        packageTracker,
+		validationContext:     validationContext,
 		provideDetector:       provideDetector,
 		provideStructDetector: provideStructDetector,
 		injectDetector:        injectDetector,
