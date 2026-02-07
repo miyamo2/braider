@@ -5,8 +5,11 @@
 package registry
 
 import (
+	"go/types"
 	"sort"
 	"sync"
+
+	"github.com/miyamo2/braider/internal/detect"
 )
 
 // ProviderInfo contains information about a Provide struct.
@@ -30,6 +33,14 @@ type ProviderInfo struct {
 	// or already exists on disk (false). Typically false for Provide structs as they require
 	// existing constructors, but included for consistency with InjectorInfo.
 	IsPending bool
+
+	// NEW: Option-derived fields for annotation refinement feature
+	// RegisteredType is the type to use for registration - interface type for Typed[I], return type otherwise
+	RegisteredType types.Type
+	// Name is the provider name from Named[N] option, empty if unnamed
+	Name string
+	// OptionMetadata contains parsed option configuration from type parameters
+	OptionMetadata detect.OptionMetadata
 }
 
 func (i *ProviderInfo) GetTypeName() string {
@@ -91,4 +102,24 @@ func (r *ProviderRegistry) Get(typeName string) *ProviderInfo {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.providers[typeName]
+}
+
+// GetByName retrieves a named provider by fully qualified type name and name.
+// Returns (info, true) if found with matching name, (nil, false) otherwise.
+// This supports named dependency lookup for Provider[provide.Named[N]] annotations.
+func (r *ProviderRegistry) GetByName(typeName, name string) (*ProviderInfo, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	info, exists := r.providers[typeName]
+	if !exists {
+		return nil, false
+	}
+
+	// Check if the name matches
+	if info.Name != name {
+		return nil, false
+	}
+
+	return info, true
 }

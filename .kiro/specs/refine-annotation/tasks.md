@@ -25,21 +25,21 @@
   - Define `provide.Named[T namer.Namer]` interface extending `Option` with `named() T` marker method
   - _Requirements: 3.1, 3.2, 3.3, 5.2_
 
-- [ ] 2. Extend registry domain with option metadata support
-- [ ] 2.1 Define option metadata structures
+- [x] 2. Extend registry domain with option metadata support
+- [x] 2.1 Define option metadata structures
   - Create `OptionMetadata` struct in `internal/detect` with fields: `IsDefault bool`, `TypedInterface types.Type`, `Name string`, `WithoutConstructor bool`
   - Extend `InjectorInfo` struct with `RegisteredType types.Type`, `Name string`, `OptionMetadata OptionMetadata` fields
   - Extend `ProviderInfo` struct with `RegisteredType types.Type`, `Name string`, `OptionMetadata OptionMetadata` fields
   - _Requirements: 2.6, 2.7, 3.4, 3.5, 3.6_
 
-- [ ] 2.2 Implement package cache for external AST loading
+- [x] 2.2 Implement package cache for external AST loading
   - Create `PackageCache` struct in `internal/registry` with `sync.RWMutex` and `map[string]*packages.Package` fields
   - Implement `NewPackageCache()` constructor returning initialized cache
   - Implement `Get(pkgPath string)` method returning cached package or nil
   - Implement `Set(pkgPath string, pkg *packages.Package)` method storing package in cache with thread-safe locking
   - _Requirements: 4.3_
 
-- [ ] 2.3 Add named dependency lookup support to registries
+- [x] 2.3 Add named dependency lookup support to registries
   - Add `GetByName(typeName, name string) (*InjectorInfo, bool)` method to `InjectorRegistry`
   - Add `GetByName(typeName, name string) (*ProviderInfo, bool)` method to `ProviderRegistry`
   - Implement duplicate `(TypeName, Name)` pair validation in `InjectorRegistry.Register()` with correlation error diagnostic
