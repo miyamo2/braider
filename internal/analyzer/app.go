@@ -140,7 +140,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 		return nil, fmt.Errorf("no files in pass")
 	}
 
-	allPkgPaths, err := r.packageLoader.LoadModulePackages(pass.Fset.File(pass.Files[0].Pos()).Name())
+	allPkgPaths, err := r.packageLoader.LoadModulePackageNames(pass.Fset.File(pass.Files[0].Pos()).Name())
 	if err != nil {
 		// Emit warning diagnostic (non-critical)
 		// The registry may be incomplete, but we proceed with what we have

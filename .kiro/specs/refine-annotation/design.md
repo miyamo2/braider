@@ -45,8 +45,9 @@ The current braider analyzer follows a multi-analyzer architecture with componen
 **Architecture Integration**:
 - **Selected pattern**: Component extension with option-based composition — extends existing detector/registry/generator components with option extraction and validation capabilities
 - **Domain boundaries**:
-  - **Detection domain** (`internal/detect`) gains `OptionExtractor`, `NamerValidator`, and `PackageLoader` for type parameter analysis and cross-package validation
-  - **Registry domain** (`internal/registry`) extends `InjectorInfo`/`ProviderInfo` with option metadata fields and adds `PackageCache` for external package AST caching
+  - **Detection domain** (`internal/detect`) gains `OptionExtractor` and `NamerValidator` for type parameter analysis and cross-package validation
+  - **Loader domain** (`internal/loader`) provides `PackageLoader` for module-wide package loading
+  - **Registry domain** (`internal/registry`) extends `InjectorInfo`/`ProviderInfo` with option metadata fields and adds `PackageCache` and `ASTCacheLoader` for package AST caching
   - **Generation domain** (`internal/generate`) adapts constructor and bootstrap templates based on option configuration
   - **Public API** (`pkg/annotation`) remains stable; new generic interfaces replace struct-based annotations
 - **Existing patterns preserved**:
@@ -56,9 +57,8 @@ The current braider analyzer follows a multi-analyzer architecture with componen
   - Code generation via `analysis.SuggestedFix`
 - **New components rationale**:
   - `OptionExtractor` isolates complex type parameter extraction logic from core detection
-  - `NamerValidator` enforces hardcoded literal requirement through AST method body analysis, supporting both same-package and external-package Namers
-  - `PackageLoader` provides cached access to external package ASTs via go/packages, eliminating redundant I/O for cross-package validation
-  - `PackageCache` maintains global singleton cache of loaded packages with thread-safe access, optimizing performance for projects with multiple external Namers
+  - `NamerValidator` enforces hardcoded literal requirement through AST method body analysis, supporting all packages within the current module
+  - `PackageLoader` provides module-wide package loading with both lightweight (paths only) and full AST modes
   - Option metadata in registries enables decoupled generation decisions without re-analyzing AST
 - **Steering compliance**: Maintains component-based architecture (structure.md), uses standard go/types APIs (tech.md), preserves zero runtime overhead (product.md)
 
@@ -77,14 +77,18 @@ graph TB
         ProvideDetector[ProvideDetector]
         OptionExtractor[OptionExtractor NEW]
         NamerValidator[NamerValidator NEW]
-        PackageLoader[PackageLoader NEW]
         FieldAnalyzer[FieldAnalyzer]
+    end
+
+    subgraph Loader[Loader Domain]
+        PackageLoader[PackageLoader EXTENDED]
     end
 
     subgraph Registry[Registry Domain]
         InjectorRegistry[InjectorRegistry EXTENDED]
         ProviderRegistry[ProviderRegistry EXTENDED]
         PackageCache[PackageCache NEW]
+        ASTCacheLoader[ASTCacheLoader NEW]
         InjectorInfo[InjectorInfo + Options]
         ProviderInfo[ProviderInfo + Options]
     end
@@ -108,7 +112,9 @@ graph TB
     InjectDetector --> OptionExtractor
     ProvideDetector --> OptionExtractor
     OptionExtractor --> NamerValidator
-    NamerValidator --> PackageLoader
+    NamerValidator --> ASTCacheLoader
+    ASTCacheLoader --> PackageCache
+    ASTCacheLoader --> PackageLoader
     PackageLoader --> PackageCache
 
     InjectDetector --> InjectorRegistry
@@ -484,7 +490,7 @@ type OptionExtractor interface {
 
 **Dependencies**
 - Inbound: OptionExtractor — name extraction for Named[N] options (P0)
-- Outbound: PackageLoader — load external package ASTs for validation (P0)
+- Outbound: ASTCacheLoader — load package ASTs for validation (P0)
 - Outbound: DiagnosticEmitter — report non-literal usage errors (P0)
 - External: `go/ast` package — AST traversal and node type assertions (P0)
 
@@ -525,30 +531,29 @@ type NamerValidator interface {
 - Name does not contain escape sequences or special characters beyond ASCII printable
 
 **Implementation Notes**
-- **Integration**: Called from OptionExtractor when Named[N] option detected. Operates during DependencyAnalyzer phase, before code generation. Delegates external package AST loading to PackageLoader for Namers defined outside current package.
-- **Validation**: Use `types.LookupFieldOrMethod(namerType, "Name")` to find method. Assert method signature matches `func() string`. For same-package Namers, traverse `pass.Files`. For external-package Namers, use `PackageLoader.LoadPackage()` to retrieve cached AST. Traverse `*ast.FuncDecl` body to locate `*ast.ReturnStmt`. Validate `ReturnStmt.Results[0]` is `*ast.BasicLit` with `Kind == token.STRING`. Strip quotes from `Value` field.
-- **Caching**: PackageLoader maintains global cache of loaded packages. First Namer validation triggers package load; subsequent validations from same package reuse cached AST with no I/O overhead.
+- **Integration**: Called from OptionExtractor when Named[N] option detected. Operates during DependencyAnalyzer phase, before code generation. Delegates package AST loading to ASTCacheLoader for Namers defined in other packages within the module.
+- **Validation**: Use `types.LookupFieldOrMethod(namerType, "Name")` to find method. Assert method signature matches `func() string`. For same-package Namers, traverse `pass.Files`. For cross-package Namers within the module, use cached packages from PackageCache populated by ASTCacheLoader. Traverse `*ast.FuncDecl` body to locate `*ast.ReturnStmt`. Validate `ReturnStmt.Results[0]` is `*ast.BasicLit` with `Kind == token.STRING`. Strip quotes from `Value` field.
+- **Caching**: ASTCacheLoader maintains global cache of loaded packages. First Namer validation triggers package load; subsequent validations from same package reuse cached AST with no I/O overhead.
 - **Risks**: Method inlined or optimized may have complex AST; reject non-obvious patterns. Package source code unavailable (compiled stdlib in minimal environments) will cause validation failure with clear diagnostic. See `research.md` Namer validation strategy decision.
 
 ---
 
-#### PackageLoader
+#### PackageLoader (UPDATED)
 
 | Field | Detail |
 |-------|--------|
-| Intent | Load and cache external package ASTs using go/packages for Namer validation across package boundaries |
+| Intent | Load and cache module-wide package ASTs for Namer validation |
 | Requirements | 4.3 |
 
 **Responsibilities & Constraints**
-- Load external package ASTs via `golang.org/x/tools/go/packages` on first request
-- Maintain global cache of loaded packages keyed by package path
-- Provide thread-safe concurrent access to cached packages
-- Handle package loading errors (source unavailable, compilation errors) with clear diagnostics
-- Minimize I/O overhead by caching packages for entire analyzer run
-- Domain boundary: package loading only, no AST traversal or validation logic
+- Load all packages within the current Go module for AST access
+- Provide both lightweight package path listing and full AST loading modes
+- Populate PackageCache with loaded packages for reuse
+- Support module root detection via go.mod traversal
+- Domain boundary: package loading only, no validation logic
 
 **Dependencies**
-- Inbound: NamerValidator — load packages containing external Namer definitions (P0)
+- Inbound: NamerValidator — load packages containing Namer definitions within module (P0)
 - Outbound: PackageCache — store and retrieve loaded packages (P0)
 - External: `golang.org/x/tools/go/packages` — package loading with AST (P0)
 
@@ -557,18 +562,27 @@ type NamerValidator interface {
 ##### Service Interface
 
 ```go
-package detect
+package loader
 
-import (
-    "golang.org/x/tools/go/packages"
-)
+import "golang.org/x/tools/go/packages"
 
-// PackageLoader loads and caches external package ASTs for validation.
+type PackageCache interface {
+    Get(pkgPath string) (*packages.Package, bool)
+    Set(pkgPath string, pkg *packages.Package)
+}
+
 type PackageLoader interface {
-    // LoadPackage loads the package at the given import path and returns
-    // its AST. Uses cached package if previously loaded.
-    // Returns error if package cannot be loaded (source unavailable, compilation error).
-    LoadPackage(pkgPath string) (*packages.Package, error)
+    // LoadModulePackages loads all packages in the module and returns their paths.
+    // Lightweight operation using packages.NeedName only.
+    LoadModulePackages(dir string) ([]string, error)
+
+    // LoadModulePackagesWithAST loads all packages in the module with full AST.
+    // Returns packages suitable for AST analysis and validation.
+    // Results are cached in the provided PackageCache for reuse.
+    LoadModulePackagesWithAST(dir string, cache PackageCache) ([]*packages.Package, error)
+
+    // FindModuleRoot finds the module root directory from a given path.
+    FindModuleRoot(dir string) (string, error)
 }
 ```
 
@@ -587,11 +601,11 @@ type PackageLoader interface {
 - Thread-safe concurrent access via PackageCache synchronization
 
 **Implementation Notes**
-- **Integration**: Created as global singleton at analyzer initialization. NamerValidator holds reference and calls `LoadPackage()` when Namer type package differs from `pass.Pkg.Path()`.
-- **Caching Strategy**: On first `LoadPackage(pkgPath)` call, check PackageCache. If miss, invoke `packages.Load()` with `packages.NeedSyntax | packages.NeedTypes` mode, store in cache, return. If hit, return cached package immediately.
-- **Error Handling**: `packages.Load()` errors indicate source unavailable (stdlib without source, network issues for remote modules). Return error with message "Cannot validate external Namer in package {pkgPath}: source code unavailable. Define Namer in same package as Injectable annotation."
-- **Performance**: First Namer from new package incurs ~100-500ms load time (go/packages overhead). Subsequent Namers from same package use cache with ~0ms overhead. Acceptable for typical projects with <10 external Namer packages.
-- **Risks**: Large dependency graphs with many external Namers may increase memory usage (each package's AST retained). Acceptable trade-off for validation correctness. Package with compilation errors will fail loading; emit diagnostic pointing to package issue.
+- **Integration**: Created as global singleton at analyzer initialization. Module-wide packages loaded via `LoadModulePackagesWithAST()` at startup. Individual package access via `LoadModulePackages()` for AppAnalyzer synchronization.
+- **Caching Strategy**: On `LoadModulePackagesWithAST()` call, invoke `packages.Load()` with pattern `./...` and mode `packages.NeedSyntax | packages.NeedTypes | packages.NeedName | packages.NeedFiles`, store all successfully loaded packages in PackageCache. Subsequent accesses via ASTCacheLoader use cached packages.
+- **Error Handling**: `packages.Load()` errors indicate compilation failures or missing dependencies. Skip packages with errors, cache only successful packages. Return diagnostic for packages that cannot be loaded.
+- **Performance**: Module-wide load occurs once per analyzer run (~100-500ms for typical projects). All subsequent Namer validations use cached ASTs with ~0ms overhead.
+- **Risks**: Large modules (100+ packages) may increase memory usage. Acceptable trade-off for validation correctness. Package with compilation errors skipped from cache; diagnostics emitted during Namer validation if needed.
 
 ---
 
@@ -613,6 +627,7 @@ type PackageLoader interface {
 
 **Dependencies**
 - Inbound: PackageLoader — store and retrieve loaded packages (P0)
+- Inbound: ASTCacheLoader — store and retrieve loaded packages (P0)
 - External: `sync` package — RWMutex for thread-safe access (P0)
 
 **Contracts**: State [X]

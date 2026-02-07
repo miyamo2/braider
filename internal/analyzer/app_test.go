@@ -11,14 +11,20 @@ import (
 	"github.com/miyamo2/braider/internal/report"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
+	"golang.org/x/tools/go/packages"
 )
 
 // mockPackageLoader is a test implementation that returns an empty package list.
 type mockPackageLoader struct{}
 
-func (m *mockPackageLoader) LoadModulePackages(dir string) ([]string, error) {
+func (m *mockPackageLoader) LoadModulePackageNames(dir string) ([]string, error) {
 	// Return empty list for test - no packages to wait for
 	return []string{}, nil
+}
+
+func (m *mockPackageLoader) LoadModulePackageAST(dir string) ([]*packages.Package, error) {
+	// Return empty list for test - no packages with AST needed
+	return []*packages.Package{}, nil
 }
 
 func (m *mockPackageLoader) FindModuleRoot(dir string) (string, error) {

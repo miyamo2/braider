@@ -17,30 +17,31 @@ func main() {
 	injectorRegistry := registry.NewInjectorRegistry()
 	packageTracker := registry.NewPackageTracker()
 
+	// Step 2: Loaders
 	packageLoader := loader.NewPackageLoader()
 
-	// Step 2: Basic detectors (no dependencies)
+	// Step 3: Basic detectors (no dependencies)
 	provideDetector := detect.NewProvideDetector()
 	injectDetector := detect.NewInjectDetector()
 	fieldAnalyzer := detect.NewFieldAnalyzer()
 	constructorAnalyzer := detect.NewConstructorAnalyzer()
 	appDetector := detect.NewAppDetector()
 
-	// Step 3: Complex detectors (with dependencies)
+	// Step 4: Complex detectors (with dependencies)
 	provideStructDetector := detect.NewProvideStructDetector(provideDetector)
 	structDetector := detect.NewStructDetector(injectDetector)
 
-	// Step 4: Graph components
+	// Step 5: Graph components
 	graphBuilder := graph.NewDependencyGraphBuilder()
 	sorter := graph.NewTopologicalSorter()
 
-	// Step 5: Generators and reporters
+	// Step 6: Generators and reporters
 	constructorGenerator := generate.NewConstructorGenerator()
 	bootstrapGenerator := generate.NewBootstrapGenerator()
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 
-	// Step 6: Instantiate analyzers
+	// Step 7: Instantiate analyzers
 	dependencyAnalyzer := analyzer.DependencyAnalyzer(
 		providerRegistry,
 		injectorRegistry,

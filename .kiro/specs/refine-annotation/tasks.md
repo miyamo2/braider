@@ -47,12 +47,16 @@
   - _Requirements: 4.5_
 
 - [ ] 3. Implement detection domain components for option extraction
-- [x] 3.1 Create PackageLoader for external package AST access
-  - Create `PackageLoader` interface in `internal/detect` with `LoadPackage(pkgPath string) (*packages.Package, error)` method
-  - Implement `packageLoaderImpl` struct holding reference to `PackageCache`
-  - Implement `LoadPackage()` checking cache first, then calling `packages.Load()` with `NeedSyntax|NeedTypes` mode on cache miss
-  - Handle package loading errors with diagnostic message indicating source unavailability
-  - Store loaded package in `PackageCache` before returning
+- [x] 3.1 Create PackageLoader for module-wide package AST access
+  - Create `PackageLoader` interface in `internal/loader` with:
+    - `LoadModulePackages(dir string) ([]string, error)` — lightweight path listing
+    - `LoadModulePackagesWithAST(dir string, cache PackageCache) ([]*packages.Package, error)` — full AST loading
+    - `FindModuleRoot(dir string) (string, error)` — module root detection
+  - Implement `packageLoaderImpl` struct with module root detection logic
+  - Implement `LoadModulePackages()` for AppAnalyzer synchronization (paths only)
+  - Implement `LoadModulePackagesWithAST()` with `NeedSyntax|NeedTypes|NeedName|NeedFiles` mode
+  - Populate provided `PackageCache` with loaded packages
+  - Handle package loading errors with diagnostic message indicating compilation failures
   - _Requirements: 4.3_
 
 - [x] 3.2 Create NamerValidator for literal validation
