@@ -11,6 +11,9 @@ import (
 // ProvideTypeName is the type name for the Provide annotation.
 const ProvideTypeName = "Provide"
 
+// ProviderTypeName is the type name for the Provider[T] generic interface.
+const ProviderTypeName = "Provider"
+
 // ProvideDetector detects annotation.Provide embedding in structs.
 type ProvideDetector interface {
 	// HasProvideAnnotation checks if a struct embeds annotation.Provide.
@@ -74,7 +77,8 @@ func (d *provideDetector) isProvideType(pass *analysis.Pass, expr ast.Expr) bool
 	return d.isNamedProvideType(tv.Type)
 }
 
-// isNamedProvideType checks if the type is the annotation.Provide named type.
+// isNamedProvideType checks if the type is the annotation.Provide named type
+// or annotation.Provider[T] generic interface.
 func (d *provideDetector) isNamedProvideType(t types.Type) bool {
 	named, ok := t.(*types.Named)
 	if !ok {
@@ -86,8 +90,9 @@ func (d *provideDetector) isNamedProvideType(t types.Type) bool {
 		return false
 	}
 
-	// Check type name
-	if obj.Name() != ProvideTypeName {
+	// Check type name - accept both Provide and Provider
+	typeName := obj.Name()
+	if typeName != ProvideTypeName && typeName != ProviderTypeName {
 		return false
 	}
 

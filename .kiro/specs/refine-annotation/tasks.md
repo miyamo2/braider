@@ -47,7 +47,7 @@
   - _Requirements: 4.5_
 
 - [ ] 3. Implement detection domain components for option extraction
-- [ ] 3.1 Create PackageLoader for external package AST access
+- [x] 3.1 Create PackageLoader for external package AST access
   - Create `PackageLoader` interface in `internal/detect` with `LoadPackage(pkgPath string) (*packages.Package, error)` method
   - Implement `packageLoaderImpl` struct holding reference to `PackageCache`
   - Implement `LoadPackage()` checking cache first, then calling `packages.Load()` with `NeedSyntax|NeedTypes` mode on cache miss
@@ -55,7 +55,7 @@
   - Store loaded package in `PackageCache` before returning
   - _Requirements: 4.3_
 
-- [ ] 3.2 Create NamerValidator for literal validation
+- [x] 3.2 Create NamerValidator for literal validation
   - Create `NamerValidator` interface in `internal/detect` with `ExtractName(pass, namerType) (string, error)` method
   - Implement validator using `types.LookupFieldOrMethod()` to find `Name() string` method on namer type
   - For same-package Namers, traverse `pass.Files` AST to locate method declaration
@@ -64,7 +64,7 @@
   - Return extracted name string with quotes stripped, or error with diagnostic position for non-literal returns
   - _Requirements: 4.2, 4.3, 8.3_
 
-- [ ] 3.3 Implement OptionExtractor for type parameter analysis
+- [x] 3.3 Implement OptionExtractor for type parameter analysis
   - Create `OptionExtractor` interface in `internal/detect` with `ExtractInjectOptions(pass, fieldType, concreteType)` and `ExtractProvideOptions(pass, callExpr, providerFunc)` methods
   - Implement type parameter extraction using `types.Named.TypeArgs().At(0)` from generic instantiations
   - Validate type parameter implements `inject.Option` or `provide.Option` constraint using `types.Implements()`
@@ -75,14 +75,14 @@
   - Return populated `OptionMetadata` struct with all extracted configuration
   - _Requirements: 1.3, 1.4, 1.5, 2.6, 2.7, 3.5, 3.6, 3.7, 5.3, 5.4, 5.5, 7.5, 8.1, 8.2_
 
-- [ ] 3.4 Update InjectDetector to support Injectable[T] interface
+- [x] 3.4 Update InjectDetector to support Injectable[T] interface
   - Modify `isNamedInjectType()` method to detect both `annotation.Inject` struct and `annotation.Injectable[T]` interface types
   - Update `FindInjectField()` to handle generic interface type checking via `types.Named` with non-empty `TypeArgs()`
   - Integrate `OptionExtractor.ExtractInjectOptions()` call after detecting `Injectable[T]` field
   - Store returned `OptionMetadata` in detection result for registry registration
   - _Requirements: 1.3, 2.5, 2.6, 2.7, 2.8_
 
-- [ ] 3.5 Update ProvideDetector to support Provider[T] annotation
+- [x] 3.5 Update ProvideDetector to support Provider[T] annotation
   - Modify provider detection logic to recognize `annotation.Provide[T](fn)` call expressions
   - Extract type parameter from `Provide[T]` generic function call using `types.Named.TypeArgs()`
   - Integrate `OptionExtractor.ExtractProvideOptions()` call after detecting provider annotation

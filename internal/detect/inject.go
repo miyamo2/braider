@@ -14,6 +14,9 @@ const AnnotationPath = "github.com/miyamo2/braider/pkg/annotation"
 // InjectTypeName is the type name for the Inject annotation.
 const InjectTypeName = "Inject"
 
+// InjectableTypeName is the type name for the Injectable[T] generic interface.
+const InjectableTypeName = "Injectable"
+
 // InjectDetector detects annotation.Inject embedding in structs.
 type InjectDetector interface {
 	// HasInjectAnnotation checks if a struct embeds annotation.Inject.
@@ -77,7 +80,8 @@ func (d *injectDetector) isInjectType(pass *analysis.Pass, expr ast.Expr) bool {
 	return d.isNamedInjectType(tv.Type)
 }
 
-// isNamedInjectType checks if the type is the annotation.Inject named type.
+// isNamedInjectType checks if the type is the annotation.Inject named type
+// or annotation.Injectable[T] generic interface.
 func (d *injectDetector) isNamedInjectType(t types.Type) bool {
 	named, ok := t.(*types.Named)
 	if !ok {
@@ -89,8 +93,9 @@ func (d *injectDetector) isNamedInjectType(t types.Type) bool {
 		return false
 	}
 
-	// Check type name
-	if obj.Name() != InjectTypeName {
+	// Check type name - accept both Inject and Injectable
+	typeName := obj.Name()
+	if typeName != InjectTypeName && typeName != InjectableTypeName {
 		return false
 	}
 
