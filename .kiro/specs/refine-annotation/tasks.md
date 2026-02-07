@@ -3,14 +3,14 @@
 ## Task Breakdown
 
 - [ ] 1. Implement public API layer for generic annotations
-- [ ] 1.1 (P) Update annotation package with generic interfaces
+- [x] 1.1 (P) Update annotation package with generic interfaces
   - Define `Injectable[T inject.Option]` interface with `isInjectable()` and `option() T` marker methods
   - Define `Provider[T provide.Option]` interface with `isProvider()` and `option() T` marker methods
   - Implement `Provide[T](providerFunc)` generic function returning `Provider[T]`
   - Add backward compatibility type alias `Inject = Injectable[inject.Default]` and `Provide = Provider[provide.Default]`
   - _Requirements: 1.1, 1.2_
 
-- [ ] 1.2 (P) Implement inject option interfaces
+- [x] 1.2 (P) Implement inject option interfaces
   - Define base `inject.Option` interface with `isOption() option` marker method
   - Define `inject.Default` interface extending `Option` with `isDefault()` marker method
   - Define `inject.Typed[T any]` interface extending `Option` with `typed() T` marker method
@@ -18,7 +18,7 @@
   - Define `inject.WithoutConstructor` interface extending `Option` with `withoutConstructor()` marker method
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 5.1_
 
-- [ ] 1.3 (P) Implement provide option interfaces
+- [x] 1.3 (P) Implement provide option interfaces
   - Define base `provide.Option` interface with `isOption() option` marker method
   - Define `provide.Default` interface extending `Option` with `isDefault()` marker method
   - Define `provide.Typed[T any]` interface extending `Option` with `typed() T` marker method
