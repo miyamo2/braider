@@ -49,26 +49,28 @@ func TestPackageLoader_FindModuleRoot(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			l := loader.NewPackageLoader()
-			result, err := l.FindModuleRoot(tt.dir)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				l := loader.NewPackageLoader()
+				result, err := l.FindModuleRoot(tt.dir)
 
-			if tt.expectError {
-				if err == nil {
-					t.Error("FindModuleRoot() = nil error, want error")
+				if tt.expectError {
+					if err == nil {
+						t.Error("FindModuleRoot() = nil error, want error")
+					}
+					return
 				}
-				return
-			}
 
-			if err != nil {
-				t.Errorf("FindModuleRoot() error = %v, want nil", err)
-				return
-			}
+				if err != nil {
+					t.Errorf("FindModuleRoot() error = %v, want nil", err)
+					return
+				}
 
-			if result != tt.expectedDir {
-				t.Errorf("FindModuleRoot() = %q, want %q", result, tt.expectedDir)
-			}
-		})
+				if result != tt.expectedDir {
+					t.Errorf("FindModuleRoot() = %q, want %q", result, tt.expectedDir)
+				}
+			},
+		)
 	}
 }
 
@@ -102,13 +104,13 @@ func TestPackageLoader_LoadModulePackages(t *testing.T) {
 		t.Skipf("skipping test: not running in a Go module: %v", err)
 	}
 
-	paths, err := l.LoadModulePackages(moduleRoot)
+	paths, err := l.LoadModulePackageNames(moduleRoot)
 	if err != nil {
-		t.Fatalf("LoadModulePackages() error = %v", err)
+		t.Fatalf("LoadModulePackageNames() error = %v", err)
 	}
 
 	if len(paths) == 0 {
-		t.Error("LoadModulePackages() returned empty slice, want at least one package")
+		t.Error("LoadModulePackageNames() returned empty slice, want at least one package")
 	}
 
 	// Verify that the main package is included
@@ -124,7 +126,7 @@ func TestPackageLoader_LoadModulePackages(t *testing.T) {
 	}
 
 	if !foundMain {
-		t.Error("LoadModulePackages() did not include main package")
+		t.Error("LoadModulePackageNames() did not include main package")
 	}
 
 	// At least some internal package should be found
@@ -135,9 +137,9 @@ func TestPackageLoader_LoadModulePackages(t *testing.T) {
 
 func TestPackageLoader_LoadModulePackages_InvalidDir(t *testing.T) {
 	l := loader.NewPackageLoader()
-	_, err := l.LoadModulePackages("/nonexistent/directory")
+	_, err := l.LoadModulePackageNames("/nonexistent/directory")
 
 	if err == nil {
-		t.Error("LoadModulePackages() = nil error, want error for invalid directory")
+		t.Error("LoadModulePackageNames() = nil error, want error for invalid directory")
 	}
 }

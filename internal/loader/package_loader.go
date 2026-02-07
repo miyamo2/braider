@@ -4,42 +4,40 @@ package loader
 import (
 	"os"
 	"path/filepath"
+	"sync"
 
 	"golang.org/x/tools/go/packages"
 )
 
 // PackageLoader loads all packages in a Go module.
 type PackageLoader interface {
-	// LoadModulePackages loads all packages in the module.
+	// LoadModulePackageNames loads all packages in the module.
 	// Returns a list of package paths for synchronization with PackageTracker.
-	LoadModulePackages(dir string) ([]string, error)
+	LoadModulePackageNames(dir string) ([]string, error)
+
+	// LoadModulePackageAST loads all packages in the module with full AST.
+	// Returns packages suitable for AST analysis and validation.
+	LoadModulePackageAST(dir string) ([]*packages.Package, error)
 
 	// FindModuleRoot finds the module root directory from a given path.
 	FindModuleRoot(dir string) (string, error)
 }
 
 // packageLoader is the default implementation of PackageLoader.
-type packageLoader struct{}
+type packageLoader struct {
+	once sync.Once
+	mu   sync.Mutex
+	pkgs []*packages.Package
+}
 
 // NewPackageLoader creates a new PackageLoader instance.
 func NewPackageLoader() PackageLoader {
 	return &packageLoader{}
 }
 
-// LoadModulePackages loads all packages in the module.
-func (l *packageLoader) LoadModulePackages(dir string) ([]string, error) {
-	moduleRoot, err := l.FindModuleRoot(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg := &packages.Config{
-		Mode: packages.NeedName,
-		Dir:  moduleRoot,
-	}
-
-	// Load all packages recursively
-	pkgs, err := packages.Load(cfg, "./...")
+// LoadModulePackageNames loads all packages in the module.
+func (l *packageLoader) LoadModulePackageNames(dir string) ([]string, error) {
+	pkgs, err := l.LoadModulePackageAST(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +50,32 @@ func (l *packageLoader) LoadModulePackages(dir string) ([]string, error) {
 	}
 
 	return paths, nil
+}
+
+// LoadModulePackageAST loads all packages in the module with full AST.
+// Returns all packages without filtering errors - caller should handle errors.
+func (l *packageLoader) LoadModulePackageAST(dir string) ([]*packages.Package, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	var err error
+	l.once.Do(
+		func() {
+			var moduleRoot string
+			moduleRoot, err = l.FindModuleRoot(dir)
+			if err != nil {
+				return
+			}
+
+			cfg := &packages.Config{
+				Mode: packages.NeedSyntax | packages.NeedTypes | packages.NeedName | packages.NeedFiles,
+				Dir:  moduleRoot,
+			}
+
+			// Load all packages recursively with full AST
+			l.pkgs, err = packages.Load(cfg, "./...")
+		},
+	)
+	return l.pkgs, err
 }
 
 // FindModuleRoot finds the module root directory from a given path.
