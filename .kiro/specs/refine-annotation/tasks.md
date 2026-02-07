@@ -108,13 +108,13 @@
   - _Requirements: 8.6_
 
 - [ ] 5. Extend ConstructorGenerator for option-based code generation
-- [ ] 5.1 Implement option-aware return type selection
+- [x] 5.1 Implement option-aware return type selection
   - Check `info.OptionMetadata.WithoutConstructor` flag; if true, skip generation and emit validation diagnostic if manual constructor missing
   - Check `info.OptionMetadata.TypedInterface`; if non-nil, use interface type as constructor return type rendered via `types.TypeString(registeredType, qualifier)`
   - Default to `*ConcreteStruct` return type for `inject.Default` or no option
   - _Requirements: 2.5, 2.8, 6.1, 6.2, 6.4_
 
-- [ ] 5.2 Implement named dependency parameter naming
+- [x] 5.2 Implement named dependency parameter naming
   - When constructor depends on named dependencies, look up dependency names from `InjectorRegistry.GetByName()` and `ProviderRegistry.GetByName()`
   - Use extracted `Name` field for parameter identifier instead of default `lowerCamelCase(TypeName)`
   - Ensure parameter names are valid Go identifiers and do not conflict with keywords
