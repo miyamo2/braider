@@ -5,6 +5,7 @@
 package registry
 
 import (
+	"fmt"
 	"go/types"
 	"sort"
 	"sync"
@@ -71,11 +72,21 @@ func NewProviderRegistry() *ProviderRegistry {
 }
 
 // Register adds a provider struct to the registry.
-// If a provider with the same TypeName already exists, it will be overwritten.
-func (r *ProviderRegistry) Register(info *ProviderInfo) {
+// Returns an error if a duplicate (TypeName, Name) pair is detected with a non-empty name.
+// If a provider with the same TypeName already exists and names don't conflict, it will be overwritten.
+func (r *ProviderRegistry) Register(info *ProviderInfo) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if existing, ok := r.providers[info.TypeName]; ok {
+		if existing.Name != "" && existing.Name == info.Name {
+			return fmt.Errorf(
+				"duplicate named dependency: type %s with name %q already registered from %s",
+				info.TypeName, info.Name, existing.PackagePath,
+			)
+		}
+	}
 	r.providers[info.TypeName] = info
+	return nil
 }
 
 // GetAll returns all registered provider structs.

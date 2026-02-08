@@ -1,11 +1,14 @@
 package implement
 
-import "github.com/miyamo2/braider/pkg/annotation"
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/provide"
+)
 
 // UserRepository implements IRepository.
-type UserRepository struct {
-	annotation.Provide
-}
+type UserRepository struct{}
+
+var _ = annotation.Provide[provide.Default](NewUserRepository)
 
 // NewUserRepository is the constructor.
 func NewUserRepository() *UserRepository {

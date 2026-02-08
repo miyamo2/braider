@@ -40,8 +40,8 @@ func TestContextCancellationMechanism(t *testing.T) {
 	t.Run("analyzer_run_method_accepts_context", func(t *testing.T) {
 		// Verify that DependencyAnalyzeRunner has access to ValidationContext
 		providerRegistry, injectorRegistry, packageTracker, validationContext,
-			provideDetector, provideStructDetector, injectDetector, structDetector,
-			fieldAnalyzer, constructorAnalyzer,
+			provideCallDetector, injectDetector, structDetector,
+			fieldAnalyzer, constructorAnalyzer, optionExtractor,
 			constructorGenerator, suggestedFixBuilder, diagnosticEmitter := setupDependencyAnalyzerDeps()
 
 		runner := NewDependencyAnalyzeRunner(
@@ -49,12 +49,12 @@ func TestContextCancellationMechanism(t *testing.T) {
 			injectorRegistry,
 			packageTracker,
 			validationContext,
-			provideDetector,
-			provideStructDetector,
+			provideCallDetector,
 			injectDetector,
 			structDetector,
 			fieldAnalyzer,
 			constructorAnalyzer,
+			optionExtractor,
 			constructorGenerator,
 			suggestedFixBuilder,
 			diagnosticEmitter,

@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"fmt"
 	"go/types"
 	"sort"
 	"sync"
@@ -66,11 +67,21 @@ func NewInjectorRegistry() *InjectorRegistry {
 }
 
 // Register adds an injector struct to the registry.
-// If an injector with the same TypeName already exists, it will be overwritten.
-func (r *InjectorRegistry) Register(info *InjectorInfo) {
+// Returns an error if a duplicate (TypeName, Name) pair is detected with a non-empty name.
+// If an injector with the same TypeName already exists and names don't conflict, it will be overwritten.
+func (r *InjectorRegistry) Register(info *InjectorInfo) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if existing, ok := r.injectors[info.TypeName]; ok {
+		if existing.Name != "" && existing.Name == info.Name {
+			return fmt.Errorf(
+				"duplicate named dependency: type %s with name %q already registered from %s",
+				info.TypeName, info.Name, existing.PackagePath,
+			)
+		}
+	}
 	r.injectors[info.TypeName] = info
+	return nil
 }
 
 // GetAll returns all registered injector structs.

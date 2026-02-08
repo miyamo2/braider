@@ -22,15 +22,16 @@ func main() {
 	packageLoader := loader.NewPackageLoader()
 
 	// Step 3: Basic detectors (no dependencies)
-	provideDetector := detect.NewProvideDetector()
 	injectDetector := detect.NewInjectDetector()
 	fieldAnalyzer := detect.NewFieldAnalyzer()
 	constructorAnalyzer := detect.NewConstructorAnalyzer()
 	appDetector := detect.NewAppDetector()
 
 	// Step 4: Complex detectors (with dependencies)
-	provideStructDetector := detect.NewProvideStructDetector(provideDetector)
+	provideCallDetector := detect.NewProvideCallDetector()
 	structDetector := detect.NewStructDetector(injectDetector)
+	namerValidator := detect.NewNamerValidator(packageLoader)
+	optionExtractor := detect.NewOptionExtractor(namerValidator)
 
 	// Step 5: Graph components
 	graphBuilder := graph.NewDependencyGraphBuilder()
@@ -48,12 +49,12 @@ func main() {
 		injectorRegistry,
 		packageTracker,
 		validationContext,
-		provideDetector,
-		provideStructDetector,
+		provideCallDetector,
 		injectDetector,
 		structDetector,
 		fieldAnalyzer,
 		constructorAnalyzer,
+		optionExtractor,
 		constructorGenerator,
 		suggestedFixBuilder,
 		diagnosticEmitter,

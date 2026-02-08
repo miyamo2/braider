@@ -3,11 +3,12 @@ package service
 import (
 	"example.com/multitype/repository"
 	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
 )
 
 // OrderService is an Inject-annotated struct (field in dependency struct)
 type OrderService struct {
-	annotation.Inject
+	annotation.Injectable[inject.Default]
 	repo repository.OrderRepository
 }
 

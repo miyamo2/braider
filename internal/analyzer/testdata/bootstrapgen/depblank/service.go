@@ -1,9 +1,12 @@
 package main
 
-import "github.com/miyamo2/braider/pkg/annotation"
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
+)
 
 type UserService struct {
-	annotation.Inject
+	annotation.Injectable[inject.Default]
 }
 
 func NewUserService() UserService {
@@ -13,7 +16,7 @@ func NewUserService() UserService {
 func (s UserService) Run() {}
 
 type ItemService struct {
-	annotation.Inject
+	annotation.Injectable[inject.Default]
 }
 
 func NewItemService() ItemService {

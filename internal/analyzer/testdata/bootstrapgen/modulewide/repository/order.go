@@ -1,9 +1,12 @@
 package repository
 
-import "github.com/miyamo2/braider/pkg/annotation"
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
+)
 
 type OrderRepository struct {
-	annotation.Inject
+	annotation.Injectable[inject.Default]
 }
 
 func NewOrderRepository() OrderRepository {

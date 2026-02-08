@@ -8,6 +8,11 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+const (
+	injectOptionsPath  = "github.com/miyamo2/braider/pkg/annotation/inject"
+	provideOptionsPath = "github.com/miyamo2/braider/pkg/annotation/provide"
+)
+
 // OptionExtractor extracts and validates type parameters from generic annotations.
 type OptionExtractor interface {
 	// ExtractInjectOptions extracts option metadata from Injectable[T] type parameter.
@@ -56,31 +61,70 @@ func (e *optionExtractorImpl) ExtractInjectOptions(pass *analysis.Pass, fieldTyp
 	// Extract first type argument (the option type)
 	optionType := typeArgs.At(0)
 
-	// Validate that option type implements inject.Option interface
-	// For now, we'll skip strict interface checking and just analyze the type
-	// This allows the test to work without full type information
+	return e.extractMetadataFromOptionType(pass, optionType, concreteType)
+}
 
-	// Determine which option interfaces the type satisfies
-	metadata := OptionMetadata{}
-
-	// Check for inject.WithoutConstructor (check before Default)
-	if e.isWithoutConstructorOption(optionType) {
-		metadata.WithoutConstructor = true
-	} else if e.isDefaultOption(optionType) {
-		// Check for inject.Default only if not WithoutConstructor
-		metadata.IsDefault = true
+// ExtractProvideOptions extracts options from Provider[T] type parameter.
+func (e *optionExtractorImpl) ExtractProvideOptions(pass *analysis.Pass, callExpr *ast.CallExpr, providerFunc types.Type) (OptionMetadata, error) {
+	// Get the type of the call expression (returns Provider[T])
+	typ := pass.TypesInfo.TypeOf(callExpr)
+	if typ == nil {
+		return OptionMetadata{IsDefault: true}, nil
 	}
 
-	// Check for inject.Typed[T]
-	if typedInterface := e.extractTypedInterface(optionType); typedInterface != nil {
-		metadata.TypedInterface = typedInterface
-		// Validate concrete type implements interface
-		if !types.Implements(concreteType, typedInterface.Underlying().(*types.Interface)) {
-			return OptionMetadata{}, fmt.Errorf("concrete type %s does not implement interface %s", concreteType, typedInterface)
+	// Extract the Named type (Provider[T])
+	named, ok := typ.(*types.Named)
+	if !ok {
+		return OptionMetadata{IsDefault: true}, nil
+	}
+
+	// Get type arguments of Provider[T]
+	typeArgs := named.TypeArgs()
+	if typeArgs == nil || typeArgs.Len() == 0 {
+		return OptionMetadata{IsDefault: true}, nil
+	}
+
+	// Extract option type T
+	optionType := typeArgs.At(0)
+
+	// For Provide, concreteType is derived from the provider function return type
+	var concreteType types.Type
+	if sig, ok := providerFunc.(*types.Signature); ok {
+		if sig.Results() != nil && sig.Results().Len() > 0 {
+			concreteType = sig.Results().At(0).Type()
 		}
 	}
 
-	// Check for inject.Named[N]
+	return e.extractMetadataFromOptionType(pass, optionType, concreteType)
+}
+
+// extractMetadataFromOptionType extracts metadata from an option type parameter.
+// Shared logic between ExtractInjectOptions and ExtractProvideOptions.
+func (e *optionExtractorImpl) extractMetadataFromOptionType(pass *analysis.Pass, optionType types.Type, concreteType types.Type) (OptionMetadata, error) {
+	metadata := OptionMetadata{}
+
+	// Check for WithoutConstructor (check before Default)
+	if e.isWithoutConstructorOption(optionType) {
+		metadata.WithoutConstructor = true
+	} else if e.isDefaultOption(optionType) {
+		// Check for Default only if not WithoutConstructor
+		metadata.IsDefault = true
+	}
+
+	// Check for Typed[I]
+	if typedInterface := e.extractTypedInterface(optionType); typedInterface != nil {
+		metadata.TypedInterface = typedInterface
+		// Validate concrete type implements interface if both are available
+		if concreteType != nil {
+			if iface, ok := typedInterface.Underlying().(*types.Interface); ok {
+				if !types.Implements(concreteType, iface) {
+					return OptionMetadata{}, fmt.Errorf("concrete type %s does not implement interface %s", concreteType, typedInterface)
+				}
+			}
+		}
+	}
+
+	// Check for Named[N]
 	if namerType := e.extractNamerType(optionType); namerType != nil {
 		if e.namerValidator != nil {
 			name, err := e.namerValidator.ExtractName(pass, namerType)
@@ -99,15 +143,16 @@ func (e *optionExtractorImpl) ExtractInjectOptions(pass *analysis.Pass, fieldTyp
 	return metadata, nil
 }
 
-// ExtractProvideOptions extracts options from Provider[T] type parameter.
-func (e *optionExtractorImpl) ExtractProvideOptions(pass *analysis.Pass, callExpr *ast.CallExpr, providerFunc types.Type) (OptionMetadata, error) {
-	// Similar to ExtractInjectOptions but for Provider
-	// For now, return default metadata
-	return OptionMetadata{IsDefault: true}, nil
+// isDefaultOption checks if the type is inject.Default or provide.Default.
+// Supports both direct named types and interface embedded types (mixed-in options).
+func (e *optionExtractorImpl) isDefaultOption(typ types.Type) bool {
+	if e.isDefaultOptionDirect(typ) {
+		return true
+	}
+	return e.searchEmbeddedInterfaces(typ, e.isDefaultOptionDirect)
 }
 
-// isDefaultOption checks if the type is inject.Default or provide.Default
-func (e *optionExtractorImpl) isDefaultOption(typ types.Type) bool {
+func (e *optionExtractorImpl) isDefaultOptionDirect(typ types.Type) bool {
 	named, ok := typ.(*types.Named)
 	if !ok {
 		return false
@@ -119,17 +164,23 @@ func (e *optionExtractorImpl) isDefaultOption(typ types.Type) bool {
 	}
 
 	pkg := obj.Pkg()
-	// When Importer is nil in tests, pkg may be nil for external packages
-	// In such cases, check only the type name
 	if pkg == nil {
 		return obj.Name() == "Default"
 	}
 
-	return obj.Name() == "Default" && pkg.Path() == "github.com/miyamo2/braider/pkg/annotation/inject"
+	return obj.Name() == "Default" && (pkg.Path() == injectOptionsPath || pkg.Path() == provideOptionsPath)
 }
 
-// isWithoutConstructorOption checks if the type is inject.WithoutConstructor
+// isWithoutConstructorOption checks if the type is inject.WithoutConstructor.
+// Supports both direct named types and interface embedded types (mixed-in options).
 func (e *optionExtractorImpl) isWithoutConstructorOption(typ types.Type) bool {
+	if e.isWithoutConstructorOptionDirect(typ) {
+		return true
+	}
+	return e.searchEmbeddedInterfaces(typ, e.isWithoutConstructorOptionDirect)
+}
+
+func (e *optionExtractorImpl) isWithoutConstructorOptionDirect(typ types.Type) bool {
 	named, ok := typ.(*types.Named)
 	if !ok {
 		return false
@@ -141,17 +192,23 @@ func (e *optionExtractorImpl) isWithoutConstructorOption(typ types.Type) bool {
 	}
 
 	pkg := obj.Pkg()
-	// When Importer is nil in tests, pkg may be nil for external packages
-	// In such cases, check only the type name
 	if pkg == nil {
 		return obj.Name() == "WithoutConstructor"
 	}
 
-	return obj.Name() == "WithoutConstructor" && pkg.Path() == "github.com/miyamo2/braider/pkg/annotation/inject"
+	return obj.Name() == "WithoutConstructor" && pkg.Path() == injectOptionsPath
 }
 
-// extractTypedInterface extracts the interface type from Typed[I] option
+// extractTypedInterface extracts the interface type from Typed[I] option.
+// Supports both direct named types and interface embedded types (mixed-in options).
 func (e *optionExtractorImpl) extractTypedInterface(typ types.Type) types.Type {
+	if result := e.extractTypedInterfaceDirect(typ); result != nil {
+		return result
+	}
+	return e.searchEmbeddedInterfacesTyped(typ, e.extractTypedInterfaceDirect)
+}
+
+func (e *optionExtractorImpl) extractTypedInterfaceDirect(typ types.Type) types.Type {
 	named, ok := typ.(*types.Named)
 	if !ok {
 		return nil
@@ -162,7 +219,13 @@ func (e *optionExtractorImpl) extractTypedInterface(typ types.Type) types.Type {
 		return nil
 	}
 
-	// Get type arguments of Typed[I]
+	// Verify package path
+	if pkg := obj.Pkg(); pkg != nil {
+		if pkg.Path() != injectOptionsPath && pkg.Path() != provideOptionsPath {
+			return nil
+		}
+	}
+
 	typeArgs := named.TypeArgs()
 	if typeArgs == nil || typeArgs.Len() == 0 {
 		return nil
@@ -171,8 +234,16 @@ func (e *optionExtractorImpl) extractTypedInterface(typ types.Type) types.Type {
 	return typeArgs.At(0)
 }
 
-// extractNamerType extracts the Namer type from Named[N] option
+// extractNamerType extracts the Namer type from Named[N] option.
+// Supports both direct named types and interface embedded types (mixed-in options).
 func (e *optionExtractorImpl) extractNamerType(typ types.Type) types.Type {
+	if result := e.extractNamerTypeDirect(typ); result != nil {
+		return result
+	}
+	return e.searchEmbeddedInterfacesTyped(typ, e.extractNamerTypeDirect)
+}
+
+func (e *optionExtractorImpl) extractNamerTypeDirect(typ types.Type) types.Type {
 	named, ok := typ.(*types.Named)
 	if !ok {
 		return nil
@@ -183,11 +254,57 @@ func (e *optionExtractorImpl) extractNamerType(typ types.Type) types.Type {
 		return nil
 	}
 
-	// Get type arguments of Named[N]
+	// Verify package path
+	if pkg := obj.Pkg(); pkg != nil {
+		if pkg.Path() != injectOptionsPath && pkg.Path() != provideOptionsPath {
+			return nil
+		}
+	}
+
 	typeArgs := named.TypeArgs()
 	if typeArgs == nil || typeArgs.Len() == 0 {
 		return nil
 	}
 
 	return typeArgs.At(0)
+}
+
+// searchEmbeddedInterfaces recursively searches embedded interfaces for a matching predicate.
+func (e *optionExtractorImpl) searchEmbeddedInterfaces(typ types.Type, predicate func(types.Type) bool) bool {
+	iface, ok := typ.Underlying().(*types.Interface)
+	if !ok {
+		return false
+	}
+
+	for i := 0; i < iface.NumEmbeddeds(); i++ {
+		embedded := iface.EmbeddedType(i)
+		if predicate(embedded) {
+			return true
+		}
+		// Recurse into embedded interfaces
+		if e.searchEmbeddedInterfaces(embedded, predicate) {
+			return true
+		}
+	}
+	return false
+}
+
+// searchEmbeddedInterfacesTyped recursively searches embedded interfaces for a type-returning match.
+func (e *optionExtractorImpl) searchEmbeddedInterfacesTyped(typ types.Type, extractor func(types.Type) types.Type) types.Type {
+	iface, ok := typ.Underlying().(*types.Interface)
+	if !ok {
+		return nil
+	}
+
+	for i := 0; i < iface.NumEmbeddeds(); i++ {
+		embedded := iface.EmbeddedType(i)
+		if result := extractor(embedded); result != nil {
+			return result
+		}
+		// Recurse into embedded interfaces
+		if result := e.searchEmbeddedInterfacesTyped(embedded, extractor); result != nil {
+			return result
+		}
+	}
+	return nil
 }

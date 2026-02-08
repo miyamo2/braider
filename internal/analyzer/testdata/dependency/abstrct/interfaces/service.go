@@ -1,10 +1,13 @@
 package interfaces
 
-import "github.com/miyamo2/braider/pkg/annotation"
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
+)
 
 // UserService uses IRepository.
 type UserService struct {
-	annotation.Inject
+	annotation.Injectable[inject.Default]
 	repo IRepository
 }
 
