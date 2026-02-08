@@ -6,16 +6,9 @@ import (
 	"go/token"
 	"go/types"
 
+	"github.com/miyamo2/braider/internal/loader"
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/packages"
 )
-
-// ASTCacheLoader loads external package ASTs with caching.
-// This interface is defined here to avoid import cycles with registry package.
-type ASTCacheLoader interface {
-	// LoadPackage loads the package at the given import path.
-	LoadPackage(pkgPath string) (*packages.Package, error)
-}
 
 // NamerValidator validates Namer interface implementations.
 // Ensures that Namer.Name() methods return hardcoded string literals.
@@ -28,12 +21,12 @@ type NamerValidator interface {
 
 // namerValidatorImpl implements NamerValidator.
 type namerValidatorImpl struct {
-	loader ASTCacheLoader
+	loader loader.PackageLoader
 }
 
 // NewNamerValidator creates a new NamerValidator instance.
 // loader can be nil for same-package validation only.
-func NewNamerValidator(loader ASTCacheLoader) NamerValidator {
+func NewNamerValidator(loader loader.PackageLoader) NamerValidator {
 	return &namerValidatorImpl{
 		loader: loader,
 	}
@@ -92,7 +85,9 @@ func findNameMethod(typ types.Type) *types.Func {
 }
 
 // findMethodDecl finds the AST declaration for a method.
-func (v *namerValidatorImpl) findMethodDecl(pass *analysis.Pass, method *types.Func, namerType types.Type) (*ast.FuncDecl, error) {
+func (v *namerValidatorImpl) findMethodDecl(
+	pass *analysis.Pass, method *types.Func, namerType types.Type,
+) (*ast.FuncDecl, error) {
 	// Check if method is in the current package
 	if method.Pkg() == pass.Pkg {
 		// Search in current package files
@@ -117,12 +112,19 @@ func (v *namerValidatorImpl) findMethodDecl(pass *analysis.Pass, method *types.F
 
 	// Method is in external package - use loader
 	if v.loader == nil {
-		return nil, fmt.Errorf("cannot validate external Namer in package %s: no package loader available. Define Namer in same package as Injectable annotation", method.Pkg().Path())
+		return nil, fmt.Errorf(
+			"cannot validate external Namer in package %s: no package loader available. Define Namer in same package as Injectable annotation",
+			method.Pkg().Path(),
+		)
 	}
 
 	pkg, err := v.loader.LoadPackage(method.Pkg().Path())
 	if err != nil {
-		return nil, fmt.Errorf("cannot validate external Namer in package %s: %w. Define Namer in same package as Injectable annotation", method.Pkg().Path(), err)
+		return nil, fmt.Errorf(
+			"cannot validate external Namer in package %s: %w. Define Namer in same package as Injectable annotation",
+			method.Pkg().Path(),
+			err,
+		)
 	}
 
 	// Search in external package files
@@ -176,13 +178,15 @@ func (v *namerValidatorImpl) validateLiteralReturn(methodDecl *ast.FuncDecl) (st
 
 	// Find return statement
 	var returnStmt *ast.ReturnStmt
-	ast.Inspect(methodDecl.Body, func(n ast.Node) bool {
-		if ret, ok := n.(*ast.ReturnStmt); ok {
-			returnStmt = ret
-			return false // Stop searching after first return
-		}
-		return true
-	})
+	ast.Inspect(
+		methodDecl.Body, func(n ast.Node) bool {
+			if ret, ok := n.(*ast.ReturnStmt); ok {
+				returnStmt = ret
+				return false // Stop searching after first return
+			}
+			return true
+		},
+	)
 
 	if returnStmt == nil {
 		return "", fmt.Errorf("Name() method has no return statement")

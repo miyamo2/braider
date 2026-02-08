@@ -2,6 +2,7 @@
 package loader
 
 import (
+	"iter"
 	"os"
 	"path/filepath"
 	"sync"
@@ -17,7 +18,11 @@ type PackageLoader interface {
 
 	// LoadModulePackageAST loads all packages in the module with full AST.
 	// Returns packages suitable for AST analysis and validation.
-	LoadModulePackageAST(dir string) ([]*packages.Package, error)
+	LoadModulePackageAST(dir string) (iter.Seq[*packages.Package], error)
+
+	// LoadPackage loads a single package by its import path.
+	// Returns the package with full AST for analysis.
+	LoadPackage(pkgPath string) (*packages.Package, error)
 
 	// FindModuleRoot finds the module root directory from a given path.
 	FindModuleRoot(dir string) (string, error)
@@ -25,14 +30,17 @@ type PackageLoader interface {
 
 // packageLoader is the default implementation of PackageLoader.
 type packageLoader struct {
-	once sync.Once
-	mu   sync.Mutex
-	pkgs []*packages.Package
+	mu             sync.Mutex
+	pkgCache       map[string]*packages.Package // all packages (module + external)
+	modulePkgPaths map[string][]string          // moduleRoot → package paths belonging to that module
 }
 
 // NewPackageLoader creates a new PackageLoader instance.
 func NewPackageLoader() PackageLoader {
-	return &packageLoader{}
+	return &packageLoader{
+		pkgCache:       make(map[string]*packages.Package),
+		modulePkgPaths: make(map[string][]string),
+	}
 }
 
 // LoadModulePackageNames loads all packages in the module.
@@ -43,7 +51,7 @@ func (l *packageLoader) LoadModulePackageNames(dir string) ([]string, error) {
 	}
 
 	var paths []string
-	for _, pkg := range pkgs {
+	for pkg := range pkgs {
 		if pkg.PkgPath != "" {
 			paths = append(paths, pkg.PkgPath)
 		}
@@ -53,29 +61,83 @@ func (l *packageLoader) LoadModulePackageNames(dir string) ([]string, error) {
 }
 
 // LoadModulePackageAST loads all packages in the module with full AST.
-// Returns all packages without filtering errors - caller should handle errors.
-func (l *packageLoader) LoadModulePackageAST(dir string) ([]*packages.Package, error) {
+// Returns only packages belonging to the module, not external packages loaded via LoadPackage.
+func (l *packageLoader) LoadModulePackageAST(dir string) (iter.Seq[*packages.Package], error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	var err error
-	l.once.Do(
-		func() {
-			var moduleRoot string
-			moduleRoot, err = l.FindModuleRoot(dir)
-			if err != nil {
-				return
-			}
 
-			cfg := &packages.Config{
-				Mode: packages.NeedSyntax | packages.NeedTypes | packages.NeedName | packages.NeedFiles,
-				Dir:  moduleRoot,
-			}
+	moduleRoot, err := l.FindModuleRoot(dir)
+	if err != nil {
+		return nil, err
+	}
 
-			// Load all packages recursively with full AST
-			l.pkgs, err = packages.Load(cfg, "./...")
-		},
-	)
-	return l.pkgs, err
+	if paths, ok := l.modulePkgPaths[moduleRoot]; ok {
+		return l.packagesByPaths(paths), nil
+	}
+
+	cfg := &packages.Config{
+		Mode: packages.NeedSyntax | packages.NeedTypes | packages.NeedName | packages.NeedFiles,
+		Dir:  moduleRoot,
+	}
+
+	// Load all packages recursively with full AST
+	pkgs, err := packages.Load(cfg, "./...")
+	if err != nil {
+		return nil, err
+	}
+
+	var paths []string
+	for _, pkg := range pkgs {
+		if pkg.PkgPath != "" {
+			l.pkgCache[pkg.PkgPath] = pkg
+			paths = append(paths, pkg.PkgPath)
+		}
+	}
+
+	l.modulePkgPaths[moduleRoot] = paths
+
+	return l.packagesByPaths(paths), nil
+}
+
+// packagesByPaths returns cached packages matching the given paths.
+func (l *packageLoader) packagesByPaths(paths []string) iter.Seq[*packages.Package] {
+	return func(yield func(*packages.Package) bool) {
+		for _, path := range paths {
+			if pkg, ok := l.pkgCache[path]; ok {
+				if !yield(pkg) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// LoadPackage loads a single package by its import path.
+// Uses the cache to avoid redundant loading.
+func (l *packageLoader) LoadPackage(pkgPath string) (*packages.Package, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if pkg, ok := l.pkgCache[pkgPath]; ok {
+		return pkg, nil
+	}
+
+	cfg := &packages.Config{
+		Mode: packages.NeedSyntax | packages.NeedTypes | packages.NeedName | packages.NeedFiles,
+	}
+
+	pkgs, err := packages.Load(cfg, pkgPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(pkgs) == 0 {
+		return nil, os.ErrNotExist
+	}
+
+	l.pkgCache[pkgPath] = pkgs[0]
+
+	return pkgs[0], nil
 }
 
 // FindModuleRoot finds the module root directory from a given path.

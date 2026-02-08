@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"iter"
 	"testing"
 
 	"github.com/miyamo2/braider/internal/detect"
@@ -22,13 +23,18 @@ func (m *mockPackageLoader) LoadModulePackageNames(dir string) ([]string, error)
 	return []string{}, nil
 }
 
-func (m *mockPackageLoader) LoadModulePackageAST(dir string) ([]*packages.Package, error) {
-	// Return empty list for test - no packages with AST needed
-	return []*packages.Package{}, nil
+func (m *mockPackageLoader) LoadModulePackageAST(dir string) (iter.Seq[*packages.Package], error) {
+	// Return empty iterator for test - no packages with AST needed
+	return func(yield func(*packages.Package) bool) {}, nil
 }
 
 func (m *mockPackageLoader) FindModuleRoot(dir string) (string, error) {
 	return dir, nil
+}
+
+func (m *mockPackageLoader) LoadPackage(pkgPath string) (*packages.Package, error) {
+	// Return nil for test - external packages not needed in these tests
+	return nil, nil
 }
 
 // setupTestDependencies creates all required dependencies for AppAnalyzer tests.

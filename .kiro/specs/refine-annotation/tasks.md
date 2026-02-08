@@ -147,7 +147,7 @@
   - _Requirements: 8.5_
 
 - [ ] 8. Implement comprehensive test coverage
-- [ ] 8.1 (P) Unit tests for OptionExtractor
+- [x] 8.1 (P) Unit tests for OptionExtractor
   - Test type parameter extraction for each option type: Default, Typed[I], Named[N], WithoutConstructor
   - Test mixed-in option types implementing multiple interfaces (Typed[I] + Named[N])
   - Test constraint violation errors when type parameter does not implement inject.Option or provide.Option
@@ -155,7 +155,7 @@
   - Test conflicting option detection (Default + WithoutConstructor)
   - _Requirements: 1.3, 1.4, 1.5, 5.3, 5.4, 5.5, 7.5, 8.1, 8.2_
 
-- [ ] 8.2 (P) Unit tests for NamerValidator
+- [x] 8.2 (P) Unit tests for NamerValidator
   - Test hardcoded string literal detection from Name() method body
   - Test rejection of computed values (concatenation, variables, function calls)
   - Test error diagnostic for method not found or invalid signature
@@ -163,20 +163,20 @@
   - Test external-package Namer validation via PackageLoader
   - _Requirements: 4.2, 4.3, 8.3_
 
-- [ ] 8.3 (P) Unit tests for registry extensions
+- [x] 8.3 (P) Unit tests for registry extensions
   - Test `InjectorRegistry.Register()` with OptionMetadata, RegisteredType, Name fields populated
   - Test `GetByName()` lookup for named dependencies
   - Test duplicate (TypeName, Name) pair detection and correlation error diagnostic
   - Test unnamed and named dependencies coexistence in same registry
   - _Requirements: 2.6, 2.7, 4.5_
 
-- [ ] 8.4 (P) Unit tests for ConstructorGenerator extensions
+- [x] 8.4 (P) Unit tests for ConstructorGenerator extensions
   - Test constructor return type selection: *ConcreteStruct for Default, interface I for Typed[I]
   - Test WithoutConstructor skip logic and validation diagnostic emission
   - Test named dependency parameter naming using registry lookups
   - _Requirements: 2.5, 2.8, 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 8.5 (P) Unit tests for BootstrapGenerator extensions
+- [x] 8.5 (P) Unit tests for BootstrapGenerator extensions
   - Test interface-typed variable declarations for Injectable[Typed[I]] and Provide[Typed[I]]
   - Test named variable naming using info.Name field
   - Test topological sort preservation for typed and named dependencies
