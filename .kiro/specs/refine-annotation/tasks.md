@@ -182,7 +182,7 @@
   - Test topological sort preservation for typed and named dependencies
   - _Requirements: 4.4, 7.1, 7.2, 7.4_
 
-- [ ] 8.6 Integration tests for complete annotation flows
+- [x] 8.6 Integration tests for complete annotation flows
   - Test Injectable[Typed[I]] flow: struct with interface annotation → constructor returns interface → bootstrap declares interface variable
   - Test Named dependency flow: multiple structs with same type but different names → separate variables with unique names
   - Test mixed options flow: custom option type implementing Typed[I] + Named[N] → constructor returns interface, variable uses custom name

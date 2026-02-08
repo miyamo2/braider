@@ -1,0 +1,24 @@
+package main
+
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"without_constructor/service"
+)
+
+var _ = annotation.App(main) // want "bootstrap code is missing"
+
+func main() {
+	_ = dependency
+}
+
+// braider:hash:9bb60f03f0ef8fcf
+var dependency = func() struct {
+	customService service.CustomService
+} {
+	customService := service.NewCustomService()
+	return struct {
+		customService service.CustomService
+	}{
+		customService: customService,
+	}
+}()

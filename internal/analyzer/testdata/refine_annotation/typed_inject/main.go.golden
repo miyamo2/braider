@@ -1,0 +1,24 @@
+package main
+
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"typed_inject/service"
+)
+
+var _ = annotation.App(main) // want "bootstrap code is missing"
+
+func main() {
+	_ = dependency
+}
+
+// braider:hash:5ce43b1209481fb1
+var dependency = func() struct {
+	userRepository domain.IRepository
+} {
+	userRepository := service.NewUserRepository()
+	return struct {
+		userRepository domain.IRepository
+	}{
+		userRepository: userRepository,
+	}
+}()
