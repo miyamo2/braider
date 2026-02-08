@@ -476,6 +476,123 @@ func createMockPassForGraph(t *testing.T) *analysis.Pass {
 	}
 }
 
+// TestDependencyGraph_BuildGraph_PointerDependencies tests that pointer-type dependencies are
+// resolved by stripping the "*" prefix and matching against the concrete type node.
+func TestDependencyGraph_BuildGraph_PointerDependencies(t *testing.T) {
+	tests := []struct {
+		name      string
+		providers []*registry.ProviderInfo
+		injectors []*registry.InjectorInfo
+		wantEdges map[string][]string
+		wantErr   bool
+	}{
+		{
+			name: "pointer dependency resolved to concrete node",
+			providers: []*registry.ProviderInfo{
+				{
+					TypeName:        "example.com/repo.UserRepository",
+					PackagePath:     "example.com/repo",
+					PackageName:     "repo",
+					LocalName:       "UserRepository",
+					ConstructorName: "NewUserRepository",
+					Dependencies:    []string{},
+				},
+			},
+			injectors: []*registry.InjectorInfo{
+				{
+					TypeName:        "example.com/service.UserService",
+					PackagePath:     "example.com/service",
+					PackageName:     "service",
+					LocalName:       "UserService",
+					ConstructorName: "NewUserService",
+					Dependencies:    []string{"*example.com/repo.UserRepository"},
+				},
+			},
+			wantEdges: map[string][]string{
+				"example.com/repo.UserRepository": {},
+				"example.com/service.UserService": {"example.com/repo.UserRepository"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "pointer dependency not in graph remains unresolvable",
+			injectors: []*registry.InjectorInfo{
+				{
+					TypeName:        "example.com/service.UserService",
+					PackagePath:     "example.com/service",
+					PackageName:     "service",
+					LocalName:       "UserService",
+					ConstructorName: "NewUserService",
+					Dependencies:    []string{"*example.com/external.Unknown"},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "non-pointer dependency still works",
+			providers: []*registry.ProviderInfo{
+				{
+					TypeName:        "example.com/repo.UserRepository",
+					PackagePath:     "example.com/repo",
+					PackageName:     "repo",
+					LocalName:       "UserRepository",
+					ConstructorName: "NewUserRepository",
+					Dependencies:    []string{},
+				},
+			},
+			injectors: []*registry.InjectorInfo{
+				{
+					TypeName:        "example.com/service.UserService",
+					PackagePath:     "example.com/service",
+					PackageName:     "service",
+					LocalName:       "UserService",
+					ConstructorName: "NewUserService",
+					Dependencies:    []string{"example.com/repo.UserRepository"},
+				},
+			},
+			wantEdges: map[string][]string{
+				"example.com/repo.UserRepository": {},
+				"example.com/service.UserService": {"example.com/repo.UserRepository"},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass := createMockPassForGraph(t)
+			builder := NewDependencyGraphBuilder()
+			graph, err := builder.BuildGraph(pass, tt.providers, tt.injectors)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("BuildGraph() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if err != nil {
+				return
+			}
+
+			for from, wantTos := range tt.wantEdges {
+				gotTos, ok := graph.Edges[from]
+				if !ok {
+					t.Errorf("BuildGraph() missing edge from %s", from)
+					continue
+				}
+				if len(gotTos) != len(wantTos) {
+					t.Errorf("BuildGraph() edge %s -> count = %d, want %d", from, len(gotTos), len(wantTos))
+					continue
+				}
+				for i, wantTo := range wantTos {
+					if gotTos[i] != wantTo {
+						t.Errorf("BuildGraph() edge %s -> [%d] = %s, want %s", from, i, gotTos[i], wantTo)
+					}
+				}
+			}
+		})
+	}
+}
+
 // TestDependencyGraph_BuildGraph_NamedDependencies tests graph construction with named dependencies.
 func TestDependencyGraph_BuildGraph_NamedDependencies(t *testing.T) {
 	// Scenario: Two instances of Repository with different names, Service depends on one

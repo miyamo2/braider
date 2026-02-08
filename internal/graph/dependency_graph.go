@@ -3,6 +3,7 @@ package graph
 import (
 	"fmt"
 	"go/types"
+	"strings"
 
 	"github.com/miyamo2/braider/internal/registry"
 	"golang.org/x/tools/go/analysis"
@@ -213,8 +214,17 @@ func (b *DependencyGraphBuilder) resolveDependency(graph *Graph, typeName string
 		return typeName, nil
 	}
 
-	// Try to resolve as interface first
-	if impl, err := b.interfaceRegistry.Resolve(typeName); err == nil {
+	// Normalize pointer type by stripping "*" prefix
+	normalizedName := typeName
+	if strings.HasPrefix(typeName, "*") {
+		normalizedName = typeName[1:]
+		if graph.Nodes[normalizedName] != nil {
+			return normalizedName, nil
+		}
+	}
+
+	// Try to resolve as interface (use normalized name)
+	if impl, err := b.interfaceRegistry.Resolve(normalizedName); err == nil {
 		return impl, nil
 	} else {
 		// Check if error is AmbiguousImplementationError - this is a real error
@@ -226,6 +236,5 @@ func (b *DependencyGraphBuilder) resolveDependency(graph *Graph, typeName string
 	}
 
 	// Neither interface nor concrete type found
-	// Return UnresolvedInterfaceError if it was an interface lookup failure
 	return "", &UnresolvableTypeError{TypeName: typeName}
 }
