@@ -13,14 +13,14 @@ func main() {
 
 // braider:hash:43fcf607076e4e65
 var dependency = func() struct {
-	primaryDB   service.PrimaryDB
-	secondaryDB service.SecondaryDB
+	primaryDB   *service.PrimaryDB
+	secondaryDB *service.SecondaryDB
 } {
 	primaryDB := service.NewPrimaryDB()
 	secondaryDB := service.NewSecondaryDB()
 	return struct {
-		primaryDB   service.PrimaryDB
-		secondaryDB service.SecondaryDB
+		primaryDB   *service.PrimaryDB
+		secondaryDB *service.SecondaryDB
 	}{
 		primaryDB:   primaryDB,
 		secondaryDB: secondaryDB,

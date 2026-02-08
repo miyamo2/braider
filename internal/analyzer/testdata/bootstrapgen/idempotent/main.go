@@ -13,11 +13,11 @@ func main() {
 
 // braider:hash:4edf020376a292d1
 var dependency = func() struct {
-	userService UserService
+	userService *UserService
 } {
 	userService := NewUserService()
 	return struct {
-		userService UserService
+		userService *UserService
 	}{
 		userService: userService,
 	}
@@ -27,6 +27,6 @@ type UserService struct {
 	annotation.Injectable[inject.Default]
 }
 
-func NewUserService() UserService {
-	return UserService{}
+func NewUserService() *UserService {
+	return &UserService{}
 }

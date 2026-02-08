@@ -7,10 +7,8 @@ import (
 	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/generate"
 	"github.com/miyamo2/braider/internal/graph"
-	"github.com/miyamo2/braider/internal/loader"
 	"github.com/miyamo2/braider/internal/registry"
 	"github.com/miyamo2/braider/internal/report"
-	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/packages"
 )
@@ -19,12 +17,10 @@ import (
 type mockPackageLoader struct{}
 
 func (m *mockPackageLoader) LoadModulePackageNames(dir string) ([]string, error) {
-	// Return empty list for test - no packages to wait for
 	return []string{}, nil
 }
 
 func (m *mockPackageLoader) LoadModulePackageAST(dir string) (iter.Seq[*packages.Package], error) {
-	// Return empty iterator for test - no packages with AST needed
 	return func(yield func(*packages.Package) bool) {}, nil
 }
 
@@ -33,15 +29,13 @@ func (m *mockPackageLoader) FindModuleRoot(dir string) (string, error) {
 }
 
 func (m *mockPackageLoader) LoadPackage(pkgPath string) (*packages.Package, error) {
-	// Return nil for test - external packages not needed in these tests
 	return nil, nil
 }
 
-// setupTestDependencies creates all required dependencies for AppAnalyzer tests.
+// setupTestDependencies creates all required dependencies for AppAnalyzer-only tests (Group E).
 func setupTestDependencies() (
 	*registry.ProviderRegistry,
 	*registry.InjectorRegistry,
-	loader.PackageLoader,
 	*registry.PackageTracker,
 	*registry.ValidationContext,
 	detect.AppDetector,
@@ -53,7 +47,6 @@ func setupTestDependencies() (
 ) {
 	providerRegistry := registry.NewProviderRegistry()
 	injectorRegistry := registry.NewInjectorRegistry()
-	packageLoader := &mockPackageLoader{} // Use mock instead of real implementation
 	packageTracker := registry.NewPackageTracker()
 	validationContext := registry.NewValidationContext()
 	appDetector := detect.NewAppDetector()
@@ -63,977 +56,165 @@ func setupTestDependencies() (
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 
-	return providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector,
-		graphBuilder, sorter, bootstrapGenerator, suggestedFixBuilder,
-		diagnosticEmitter
+	return providerRegistry, injectorRegistry, packageTracker, validationContext, appDetector,
+		graphBuilder, sorter, bootstrapGenerator, suggestedFixBuilder, diagnosticEmitter
 }
 
-// createAppAnalyzer creates an AppAnalyzer with the provided dependencies.
-func createAppAnalyzer(
-	appDetector detect.AppDetector,
-	injectorRegistry *registry.InjectorRegistry,
-	providerRegistry *registry.ProviderRegistry,
-	packageLoader loader.PackageLoader,
-	packageTracker *registry.PackageTracker,
-	validationContext *registry.ValidationContext,
-	graphBuilder *graph.DependencyGraphBuilder,
-	sorter *graph.TopologicalSorter,
-	bootstrapGen generate.BootstrapGenerator,
-	fixBuilder report.SuggestedFixBuilder,
-	diagnosticEmitter report.DiagnosticEmitter,
-) *analysis.Analyzer {
-	return AppAnalyzer(
-		appDetector,
-		injectorRegistry,
-		providerRegistry,
-		packageLoader,
-		packageTracker,
-		validationContext,
-		graphBuilder,
-		sorter,
-		bootstrapGen,
-		fixBuilder,
-		diagnosticEmitter,
-	)
+// --- Group A: Sub-package Injectable/Provide → Two-phase pipeline (11 tests) ---
+
+func TestBootstrap_BasicSinglePackage(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/basic"
+	analysistest.Run(t, testdir, depAnalyzer, "example.com/basic/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_NoAppAnnotation tests that bootstrap generation is skipped
-// when no App annotation is present in the package.
-func TestAppAnalyzer_NoAppAnnotation(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/noapp", analyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/noapp", analyzer, ".")
+func TestBootstrap_CrossPackageImports(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/crosspackage"
+	analysistest.Run(t, testdir, depAnalyzer, "crosspackage/repository")
+	analysistest.Run(t, testdir, depAnalyzer, "crosspackage/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_DetectsAppAnnotation tests that the analyzer detects
-// an App annotation and processes it.
-func TestAppAnalyzer_DetectsAppAnnotation(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register a simple injector to test retrieval
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "main.TestService",
-			PackagePath:     "main",
-			PackageName:     "main",
-			LocalName:       "TestService",
-			ConstructorName: "NewTestService",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	// Mark the package as scanned
-	packageTracker.MarkPackageScanned("main")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/simpleapp", analyzer, ".")
+func TestBootstrap_MultiTypeCrossPackage(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/multitype"
+	analysistest.Run(t, testdir, depAnalyzer, "example.com/multitype/repository")
+	analysistest.Run(t, testdir, depAnalyzer, "example.com/multitype/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_WaitsForAllPackages tests that the analyzer waits for
-// all packages to be scanned before generating bootstrap code.
-func TestAppAnalyzer_WaitsForAllPackages(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// This test verifies that AppAnalyzer waits for package scanning
-	// We won't mark packages as scanned, so it should timeout
-	// (or we could test with goroutines marking them as scanned)
-
-	// Register a simple injector to create a non-empty dependency graph
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "main.TestService",
-			PackagePath:     "main",
-			PackageName:     "main",
-			LocalName:       "TestService",
-			ConstructorName: "NewTestService",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	// For now, we'll test the happy path where packages are already scanned
-	packageTracker.MarkPackageScanned("main")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/simpleapp", analyzer, ".")
+func TestBootstrap_InterfaceDependency(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/ifacedep"
+	analysistest.Run(t, testdir, depAnalyzer, "example.com/ifacedep/domain")
+	analysistest.Run(t, testdir, depAnalyzer, "example.com/ifacedep/repository")
+	analysistest.Run(t, testdir, depAnalyzer, "example.com/ifacedep/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_SamefileAppAnnotations tests that multiple App annotations
-// in the same file are handled correctly (first one is used, others are ignored).
-func TestAppAnalyzer_SamefileAppAnnotations(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register a test injector so the graph is not empty
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "main.Service",
-			PackagePath:     "samefileapp",
-			PackageName:     "main",
-			LocalName:       "Service",
-			ConstructorName: "NewService",
-			Dependencies:    []string{},
-			IsPending:       false,
-		},
-	)
-
-	// Mark package as scanned
-	packageTracker.MarkPackageScanned("samefileapp")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/samefileapp", analyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/samefileapp", analyzer, ".")
+func TestBootstrap_InterfaceResolution(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/iface"
+	analysistest.Run(t, testdir, depAnalyzer, "iface/domain")
+	analysistest.Run(t, testdir, depAnalyzer, "iface/repository")
+	analysistest.Run(t, testdir, depAnalyzer, "iface/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_NonMainReference tests that App annotation referencing
-// a non-main function is detected and reported as an error.
-func TestAppAnalyzer_NonMainReference(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Mark package as scanned
-	packageTracker.MarkPackageScanned("nonmainapp")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/nonmainapp", analyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/nonmainapp", analyzer, ".")
+func TestBootstrap_CrossPackageInterface(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/crossiface"
+	analysistest.Run(t, testdir, depAnalyzer, "crossiface/domain")
+	analysistest.Run(t, testdir, depAnalyzer, "crossiface/repository")
+	analysistest.Run(t, testdir, depAnalyzer, "crossiface/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_RetrievesProvidersAndInjectors tests that the analyzer
-// retrieves all registered providers and injectors from global registries.
-func TestAppAnalyzer_RetrievesProvidersAndInjectors(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register some providers and injectors
-	providerRegistry.Register(
-		&registry.ProviderInfo{
-			TypeName:        "main.UserRepository",
-			PackagePath:     "main",
-			PackageName:     "main",
-			LocalName:       "UserRepository",
-			ConstructorName: "NewUserRepository",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "main.UserService",
-			PackagePath:     "main",
-			PackageName:     "main",
-			LocalName:       "UserService",
-			ConstructorName: "NewUserService",
-			Dependencies:    []string{"main.UserRepository"},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	// Mark package as scanned
-	packageTracker.MarkPackageScanned("main")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/simpleapp", analyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/simpleapp", analyzer, ".")
+func TestBootstrap_ModuleWideDiscovery(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/modulewide"
+	analysistest.Run(t, testdir, depAnalyzer, "modulewide/repository")
+	analysistest.Run(t, testdir, depAnalyzer, "modulewide/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_MultipleEntryPoints tests that multiple App annotations
-// in different entry points are handled correctly (each package processes independently).
-func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register injectors for both packages to create non-empty dependency graphs
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "main.Service1",
-			PackagePath:     "multipleapp/cmd/1",
-			PackageName:     "main",
-			LocalName:       "Service1",
-			ConstructorName: "NewService1",
-			Dependencies:    []string{},
-			IsPending:       false,
-		},
-	)
-
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "main.Service2",
-			PackagePath:     "multipleapp/cmd/2",
-			PackageName:     "main",
-			LocalName:       "Service2",
-			ConstructorName: "NewService2",
-			Dependencies:    []string{},
-			IsPending:       false,
-		},
-	)
-
-	// Mark packages as scanned
-	packageTracker.MarkPackageScanned("multipleapp/cmd/1")
-	packageTracker.MarkPackageScanned("multipleapp/cmd/2")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-
-	// Test both packages
-	analysistest.Run(t, "testdata/bootstrapgen/multipleapp", analyzer, "./...")
+func TestBootstrap_IdempotentImport(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/idempotent_import"
+	analysistest.Run(t, testdir, depAnalyzer, "idempotent_import/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_CircularDependency tests that circular dependencies
-// are detected and reported with the full cycle path.
-func TestAppAnalyzer_CircularDependency(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register circular dependency: ServiceA -> ServiceB -> ServiceA
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "circular/service.ServiceA",
-			PackagePath:     "circular/service",
-			PackageName:     "service",
-			LocalName:       "ServiceA",
-			ConstructorName: "NewServiceA",
-			Dependencies:    []string{"circular/service.ServiceB"},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "circular/service.ServiceB",
-			PackagePath:     "circular/service",
-			PackageName:     "service",
-			LocalName:       "ServiceB",
-			ConstructorName: "NewServiceB",
-			Dependencies:    []string{"circular/service.ServiceA"},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	// Mark package as scanned
-	packageTracker.MarkPackageScanned("circular")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/circular", analyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/circular", analyzer, ".")
+func TestBootstrap_CircularDependency(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/circular"
+	analysistest.Run(t, testdir, depAnalyzer, "circular/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_EmptyGraph tests that an empty bootstrap is generated
-// when no providers or injectors exist.
-func TestAppAnalyzer_EmptyGraph(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// No injectors or providers registered - empty graph
-	packageTracker.MarkPackageScanned("emptygraph")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/emptygraph", analyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/emptygraph", analyzer, ".")
+func TestBootstrap_AmbiguousInterface(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/ambiguous"
+	analysistest.Run(t, testdir, depAnalyzer, "ambiguous/domain")
+	analysistest.Run(t, testdir, depAnalyzer, "ambiguous/repository")
+	analysistest.Run(t, testdir, depAnalyzer, "ambiguous/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_IdempotentBehavior tests that no diagnostic is emitted
-// when the bootstrap code is already current.
-func TestAppAnalyzer_IdempotentBehavior(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register a simple injector
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "idempotent.UserService",
-			PackagePath:     "idempotent",
-			PackageName:     "main",
-			LocalName:       "UserService",
-			ConstructorName: "NewUserService",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("idempotent")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/idempotent", analyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/idempotent", analyzer, ".")
+func TestBootstrap_UnresolvedInterface(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/unresiface"
+	analysistest.Run(t, testdir, depAnalyzer, "unresiface/writer")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_InterfaceResolution tests that interface parameters
-// are correctly resolved to implementing injectable structs.
-func TestAppAnalyzer_InterfaceResolution(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+// --- Group B: Root package Injectable, no // want on App → Two-phase (2 tests) ---
 
-	// Register repository implementing the interface
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "iface/repository.UserRepository",
-			PackagePath:     "iface/repository",
-			PackageName:     "repository",
-			LocalName:       "UserRepository",
-			ConstructorName: "NewUserRepository",
-			Dependencies:    []string{},
-			Implements:      []string{"iface/domain.IUserRepository"},
-			IsPending:       false,
-		},
-	)
-
-	// Register service depending on the interface
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "iface/service.UserService",
-			PackagePath:     "iface/service",
-			PackageName:     "service",
-			LocalName:       "UserService",
-			ConstructorName: "NewUserService",
-			Dependencies:    []string{"iface/domain.IUserRepository"},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("iface")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/iface", analyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/iface", analyzer, ".")
+func TestBootstrap_DependencyAlreadyUsed(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/depinuse"
+	analysistest.Run(t, testdir, depAnalyzer, ".")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_AmbiguousInterface tests that an error is reported
-// when multiple injectable structs implement the same interface.
-func TestAppAnalyzer_AmbiguousInterface(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register two repositories implementing the same interface
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "ambiguous/repository.UserRepositoryA",
-			PackagePath:     "ambiguous/repository",
-			PackageName:     "repository",
-			LocalName:       "UserRepositoryA",
-			ConstructorName: "NewUserRepositoryA",
-			Dependencies:    []string{},
-			Implements:      []string{"ambiguous/domain.IUserRepository"},
-			IsPending:       false,
-		},
-	)
-
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "ambiguous/repository.UserRepositoryB",
-			PackagePath:     "ambiguous/repository",
-			PackageName:     "repository",
-			LocalName:       "UserRepositoryB",
-			ConstructorName: "NewUserRepositoryB",
-			Dependencies:    []string{},
-			Implements:      []string{"ambiguous/domain.IUserRepository"},
-			IsPending:       false,
-		},
-	)
-
-	// Register service depending on the interface
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "ambiguous/service.UserService",
-			PackagePath:     "ambiguous/service",
-			PackageName:     "service",
-			LocalName:       "UserService",
-			ConstructorName: "NewUserService",
-			Dependencies:    []string{"ambiguous/domain.IUserRepository"},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("ambiguous")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/ambiguous", analyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/ambiguous", analyzer, ".")
+func TestBootstrap_IdempotentBehavior(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/idempotent"
+	analysistest.Run(t, testdir, depAnalyzer, ".")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_CrossPackageInterface tests that interface resolution
-// works across packages via the global registry.
-func TestAppAnalyzer_CrossPackageInterface(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+// --- Group C: Root Injectable moved to sub-package → Two-phase (3 tests) ---
 
-	// Register repository from one package implementing interface from another
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "crossiface/repository.UserRepository",
-			PackagePath:     "crossiface/repository",
-			PackageName:     "repository",
-			LocalName:       "UserRepository",
-			ConstructorName: "NewUserRepository",
-			Dependencies:    []string{},
-			Implements:      []string{"crossiface/domain.IUserRepository"},
-			IsPending:       false,
-		},
-	)
-
-	// Register service depending on the interface
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "crossiface/service.UserService",
-			PackagePath:     "crossiface/service",
-			PackageName:     "service",
-			LocalName:       "UserService",
-			ConstructorName: "NewUserService",
-			Dependencies:    []string{"crossiface/domain.IUserRepository"},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("crossiface")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/crossiface", analyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/crossiface", analyzer, ".")
+func TestBootstrap_DependencyBlankIdentifier(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/depblank"
+	analysistest.Run(t, testdir, depAnalyzer, "example.com/depblank/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_UnresolvedInterface tests that an error is reported
-// when an interface parameter has no injectable implementation.
-func TestAppAnalyzer_UnresolvedInterface(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register writer that depends on io.Reader (no implementation)
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "unresiface/writer.MyWriter",
-			PackagePath:     "unresiface/writer",
-			PackageName:     "writer",
-			LocalName:       "MyWriter",
-			ConstructorName: "NewMyWriter",
-			Dependencies:    []string{"io.Reader"},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("unresiface")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/unresiface", analyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/unresiface", analyzer, ".")
+func TestBootstrap_BootstrapUpdate(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/outdated"
+	analysistest.Run(t, testdir, depAnalyzer, "outdated/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_ModuleWideDiscovery tests that all injectors and providers
-// are discovered from the module without explicit imports in main.
-func TestAppAnalyzer_ModuleWideDiscovery(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register multiple injectors from different packages
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "modulewide/repository.UserRepository",
-			PackagePath:     "modulewide/repository",
-			PackageName:     "repository",
-			LocalName:       "UserRepository",
-			ConstructorName: "NewUserRepository",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "modulewide/repository.OrderRepository",
-			PackagePath:     "modulewide/repository",
-			PackageName:     "repository",
-			LocalName:       "OrderRepository",
-			ConstructorName: "NewOrderRepository",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "modulewide/service.UserService",
-			PackagePath:     "modulewide/service",
-			PackageName:     "service",
-			LocalName:       "UserService",
-			ConstructorName: "NewUserService",
-			Dependencies:    []string{"modulewide/repository.UserRepository"},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("modulewide")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/modulewide", analyzer, ".")
+func TestBootstrap_SameFileApp(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/samefileapp"
+	analysistest.Run(t, testdir, depAnalyzer, "samefileapp/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_BootstrapUpdate tests that a diagnostic is emitted
-// with a SuggestedFix when the bootstrap code is outdated.
-func TestAppAnalyzer_BootstrapUpdate(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+// --- Group D: No Injectable/Provide → Simple Two-phase (3 tests) ---
 
-	// Register updated injectors (different from what's in the existing bootstrap)
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "outdated.UserService",
-			PackagePath:     "outdated",
-			PackageName:     "main",
-			LocalName:       "UserService",
-			ConstructorName: "NewUserService",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "outdated.OrderService",
-			PackagePath:     "outdated",
-			PackageName:     "main",
-			LocalName:       "OrderService",
-			ConstructorName: "NewOrderService",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("outdated")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/outdated", analyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/outdated", analyzer, ".")
+func TestBootstrap_EmptyGraph(t *testing.T) {
+	_, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/emptygraph"
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_MissingConstructor tests that an error is reported
-// when a Provide struct lacks a constructor.
-func TestAppAnalyzer_MissingConstructor(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register provider without constructor (IsPending=false but no constructor exists)
-	// This scenario is actually prevented by DependencyAnalyzer validation
-	// But we can test the error path by simulating the condition
-	providerRegistry.Register(
-		&registry.ProviderInfo{
-			TypeName:        "missingctor/repository.UserRepository",
-			PackagePath:     "missingctor/repository",
-			PackageName:     "repository",
-			LocalName:       "UserRepository",
-			ConstructorName: "", // No constructor
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("missingctor")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/missingctor", analyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/missingctor", analyzer, ".")
+func TestBootstrap_NonMainReference(t *testing.T) {
+	_, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/nonmainapp"
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// Golden File Tests (Task 11.1-11.5)
-
-// TestAppAnalyzer_BasicSinglePackage tests basic single-package bootstrap generation.
-// Task 11.1: Create test fixtures for basic single-package bootstrap
-func TestAppAnalyzer_BasicSinglePackage(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register Inject struct from service package
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "example.com/basic/service.UserService",
-			PackagePath:     "example.com/basic/service",
-			PackageName:     "service",
-			LocalName:       "UserService",
-			ConstructorName: "NewUserService",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("example.com/basic")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/basic", analyzer, ".")
+func TestBootstrap_NoAppAnnotation(t *testing.T) {
+	_, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/noapp"
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
-// TestAppAnalyzer_MultiTypeCrossPackage tests multi-type cross-package bootstrap with Inject/Provide distinction.
-// Task 11.2: Create test fixtures for multi-type cross-package bootstrap
-func TestAppAnalyzer_MultiTypeCrossPackage(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+// --- Group E: AppAnalyzer-only (3 tests) ---
 
-	// Register Provide-annotated structs (local variables in bootstrap)
-	providerRegistry.Register(
-		&registry.ProviderInfo{
-			TypeName:        "example.com/multitype/repository.UserRepository",
-			PackagePath:     "example.com/multitype/repository",
-			PackageName:     "repository",
-			LocalName:       "UserRepository",
-			ConstructorName: "NewUserRepository",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	providerRegistry.Register(
-		&registry.ProviderInfo{
-			TypeName:        "example.com/multitype/repository.OrderRepository",
-			PackagePath:     "example.com/multitype/repository",
-			PackageName:     "repository",
-			LocalName:       "OrderRepository",
-			ConstructorName: "NewOrderRepository",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	// Register Inject-annotated structs (fields in dependency struct)
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "example.com/multitype/service.UserService",
-			PackagePath:     "example.com/multitype/service",
-			PackageName:     "service",
-			LocalName:       "UserService",
-			ConstructorName: "NewUserService",
-			Dependencies:    []string{"example.com/multitype/repository.UserRepository"},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "example.com/multitype/service.OrderService",
-			PackagePath:     "example.com/multitype/service",
-			PackageName:     "service",
-			LocalName:       "OrderService",
-			ConstructorName: "NewOrderService",
-			Dependencies:    []string{"example.com/multitype/repository.OrderRepository"},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("example.com/multitype")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/multitype", analyzer, ".")
-}
-
-// TestAppAnalyzer_InterfaceDependency tests interface dependency resolution.
-// Task 11.3: Create test fixtures for interface dependency scenario
-func TestAppAnalyzer_InterfaceDependency(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register Provide struct implementing interface
-	providerRegistry.Register(
-		&registry.ProviderInfo{
-			TypeName:        "example.com/ifacedep/repository.UserRepository",
-			PackagePath:     "example.com/ifacedep/repository",
-			PackageName:     "repository",
-			LocalName:       "UserRepository",
-			ConstructorName: "NewUserRepository",
-			Dependencies:    []string{},
-			Implements:      []string{"example.com/ifacedep/domain.IUserRepository"},
-			IsPending:       false,
-		},
-	)
-
-	// Register Inject struct depending on interface
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "example.com/ifacedep/service.UserService",
-			PackagePath:     "example.com/ifacedep/service",
-			PackageName:     "service",
-			LocalName:       "UserService",
-			ConstructorName: "NewUserService",
-			Dependencies:    []string{"example.com/ifacedep/domain.IUserRepository"},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("example.com/ifacedep")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/ifacedep", analyzer, ".")
-}
-
-// TestAppAnalyzer_DependencyAlreadyUsed tests that _ = dependency is not added when already referenced.
-// Task 11.4: Create test fixtures for dependency already used scenario
-func TestAppAnalyzer_DependencyAlreadyUsed(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register Inject struct
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "example.com/depinuse/service.UserService",
-			PackagePath:     "example.com/depinuse/service",
-			PackageName:     "service",
-			LocalName:       "UserService",
-			ConstructorName: "NewUserService",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("example.com/depinuse")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/depinuse", analyzer, ".")
-}
-
-// TestAppAnalyzer_MultipleAppAnnotations tests multiple App annotation error reporting.
-// Task 11.5b: Create test fixtures for multiple App annotations
-// This test uses samefileapp which provides comprehensive coverage of multiple App annotations
-func TestAppAnalyzer_MultipleAppAnnotations(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register a test injector so the graph is not empty
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "main.Service",
-			PackagePath:     "samefileapp",
-			PackageName:     "main",
-			LocalName:       "Service",
-			ConstructorName: "NewService",
-			Dependencies:    []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("samefileapp")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.Run(t, "testdata/bootstrapgen/samefileapp", analyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/samefileapp", analyzer, ".")
-}
-
-// TestAppAnalyzer_DependencyBlankIdentifier tests that _ = dependency is not duplicated
-// when it already exists in the main function.
-// This test verifies idempotent behavior when the blank identifier assignment is present.
-func TestAppAnalyzer_DependencyBlankIdentifier(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register Inject structs
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "example.com/depblank.UserService",
-			PackagePath:     "example.com/depblank",
-			PackageName:     "main",
-			LocalName:       "UserService",
-			ConstructorName: "NewUserService",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "example.com/depblank.ItemService",
-			PackagePath:     "example.com/depblank",
-			PackageName:     "main",
-			LocalName:       "ItemService",
-			ConstructorName: "NewItemService",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("example.com/depblank")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/depblank", analyzer, ".")
-}
-
-// TestAppAnalyzer_CrossPackageImports tests that import statements are correctly added
-// when bootstrap code references types from external packages.
-// This test verifies the fix for the import processing issue.
-func TestAppAnalyzer_CrossPackageImports(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register Provide struct (UserRepository)
-	providerRegistry.Register(
-		&registry.ProviderInfo{
-			TypeName:        "crosspackage/repository.UserRepository",
-			PackagePath:     "crosspackage/repository",
-			PackageName:     "repository",
-			LocalName:       "UserRepository",
-			ConstructorName: "NewUserRepository",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	// Register Inject struct (UserService) with dependency on UserRepository
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "crosspackage/service.UserService",
-			PackagePath:     "crosspackage/service",
-			PackageName:     "service",
-			LocalName:       "UserService",
-			ConstructorName: "NewUserService",
-			Dependencies:    []string{"crosspackage/repository.UserRepository"},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("crosspackage")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/crosspackage", analyzer, ".")
-}
-
-// TestAppAnalyzer_IdempotentImport tests that import statements are not modified
-// when they already contain the exact same packages (only formatting differs).
-// This ensures the analyzer is idempotent and doesn't create unnecessary edits.
-func TestAppAnalyzer_IdempotentImport(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
-
-	// Register a simple injector in service package
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "idempotent_import/service.UserService",
-			PackagePath:     "idempotent_import/service",
-			PackageName:     "service",
-			LocalName:       "UserService",
-			ConstructorName: "NewUserService",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-
-	packageTracker.MarkPackageScanned("idempotent_import")
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-	)
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/idempotent_import", analyzer, ".")
-}
-
-// TestAppAnalyzer_ContextCancellation tests that AppAnalyzer skips bootstrap generation
-// when the validation context is cancelled (fatal validation errors in DependencyAnalyzer).
-// Task 7.1: Add context cancellation check before bootstrap generation
-// Requirement 8.5: Cancel AppAnalyzer processing on validation errors
 func TestAppAnalyzer_ContextCancellation(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
+	providerRegistry, injectorRegistry, packageTracker, validationContext, appDetector, graphBuilder, sorter,
 		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
 
-	// Register a simple injector to simulate dependencies present
 	injectorRegistry.Register(
 		&registry.InjectorInfo{
 			TypeName:        "contextcancel.TestService",
@@ -1046,15 +227,15 @@ func TestAppAnalyzer_ContextCancellation(t *testing.T) {
 			IsPending:       false,
 		},
 	)
-
-	// Mark package as scanned
 	packageTracker.MarkPackageScanned("contextcancel")
 
 	// Cancel the validation context to simulate fatal validation error
 	validationContext.Cancel()
 
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
+	packageLoader := &mockPackageLoader{}
+	analyzer := AppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader,
+		packageTracker, validationContext,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
 
@@ -1062,37 +243,68 @@ func TestAppAnalyzer_ContextCancellation(t *testing.T) {
 	analysistest.Run(t, "testdata/bootstrapgen/contextcancel", analyzer, ".")
 }
 
-// TestAppAnalyzer_ContextActive tests that AppAnalyzer proceeds with bootstrap generation
-// when the validation context is active (no fatal validation errors).
-// Task 7.1: Add context cancellation check before bootstrap generation
-func TestAppAnalyzer_ContextActive(t *testing.T) {
-	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
+func TestAppAnalyzer_MissingConstructor(t *testing.T) {
+	providerRegistry, injectorRegistry, packageTracker, validationContext, appDetector, graphBuilder, sorter,
 		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
 
-	// Register a simple injector
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "main.TestService",
-			PackagePath:     "main",
-			PackageName:     "main",
-			LocalName:       "TestService",
-			ConstructorName: "NewTestService",
+	providerRegistry.Register(
+		&registry.ProviderInfo{
+			TypeName:        "missingctor/repository.UserRepository",
+			PackagePath:     "missingctor/repository",
+			PackageName:     "repository",
+			LocalName:       "UserRepository",
+			ConstructorName: "", // No constructor
 			Dependencies:    []string{},
 			Implements:      []string{},
 			IsPending:       false,
 		},
 	)
+	packageTracker.MarkPackageScanned("missingctor")
 
-	// Mark package as scanned
-	packageTracker.MarkPackageScanned("main")
-
-	// Do NOT cancel the validation context - it should be active
-
-	analyzer := createAppAnalyzer(
-		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
+	packageLoader := &mockPackageLoader{}
+	analyzer := AppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader,
+		packageTracker, validationContext,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
+	analysistest.Run(t, "testdata/bootstrapgen/missingctor", analyzer, ".")
+	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/missingctor", analyzer, ".")
+}
 
-	// Should emit diagnostics when context is active
-	analysistest.Run(t, "testdata/bootstrapgen/simpleapp", analyzer, ".")
+func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
+	providerRegistry, injectorRegistry, packageTracker, validationContext, appDetector, graphBuilder, sorter,
+		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "main.Service1",
+			PackagePath:     "multipleapp/cmd/1",
+			PackageName:     "main",
+			LocalName:       "Service1",
+			ConstructorName: "NewService1",
+			Dependencies:    []string{},
+			IsPending:       false,
+		},
+	)
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "main.Service2",
+			PackagePath:     "multipleapp/cmd/2",
+			PackageName:     "main",
+			LocalName:       "Service2",
+			ConstructorName: "NewService2",
+			Dependencies:    []string{},
+			IsPending:       false,
+		},
+	)
+	packageTracker.MarkPackageScanned("multipleapp/cmd/1")
+	packageTracker.MarkPackageScanned("multipleapp/cmd/2")
+
+	packageLoader := &mockPackageLoader{}
+	analyzer := AppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader,
+		packageTracker, validationContext,
+		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+	)
+	analysistest.Run(t, "testdata/bootstrapgen/multipleapp", analyzer, "./...")
 }

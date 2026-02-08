@@ -9,6 +9,6 @@ type OrderRepository struct {
 	annotation.Injectable[inject.Default]
 }
 
-func NewOrderRepository() OrderRepository {
-	return OrderRepository{}
+func NewOrderRepository() *OrderRepository {
+	return &OrderRepository{}
 }

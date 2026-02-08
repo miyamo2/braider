@@ -272,7 +272,9 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 		if metadata.TypedInterface != nil {
 			registeredType = metadata.TypedInterface
 		} else {
-			registeredType = pass.TypesInfo.ObjectOf(injector.TypeSpec.Name).Type()
+			// Constructors always return pointer types (*StructName),
+			// so wrap the concrete struct type with a pointer.
+			registeredType = types.NewPointer(pass.TypesInfo.ObjectOf(injector.TypeSpec.Name).Type())
 		}
 
 		// Detect implemented interfaces from the type

@@ -11,8 +11,8 @@ type UserRepositoryA struct {
 	annotation.Injectable[inject.Default]
 }
 
-func NewUserRepositoryA() UserRepositoryA {
-	return UserRepositoryA{}
+func NewUserRepositoryA() *UserRepositoryA {
+	return &UserRepositoryA{}
 }
 
 func (r *UserRepositoryA) FindByID(id string) (domain.User, error) {

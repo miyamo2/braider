@@ -9,6 +9,6 @@ type UserService struct {
 	annotation.Injectable[inject.Default]
 }
 
-func NewUserService() UserService {
-	return UserService{}
+func NewUserService() *UserService {
+	return &UserService{}
 }

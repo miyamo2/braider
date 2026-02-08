@@ -12,6 +12,6 @@ type MyWriter struct {
 	reader io.Reader // No injectable implements io.Reader
 }
 
-func NewMyWriter(reader io.Reader) MyWriter {
-	return MyWriter{reader: reader}
+func NewMyWriter(reader io.Reader) *MyWriter {
+	return &MyWriter{reader: reader}
 }

@@ -2,16 +2,8 @@ package main
 
 import (
 	"github.com/miyamo2/braider/pkg/annotation"
-	"github.com/miyamo2/braider/pkg/annotation/inject"
+	"samefileapp/service"
 )
-
-type Service struct {
-	annotation.Injectable[inject.Default]
-}
-
-func NewService() Service {
-	return Service{}
-}
 
 // Same package, multiple Apps - should use first one only
 var _ = annotation.App(main) // want "bootstrap code is missing"
@@ -22,13 +14,13 @@ func main() {
 	_ = dependency
 }
 
-// braider:hash:ba904f56d3d08447
+// braider:hash:e283a390796ffc62
 var dependency = func() struct {
-	service Service
+	service *service.Service
 } {
-	service := NewService()
+	service := service.NewService()
 	return struct {
-		service Service
+		service *service.Service
 	}{
 		service: service,
 	}
