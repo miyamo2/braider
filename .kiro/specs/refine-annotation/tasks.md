@@ -139,8 +139,8 @@
   - Ensure initialization order respects dependency edges for both typed and named dependencies
   - _Requirements: 7.4_
 
-- [ ] 7. Update AppAnalyzer to check context cancellation
-- [ ] 7.1 Add context cancellation check before bootstrap generation
+- [x] 7. Update AppAnalyzer to check context cancellation
+- [x] 7.1 Add context cancellation check before bootstrap generation
   - At start of `AppAnalyzer.Run()`, check `ctx.Done()` channel from shared context
   - If context cancelled, skip bootstrap code generation and return early without error
   - If context active, proceed with normal bootstrap generation using updated `BootstrapGenerator`

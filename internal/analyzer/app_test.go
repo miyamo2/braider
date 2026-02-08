@@ -1018,3 +1018,75 @@ func TestAppAnalyzer_IdempotentImport(t *testing.T) {
 	)
 	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/idempotent_import", analyzer, ".")
 }
+
+// TestAppAnalyzer_ContextCancellation tests that AppAnalyzer skips bootstrap generation
+// when the validation context is cancelled (fatal validation errors in DependencyAnalyzer).
+// Task 7.1: Add context cancellation check before bootstrap generation
+// Requirement 8.5: Cancel AppAnalyzer processing on validation errors
+func TestAppAnalyzer_ContextCancellation(t *testing.T) {
+	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
+		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+
+	// Register a simple injector to simulate dependencies present
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "contextcancel.TestService",
+			PackagePath:     "contextcancel",
+			PackageName:     "main",
+			LocalName:       "TestService",
+			ConstructorName: "NewTestService",
+			Dependencies:    []string{},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	// Mark package as scanned
+	packageTracker.MarkPackageScanned("contextcancel")
+
+	// Cancel the validation context to simulate fatal validation error
+	validationContext.Cancel()
+
+	analyzer := createAppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
+		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+	)
+
+	// Should not emit any diagnostics when context is cancelled
+	analysistest.Run(t, "testdata/bootstrapgen/contextcancel", analyzer, ".")
+}
+
+// TestAppAnalyzer_ContextActive tests that AppAnalyzer proceeds with bootstrap generation
+// when the validation context is active (no fatal validation errors).
+// Task 7.1: Add context cancellation check before bootstrap generation
+func TestAppAnalyzer_ContextActive(t *testing.T) {
+	providerRegistry, injectorRegistry, packageLoader, packageTracker, validationContext, appDetector, graphBuilder, sorter,
+		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+
+	// Register a simple injector
+	injectorRegistry.Register(
+		&registry.InjectorInfo{
+			TypeName:        "main.TestService",
+			PackagePath:     "main",
+			PackageName:     "main",
+			LocalName:       "TestService",
+			ConstructorName: "NewTestService",
+			Dependencies:    []string{},
+			Implements:      []string{},
+			IsPending:       false,
+		},
+	)
+
+	// Mark package as scanned
+	packageTracker.MarkPackageScanned("main")
+
+	// Do NOT cancel the validation context - it should be active
+
+	analyzer := createAppAnalyzer(
+		appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, validationContext,
+		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+	)
+
+	// Should emit diagnostics when context is active
+	analysistest.Run(t, "testdata/bootstrapgen/simpleapp", analyzer, ".")
+}
