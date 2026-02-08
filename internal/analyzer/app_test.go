@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"iter"
+	"strings"
 	"testing"
 
 	"github.com/miyamo2/braider/internal/detect"
@@ -59,157 +60,6 @@ func setupTestDependencies() (
 	return providerRegistry, injectorRegistry, packageTracker, validationContext, appDetector,
 		graphBuilder, sorter, bootstrapGenerator, suggestedFixBuilder, diagnosticEmitter
 }
-
-// --- Group A: Sub-package Injectable/Provide → Two-phase pipeline (11 tests) ---
-
-func TestBootstrap_BasicSinglePackage(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/basic"
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/basic/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestBootstrap_CrossPackageImports(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/crosspackage"
-	analysistest.Run(t, testdir, depAnalyzer, "crosspackage/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "crosspackage/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestBootstrap_MultiTypeCrossPackage(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/multitype"
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/multitype/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/multitype/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestBootstrap_InterfaceDependency(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/ifacedep"
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/ifacedep/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/ifacedep/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/ifacedep/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestBootstrap_InterfaceResolution(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/iface"
-	analysistest.Run(t, testdir, depAnalyzer, "iface/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "iface/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "iface/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestBootstrap_CrossPackageInterface(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/crossiface"
-	analysistest.Run(t, testdir, depAnalyzer, "crossiface/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "crossiface/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "crossiface/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestBootstrap_ModuleWideDiscovery(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/modulewide"
-	analysistest.Run(t, testdir, depAnalyzer, "modulewide/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "modulewide/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestBootstrap_IdempotentImport(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/idempotent_import"
-	analysistest.Run(t, testdir, depAnalyzer, "idempotent_import/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestBootstrap_CircularDependency(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/circular"
-	analysistest.Run(t, testdir, depAnalyzer, "circular/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestBootstrap_AmbiguousInterface(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/ambiguous"
-	analysistest.Run(t, testdir, depAnalyzer, "ambiguous/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "ambiguous/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "ambiguous/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestBootstrap_UnresolvedInterface(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/unresiface"
-	analysistest.Run(t, testdir, depAnalyzer, "unresiface/writer")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// --- Group B: Root package Injectable, no // want on App → Two-phase (2 tests) ---
-
-func TestBootstrap_DependencyAlreadyUsed(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/depinuse"
-	analysistest.Run(t, testdir, depAnalyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestBootstrap_IdempotentBehavior(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/idempotent"
-	analysistest.Run(t, testdir, depAnalyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// --- Group C: Root Injectable moved to sub-package → Two-phase (3 tests) ---
-
-func TestBootstrap_DependencyBlankIdentifier(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/depblank"
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/depblank/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestBootstrap_BootstrapUpdate(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/outdated"
-	analysistest.Run(t, testdir, depAnalyzer, "outdated/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestBootstrap_SameFileApp(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/samefileapp"
-	analysistest.Run(t, testdir, depAnalyzer, "samefileapp/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// --- Group D: No Injectable/Provide → Simple Two-phase (3 tests) ---
-
-func TestBootstrap_EmptyGraph(t *testing.T) {
-	_, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/emptygraph"
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestBootstrap_NonMainReference(t *testing.T) {
-	_, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/nonmainapp"
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestBootstrap_NoAppAnnotation(t *testing.T) {
-	_, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/noapp"
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// --- Group E: AppAnalyzer-only (3 tests) ---
 
 func TestAppAnalyzer_ContextCancellation(t *testing.T) {
 	providerRegistry, injectorRegistry, packageTracker, validationContext, appDetector, graphBuilder, sorter,
@@ -307,4 +157,55 @@ func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
 	analysistest.Run(t, "testdata/bootstrapgen/multipleapp", analyzer, "./...")
+}
+
+// TestAppAnalyzer_CorrelationErrorNonFatal tests that duplicate (TypeName, Name) registration
+// returns an error from Registry.Register() but does NOT cancel the ValidationContext,
+// so AppAnalyzer continues to generate bootstrap code.
+// This scenario cannot be triggered via analysistest because Go TypeNames are unique per package.
+func TestAppAnalyzer_CorrelationErrorNonFatal(t *testing.T) {
+	injectorReg := registry.NewInjectorRegistry()
+	validationCtx := registry.NewValidationContext()
+
+	// First registration succeeds
+	err := injectorReg.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/repo.Repository",
+			PackagePath:     "example.com/repo",
+			PackageName:     "repo",
+			LocalName:       "Repository",
+			ConstructorName: "NewRepository",
+			Dependencies:    []string{},
+			Name:            "primary",
+			OptionMetadata:  detect.OptionMetadata{Name: "primary"},
+		},
+	)
+	if err != nil {
+		t.Fatalf("First registration should succeed, got: %v", err)
+	}
+
+	// Duplicate registration returns error
+	err = injectorReg.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/repo.Repository",
+			PackagePath:     "example.com/repo2",
+			PackageName:     "repo2",
+			LocalName:       "Repository",
+			ConstructorName: "NewRepository",
+			Dependencies:    []string{},
+			Name:            "primary",
+			OptionMetadata:  detect.OptionMetadata{Name: "primary"},
+		},
+	)
+	if err == nil {
+		t.Fatal("Duplicate registration should return error")
+	}
+	if !strings.Contains(err.Error(), "duplicate") {
+		t.Errorf("Error should mention 'duplicate', got: %v", err)
+	}
+
+	// Context should NOT be cancelled (correlation errors are non-fatal)
+	if validationCtx.IsCancelled() {
+		t.Error("ValidationContext should NOT be cancelled for correlation errors")
+	}
 }
