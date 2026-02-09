@@ -97,34 +97,22 @@ func NewAppAnalyzeRunner(
 }
 
 func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
-	resultCh := make(chan runResult, 1)
+	return r.run(r.bootstrapCtx, pass)
+}
 
-	go func() {
-		resultCh <- r.run(r.bootstrapCtx, pass)
-		defer close(resultCh)
-	}()
-
-	select {
-	case <-r.bootstrapCtx.Done():
+func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) (interface{}, error) {
+	// Early context cancellation check
+	if err := ctx.Err(); err != nil {
 		return nil, nil
-	case result := <-resultCh:
-		return result.value, nil
 	}
-}
 
-type runResult struct {
-	value interface{}
-	err   error
-}
-
-func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) runResult {
 	reporter := &passReporter{pass: pass}
 	// Phase 1: Detect App annotations
 	apps := r.appDetector.DetectAppAnnotations(pass)
 
 	// Skip if no App annotation present
 	if len(apps) == 0 {
-		return runResult{}
+		return nil, nil
 	}
 
 	// Phase 1.5: Deduplicate by file (same file → first only)
@@ -153,17 +141,17 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) runResu
 				r.diagnosticEmitter.EmitNonMainAppError(reporter, appErr.Positions[0], appErr.FuncName)
 			}
 			// Skip bootstrap generation after validation error
-			return runResult{}
+			return nil, nil
 		}
 		// Unknown error type, skip bootstrap
-		return runResult{}
+		return nil, nil
 	}
 
 	// Phase 2: Wait for all packages to be scanned
 	// Defensive programming: ensure pass.Files is not empty
 	if len(pass.Files) == 0 {
 		// This should not happen in normal analyzer execution, but handle it defensively
-		return runResult{err: fmt.Errorf("no files in pass")}
+		return nil, fmt.Errorf("no files in pass")
 	}
 
 	allPkgPaths, err := r.packageLoader.LoadModulePackageNames(pass.Fset.File(pass.Files[0].Pos()).Name())
@@ -177,7 +165,7 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) runResu
 	if len(allPkgPaths) > 0 {
 		if err := r.packageTracker.WaitForAllPackagesWithContext(ctx, allPkgPaths); err != nil {
 			if errors.Is(err, context.Canceled) {
-				return runResult{err: fmt.Errorf("package scanning canceled: %w", err)}
+				return nil, nil
 			}
 			// Emit timeout warning diagnostic but continue
 			// The registry may be incomplete, but we proceed with what we have
@@ -194,7 +182,7 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) runResu
 	if err != nil {
 		// Report graph construction errors to the user
 		r.diagnosticEmitter.EmitGraphBuildError(reporter, apps[0].Pos, err.Error())
-		return runResult{}
+		return nil, nil
 	}
 
 	// Execute topological sort
@@ -202,11 +190,11 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) runResu
 	if err != nil {
 		if cycleErr, ok := err.(*graph.CycleError); ok {
 			r.diagnosticEmitter.EmitCircularDependency(reporter, apps[0].Pos, cycleErr.Cycle)
-			return runResult{}
+			return nil, nil
 		}
 		// Unknown topological sort error - report for debugging
 		r.diagnosticEmitter.EmitGraphBuildError(reporter, apps[0].Pos, err.Error())
-		return runResult{}
+		return nil, nil
 	}
 
 	// Phase 5: Generate bootstrap code
@@ -215,7 +203,7 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) runResu
 	if existingBootstrap != nil {
 		if r.bootstrapGen.CheckBootstrapCurrent(pass, existingBootstrap, depGraph) {
 			// Bootstrap is up-to-date (idempotent)
-			return runResult{}
+			return nil, nil
 		}
 	}
 
@@ -223,13 +211,13 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) runResu
 	bootstrap, err := r.bootstrapGen.GenerateBootstrap(pass, depGraph, sortedTypes)
 	if err != nil {
 		r.diagnosticEmitter.EmitGenerationError(reporter, apps[0].Pos, "bootstrap", err.Error())
-		return runResult{}
+		return nil, nil
 	}
 
 	// Find main function
 	mainFunc := findMainFunction(pass)
 	if mainFunc == nil {
-		return runResult{}
+		return nil, nil
 	}
 
 	// Build and emit fix
@@ -243,7 +231,7 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) runResu
 		r.diagnosticEmitter.EmitBootstrapFix(reporter, apps[0].Pos, fix)
 	}
 
-	return runResult{}
+	return nil, nil
 }
 
 // findMainFunction finds the main function declaration in the package.
