@@ -100,11 +100,11 @@ func TestProviderRegistry_GetByName(t *testing.T) {
 		r := NewProviderRegistry()
 
 		info1 := &ProviderInfo{
-			TypeName: "example.com/repo.UserRepository#primary",
+			TypeName: "example.com/repo.UserRepository",
 			Name:     "primaryRepo",
 		}
 		info2 := &ProviderInfo{
-			TypeName: "example.com/repo.UserRepository#secondary",
+			TypeName: "example.com/repo.UserRepository",
 			Name:     "secondaryRepo",
 		}
 
@@ -115,8 +115,8 @@ func TestProviderRegistry_GetByName(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		got1, ok1 := r.GetByName("example.com/repo.UserRepository#primary", "primaryRepo")
-		got2, ok2 := r.GetByName("example.com/repo.UserRepository#secondary", "secondaryRepo")
+		got1, ok1 := r.GetByName("example.com/repo.UserRepository", "primaryRepo")
+		got2, ok2 := r.GetByName("example.com/repo.UserRepository", "secondaryRepo")
 
 		if !ok1 || !ok2 {
 			t.Fatal("GetByName() returned ok=false for one or both named providers")
@@ -126,6 +126,62 @@ func TestProviderRegistry_GetByName(t *testing.T) {
 		}
 		if got2.Name != "secondaryRepo" {
 			t.Errorf("got2.Name = %q, want %q", got2.Name, "secondaryRepo")
+		}
+	})
+
+	t.Run("registers same type with different names without collision", func(t *testing.T) {
+		r := NewProviderRegistry()
+
+		info1 := &ProviderInfo{TypeName: "example.com/repo.Repo", Name: "alpha", PackagePath: "pkg1"}
+		info2 := &ProviderInfo{TypeName: "example.com/repo.Repo", Name: "beta", PackagePath: "pkg2"}
+
+		if err := r.Register(info1); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.Register(info2); err != nil {
+			t.Fatal(err)
+		}
+
+		got1, ok1 := r.GetByName("example.com/repo.Repo", "alpha")
+		got2, ok2 := r.GetByName("example.com/repo.Repo", "beta")
+
+		if !ok1 || !ok2 {
+			t.Fatal("both should exist")
+		}
+		if got1.Name != "alpha" || got2.Name != "beta" {
+			t.Fatal("wrong names")
+		}
+	})
+
+	t.Run("named and unnamed providers of same type coexist", func(t *testing.T) {
+		r := NewProviderRegistry()
+
+		unnamed := &ProviderInfo{TypeName: "example.com/repo.Repo", Name: ""}
+		named := &ProviderInfo{TypeName: "example.com/repo.Repo", Name: "special"}
+
+		if err := r.Register(unnamed); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.Register(named); err != nil {
+			t.Fatal(err)
+		}
+
+		got := r.GetAll()
+		if len(got) != 2 {
+			t.Errorf("expected 2, got %d", len(got))
+		}
+	})
+
+	t.Run("GetAll includes all named variants", func(t *testing.T) {
+		r := NewProviderRegistry()
+
+		r.Register(&ProviderInfo{TypeName: "example.com/repo.Repo", Name: ""})
+		r.Register(&ProviderInfo{TypeName: "example.com/repo.Repo", Name: "a"})
+		r.Register(&ProviderInfo{TypeName: "example.com/repo.Repo", Name: "b"})
+
+		got := r.GetAll()
+		if len(got) != 3 {
+			t.Errorf("expected 3, got %d", len(got))
 		}
 	})
 }

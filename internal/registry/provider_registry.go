@@ -61,13 +61,13 @@ func (i *ProviderInfo) GetName() string {
 // Uses RWMutex to allow concurrent reads for improved performance.
 type ProviderRegistry struct {
 	mu        sync.RWMutex
-	providers map[string]*ProviderInfo
+	providers map[string]map[string]*ProviderInfo
 }
 
 // NewProviderRegistry creates a new empty registry.
 func NewProviderRegistry() *ProviderRegistry {
 	return &ProviderRegistry{
-		providers: make(map[string]*ProviderInfo),
+		providers: make(map[string]map[string]*ProviderInfo),
 	}
 }
 
@@ -77,7 +77,10 @@ func NewProviderRegistry() *ProviderRegistry {
 func (r *ProviderRegistry) Register(info *ProviderInfo) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if existing, ok := r.providers[info.TypeName]; ok {
+	if r.providers[info.TypeName] == nil {
+		r.providers[info.TypeName] = make(map[string]*ProviderInfo)
+	}
+	if existing, ok := r.providers[info.TypeName][info.Name]; ok {
 		if existing.Name != "" && existing.Name == info.Name {
 			return fmt.Errorf(
 				"duplicate named dependency: type %s with name %q already registered from %s",
@@ -85,7 +88,7 @@ func (r *ProviderRegistry) Register(info *ProviderInfo) error {
 			)
 		}
 	}
-	r.providers[info.TypeName] = info
+	r.providers[info.TypeName][info.Name] = info
 	return nil
 }
 
@@ -96,15 +99,24 @@ func (r *ProviderRegistry) GetAll() []*ProviderInfo {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	result := make([]*ProviderInfo, 0, len(r.providers))
-	for _, info := range r.providers {
-		result = append(result, info)
+	size := 0
+	for _, inner := range r.providers {
+		size += len(inner)
+	}
+	result := make([]*ProviderInfo, 0, size)
+	for _, inner := range r.providers {
+		for _, info := range inner {
+			result = append(result, info)
+		}
 	}
 
-	// Sort alphabetically by TypeName for deterministic output
+	// Sort alphabetically by TypeName, then by Name for deterministic output
 	sort.Slice(
 		result, func(i, j int) bool {
-			return result[i].TypeName < result[j].TypeName
+			if result[i].TypeName != result[j].TypeName {
+				return result[i].TypeName < result[j].TypeName
+			}
+			return result[i].Name < result[j].Name
 		},
 	)
 
@@ -116,7 +128,11 @@ func (r *ProviderRegistry) GetAll() []*ProviderInfo {
 func (r *ProviderRegistry) Get(typeName string) *ProviderInfo {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.providers[typeName]
+	inner, ok := r.providers[typeName]
+	if !ok {
+		return nil
+	}
+	return inner[""]
 }
 
 // GetByName retrieves a named provider by fully qualified type name and name.
@@ -125,16 +141,10 @@ func (r *ProviderRegistry) Get(typeName string) *ProviderInfo {
 func (r *ProviderRegistry) GetByName(typeName, name string) (*ProviderInfo, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
-	info, exists := r.providers[typeName]
-	if !exists {
+	inner, ok := r.providers[typeName]
+	if !ok {
 		return nil, false
 	}
-
-	// Check if the name matches
-	if info.Name != name {
-		return nil, false
-	}
-
-	return info, true
+	info, exists := inner[name]
+	return info, exists
 }

@@ -276,5 +276,8 @@ func isValidGoIdentifier(s string) bool {
 			}
 		}
 	}
+	if token.Lookup(s).IsKeyword() {
+		return false
+	}
 	return true
 }

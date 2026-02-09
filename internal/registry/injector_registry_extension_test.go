@@ -29,8 +29,8 @@ func TestInjectorInfo_OptionMetadataFields(t *testing.T) {
 			t.Fatalf("Register() returned error: %v", err)
 		}
 
-		got := r.Get("example.com/service.UserService")
-		if got == nil {
+		got, ok := r.GetByName("example.com/service.UserService", "primaryUser")
+		if !ok || got == nil {
 			t.Fatal("expected injector to be registered, got nil")
 		}
 		if got.RegisteredType == nil {

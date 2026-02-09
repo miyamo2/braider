@@ -29,8 +29,8 @@ func TestProviderInfo_OptionMetadataFields(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		got := r.Get("example.com/repo.UserRepository")
-		if got == nil {
+		got, ok := r.GetByName("example.com/repo.UserRepository", "primaryRepo")
+		if !ok || got == nil {
 			t.Fatal("expected provider to be registered, got nil")
 		}
 		if got.RegisteredType == nil {

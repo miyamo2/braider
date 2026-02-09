@@ -56,13 +56,13 @@ func (i *InjectorInfo) GetName() string {
 // Uses RWMutex to allow concurrent reads for improved performance.
 type InjectorRegistry struct {
 	mu        sync.RWMutex
-	injectors map[string]*InjectorInfo
+	injectors map[string]map[string]*InjectorInfo
 }
 
 // NewInjectorRegistry creates a new empty registry.
 func NewInjectorRegistry() *InjectorRegistry {
 	return &InjectorRegistry{
-		injectors: make(map[string]*InjectorInfo),
+		injectors: make(map[string]map[string]*InjectorInfo),
 	}
 }
 
@@ -72,7 +72,10 @@ func NewInjectorRegistry() *InjectorRegistry {
 func (r *InjectorRegistry) Register(info *InjectorInfo) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if existing, ok := r.injectors[info.TypeName]; ok {
+	if r.injectors[info.TypeName] == nil {
+		r.injectors[info.TypeName] = make(map[string]*InjectorInfo)
+	}
+	if existing, ok := r.injectors[info.TypeName][info.Name]; ok {
 		if existing.Name != "" && existing.Name == info.Name {
 			return fmt.Errorf(
 				"duplicate named dependency: type %s with name %q already registered from %s",
@@ -80,7 +83,7 @@ func (r *InjectorRegistry) Register(info *InjectorInfo) error {
 			)
 		}
 	}
-	r.injectors[info.TypeName] = info
+	r.injectors[info.TypeName][info.Name] = info
 	return nil
 }
 
@@ -91,15 +94,20 @@ func (r *InjectorRegistry) GetAll() []*InjectorInfo {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	result := make([]*InjectorInfo, 0, len(r.injectors))
-	for _, info := range r.injectors {
-		result = append(result, info)
+	result := make([]*InjectorInfo, 0)
+	for _, inner := range r.injectors {
+		for _, info := range inner {
+			result = append(result, info)
+		}
 	}
 
-	// Sort alphabetically by TypeName for deterministic output
+	// Sort alphabetically by TypeName, then by Name for deterministic output
 	sort.Slice(
 		result, func(i, j int) bool {
-			return result[i].TypeName < result[j].TypeName
+			if result[i].TypeName != result[j].TypeName {
+				return result[i].TypeName < result[j].TypeName
+			}
+			return result[i].Name < result[j].Name
 		},
 	)
 
@@ -111,7 +119,11 @@ func (r *InjectorRegistry) GetAll() []*InjectorInfo {
 func (r *InjectorRegistry) Get(typeName string) *InjectorInfo {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.injectors[typeName]
+	inner, ok := r.injectors[typeName]
+	if !ok {
+		return nil
+	}
+	return inner[""]
 }
 
 // GetByName retrieves a named injector by fully qualified type name and name.
@@ -120,16 +132,10 @@ func (r *InjectorRegistry) Get(typeName string) *InjectorInfo {
 func (r *InjectorRegistry) GetByName(typeName, name string) (*InjectorInfo, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-
-	info, exists := r.injectors[typeName]
-	if !exists {
+	inner, ok := r.injectors[typeName]
+	if !ok {
 		return nil, false
 	}
-
-	// Check if the name matches
-	if info.Name != name {
-		return nil, false
-	}
-
-	return info, true
+	info, exists := inner[name]
+	return info, exists
 }

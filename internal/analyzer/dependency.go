@@ -222,7 +222,7 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 			},
 		); err != nil {
 			existingLocation := pass.Pkg.Path()
-			if existing := r.provideRegistry.Get(typeName); existing != nil {
+			if existing, ok := r.provideRegistry.GetByName(typeName, metadata.Name); ok {
 				existingLocation = existing.PackagePath
 			}
 			r.diagnosticEmitter.EmitDuplicateNamedDependencyWarning(
@@ -311,7 +311,7 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 		); err != nil {
 			injectorTypeName := pass.Pkg.Path() + "." + injector.TypeSpec.Name.Name
 			existingLocation := pass.Pkg.Path()
-			if existing := r.injectRegistry.Get(injectorTypeName); existing != nil {
+			if existing, ok := r.injectRegistry.GetByName(injectorTypeName, metadata.Name); ok {
 				existingLocation = existing.PackagePath
 			}
 			r.diagnosticEmitter.EmitDuplicateNamedDependencyWarning(
