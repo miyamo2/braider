@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"context"
 	"go/types"
 
 	"github.com/miyamo2/braider/internal/detect"
@@ -17,7 +18,7 @@ func DependencyAnalyzer(
 	provideRegistry *registry.ProviderRegistry,
 	injectRegistry *registry.InjectorRegistry,
 	packageTracker *registry.PackageTracker,
-	validationContext *registry.ValidationContext,
+	bootstrapCancel context.CancelCauseFunc,
 	provideCallDetector detect.ProvideCallDetector,
 	injectDetector detect.InjectDetector,
 	structDetector detect.StructDetector,
@@ -35,7 +36,7 @@ func DependencyAnalyzer(
 			provideRegistry,
 			injectRegistry,
 			packageTracker,
-			validationContext,
+			bootstrapCancel,
 			provideCallDetector,
 			injectDetector,
 			structDetector,
@@ -54,7 +55,7 @@ type DependencyAnalyzeRunner struct {
 	provideRegistry      *registry.ProviderRegistry
 	injectRegistry       *registry.InjectorRegistry
 	packageTracker       *registry.PackageTracker
-	validationContext    *registry.ValidationContext
+	bootstrapCancel      context.CancelCauseFunc
 	provideCallDetector  detect.ProvideCallDetector
 	injectDetector       detect.InjectDetector
 	structDetector       detect.StructDetector
@@ -70,7 +71,7 @@ func NewDependencyAnalyzeRunner(
 	provideRegistry *registry.ProviderRegistry,
 	injectRegistry *registry.InjectorRegistry,
 	packageTracker *registry.PackageTracker,
-	validationContext *registry.ValidationContext,
+	bootstrapCancel context.CancelCauseFunc,
 	provideCallDetector detect.ProvideCallDetector,
 	injectDetector detect.InjectDetector,
 	structDetector detect.StructDetector,
@@ -85,7 +86,7 @@ func NewDependencyAnalyzeRunner(
 		provideRegistry:      provideRegistry,
 		injectRegistry:       injectRegistry,
 		packageTracker:       packageTracker,
-		validationContext:    validationContext,
+		bootstrapCancel:      bootstrapCancel,
 		provideCallDetector:  provideCallDetector,
 		injectDetector:       injectDetector,
 		structDetector:       structDetector,
@@ -188,7 +189,7 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 			metadata, err = r.optionExtractor.ExtractProvideOptions(pass, provider.CallExpr, providerFuncType)
 			if err != nil {
 				r.diagnosticEmitter.EmitOptionValidationError(reporter, provider.CallExpr.Pos(), err.Error())
-				r.validationContext.Cancel()
+				r.bootstrapCancel(err)
 				continue
 			}
 		}
@@ -262,7 +263,7 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 			metadata, err = r.optionExtractor.ExtractInjectOptions(pass, injector.InjectField.Type, concreteType)
 			if err != nil {
 				r.diagnosticEmitter.EmitOptionValidationError(reporter, injector.TypeSpec.Pos(), err.Error())
-				r.validationContext.Cancel()
+				r.bootstrapCancel(err)
 				continue
 			}
 		}

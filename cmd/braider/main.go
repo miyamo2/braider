@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/miyamo2/braider/internal/analyzer"
 	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/generate"
@@ -16,7 +18,7 @@ func main() {
 	providerRegistry := registry.NewProviderRegistry()
 	injectorRegistry := registry.NewInjectorRegistry()
 	packageTracker := registry.NewPackageTracker()
-	validationContext := registry.NewValidationContext()
+	bootstrapCtx, bootstrapCancel := context.WithCancelCause(context.Background())
 
 	// Step 2: Loaders
 	packageLoader := loader.NewPackageLoader()
@@ -48,7 +50,7 @@ func main() {
 		providerRegistry,
 		injectorRegistry,
 		packageTracker,
-		validationContext,
+		bootstrapCancel,
 		provideCallDetector,
 		injectDetector,
 		structDetector,
@@ -66,7 +68,7 @@ func main() {
 		providerRegistry,
 		packageLoader,
 		packageTracker,
-		validationContext,
+		bootstrapCtx,
 		graphBuilder,
 		sorter,
 		bootstrapGenerator,

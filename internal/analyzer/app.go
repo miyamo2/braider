@@ -26,7 +26,7 @@ func AppAnalyzer(
 	provideRegistry *registry.ProviderRegistry,
 	packageLoader loader.PackageLoader,
 	packageTracker *registry.PackageTracker,
-	validationContext *registry.ValidationContext,
+	bootstrapCtx context.Context,
 	graphBuilder *graph.DependencyGraphBuilder,
 	sorter *graph.TopologicalSorter,
 	bootstrapGen generate.BootstrapGenerator,
@@ -42,7 +42,7 @@ func AppAnalyzer(
 			provideRegistry,
 			packageLoader,
 			packageTracker,
-			validationContext,
+			bootstrapCtx,
 			graphBuilder,
 			sorter,
 			bootstrapGen,
@@ -59,7 +59,7 @@ type AppAnalyzeRunner struct {
 	provideRegistry   *registry.ProviderRegistry
 	packageLoader     loader.PackageLoader
 	packageTracker    *registry.PackageTracker
-	validationContext *registry.ValidationContext
+	bootstrapCtx      context.Context
 	graphBuilder      *graph.DependencyGraphBuilder
 	sorter            *graph.TopologicalSorter
 	bootstrapGen      generate.BootstrapGenerator
@@ -73,7 +73,7 @@ func NewAppAnalyzeRunner(
 	provideRegistry *registry.ProviderRegistry,
 	packageLoader loader.PackageLoader,
 	packageTracker *registry.PackageTracker,
-	validationContext *registry.ValidationContext,
+	bootstrapCtx context.Context,
 	graphBuilder *graph.DependencyGraphBuilder,
 	sorter *graph.TopologicalSorter,
 	bootstrapGen generate.BootstrapGenerator,
@@ -86,7 +86,7 @@ func NewAppAnalyzeRunner(
 		provideRegistry:   provideRegistry,
 		packageLoader:     packageLoader,
 		packageTracker:    packageTracker,
-		validationContext: validationContext,
+		bootstrapCtx:      bootstrapCtx,
 		graphBuilder:      graphBuilder,
 		sorter:            sorter,
 		bootstrapGen:      bootstrapGen,
@@ -96,21 +96,31 @@ func NewAppAnalyzeRunner(
 }
 
 func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
-	reporter := &passReporter{pass: pass}
+	resultCh := make(chan runResult, 1)
+	defer close(resultCh)
 
-	// Phase 0: Check for validation context cancellation (fatal errors in DependencyAnalyzer)
-	// Requirement 8.5: Cancel AppAnalyzer processing on validation errors
-	if r.validationContext != nil && r.validationContext.IsCancelled() {
-		// DependencyAnalyzer encountered fatal validation errors, skip bootstrap generation
-		return nil, nil
+	select {
+	case <-r.bootstrapCtx.Done():
+		return nil, r.bootstrapCtx.Err()
+	case resultCh <- r.run(pass):
+		result := <-resultCh
+		return result.value, result.err
 	}
+}
 
+type runResult struct {
+	value interface{}
+	err   error
+}
+
+func (r *AppAnalyzeRunner) run(pass *analysis.Pass) runResult {
+	reporter := &passReporter{pass: pass}
 	// Phase 1: Detect App annotations
 	apps := r.appDetector.DetectAppAnnotations(pass)
 
 	// Skip if no App annotation present
 	if len(apps) == 0 {
-		return nil, nil
+		return runResult{}
 	}
 
 	// Phase 1.5: Deduplicate by file (same file → first only)
@@ -139,17 +149,17 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 				r.diagnosticEmitter.EmitNonMainAppError(reporter, appErr.Positions[0], appErr.FuncName)
 			}
 			// Skip bootstrap generation after validation error
-			return nil, nil
+			return runResult{}
 		}
 		// Unknown error type, skip bootstrap
-		return nil, nil
+		return runResult{}
 	}
 
 	// Phase 2: Wait for all packages to be scanned
 	// Defensive programming: ensure pass.Files is not empty
 	if len(pass.Files) == 0 {
 		// This should not happen in normal analyzer execution, but handle it defensively
-		return nil, fmt.Errorf("no files in pass")
+		return runResult{err: fmt.Errorf("no files in pass")}
 	}
 
 	allPkgPaths, err := r.packageLoader.LoadModulePackageNames(pass.Fset.File(pass.Files[0].Pos()).Name())
@@ -179,7 +189,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 	if err != nil {
 		// Report graph construction errors to the user
 		r.diagnosticEmitter.EmitGraphBuildError(reporter, apps[0].Pos, err.Error())
-		return nil, nil
+		return runResult{}
 	}
 
 	// Execute topological sort
@@ -187,11 +197,11 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 	if err != nil {
 		if cycleErr, ok := err.(*graph.CycleError); ok {
 			r.diagnosticEmitter.EmitCircularDependency(reporter, apps[0].Pos, cycleErr.Cycle)
-			return nil, nil
+			return runResult{}
 		}
 		// Unknown topological sort error - report for debugging
 		r.diagnosticEmitter.EmitGraphBuildError(reporter, apps[0].Pos, err.Error())
-		return nil, nil
+		return runResult{}
 	}
 
 	// Phase 5: Generate bootstrap code
@@ -200,7 +210,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 	if existingBootstrap != nil {
 		if r.bootstrapGen.CheckBootstrapCurrent(pass, existingBootstrap, depGraph) {
 			// Bootstrap is up-to-date (idempotent)
-			return nil, nil
+			return runResult{}
 		}
 	}
 
@@ -208,13 +218,13 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 	bootstrap, err := r.bootstrapGen.GenerateBootstrap(pass, depGraph, sortedTypes)
 	if err != nil {
 		r.diagnosticEmitter.EmitGenerationError(reporter, apps[0].Pos, "bootstrap", err.Error())
-		return nil, nil
+		return runResult{}
 	}
 
 	// Find main function
 	mainFunc := findMainFunction(pass)
 	if mainFunc == nil {
-		return nil, nil
+		return runResult{}
 	}
 
 	// Build and emit fix
@@ -228,7 +238,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 		r.diagnosticEmitter.EmitBootstrapFix(reporter, apps[0].Pos, fix)
 	}
 
-	return nil, nil
+	return runResult{}
 }
 
 // findMainFunction finds the main function declaration in the package.

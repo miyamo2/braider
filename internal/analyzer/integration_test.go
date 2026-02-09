@@ -7,6 +7,7 @@
 package analyzer
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -22,7 +23,7 @@ import (
 // setupIntegrationDeps creates shared registries and real components for integration tests.
 // Returns both DependencyAnalyzer and AppAnalyzer configured with the same shared state.
 func setupIntegrationDeps() (*analysis.Analyzer, *analysis.Analyzer) {
-	depAnalyzer, appAnalyzer, _, _, _ := buildIntegrationDeps()
+	depAnalyzer, appAnalyzer, _, _ := buildIntegrationDeps()
 	return depAnalyzer, appAnalyzer
 }
 
@@ -30,13 +31,12 @@ func setupIntegrationDeps() (*analysis.Analyzer, *analysis.Analyzer) {
 func buildIntegrationDeps() (
 	*analysis.Analyzer, *analysis.Analyzer,
 	*registry.InjectorRegistry, *registry.ProviderRegistry,
-	*registry.ValidationContext,
 ) {
 	// Shared registries
 	providerReg := registry.NewProviderRegistry()
 	injectorReg := registry.NewInjectorRegistry()
 	packageTracker := registry.NewPackageTracker()
-	validationCtx := registry.NewValidationContext()
+	ctx, bootstrapCancel := context.WithCancelCause(context.Background())
 
 	// Detection components (all real)
 	packageLoader := &mockPackageLoader{}
@@ -64,7 +64,7 @@ func buildIntegrationDeps() (
 	appDetector := detect.NewAppDetector()
 
 	depAnalyzer := DependencyAnalyzer(
-		providerReg, injectorReg, packageTracker, validationCtx,
+		providerReg, injectorReg, packageTracker, bootstrapCancel,
 		provideCallDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
@@ -72,12 +72,12 @@ func buildIntegrationDeps() (
 
 	appAnalyzer := AppAnalyzer(
 		appDetector, injectorReg, providerReg, packageLoader,
-		packageTracker, validationCtx,
+		packageTracker, ctx,
 		graphBuilder, sorter, bootstrapGenerator,
 		suggestedFixBuilder, diagnosticEmitter,
 	)
 
-	return depAnalyzer, appAnalyzer, injectorReg, providerReg, validationCtx
+	return depAnalyzer, appAnalyzer, injectorReg, providerReg
 }
 
 func TestIntegration_BasicSinglePackage(t *testing.T) {
@@ -336,7 +336,7 @@ func TestIntegration_ErrorProvideTyped(t *testing.T) {
 // Uses programmatic registry access since analysistest cannot naturally test duplicate registration
 // (each analysistest.Run creates a fresh analysis pass for the same source).
 func TestIntegration_ErrorDuplicateName(t *testing.T) {
-	depAnalyzer, _, injectorReg, _, _ := buildIntegrationDeps()
+	depAnalyzer, _, injectorReg, _ := buildIntegrationDeps()
 	testdir := "testdata/bootstrapgen/error_duplicate_name"
 
 	// First scan: registers Named service via analysistest (succeeds without duplicate)

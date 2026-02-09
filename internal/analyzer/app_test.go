@@ -1,6 +1,8 @@
 package analyzer
 
 import (
+	"context"
+	"fmt"
 	"iter"
 	"strings"
 	"testing"
@@ -38,7 +40,8 @@ func setupTestDependencies() (
 	*registry.ProviderRegistry,
 	*registry.InjectorRegistry,
 	*registry.PackageTracker,
-	*registry.ValidationContext,
+	context.Context,
+	context.CancelCauseFunc,
 	detect.AppDetector,
 	*graph.DependencyGraphBuilder,
 	*graph.TopologicalSorter,
@@ -49,7 +52,7 @@ func setupTestDependencies() (
 	providerRegistry := registry.NewProviderRegistry()
 	injectorRegistry := registry.NewInjectorRegistry()
 	packageTracker := registry.NewPackageTracker()
-	validationContext := registry.NewValidationContext()
+	bootstrapCtx, bootstrapCancel := context.WithCancelCause(context.Background())
 	appDetector := detect.NewAppDetector()
 	graphBuilder := graph.NewDependencyGraphBuilder()
 	sorter := graph.NewTopologicalSorter()
@@ -57,12 +60,12 @@ func setupTestDependencies() (
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 
-	return providerRegistry, injectorRegistry, packageTracker, validationContext, appDetector,
+	return providerRegistry, injectorRegistry, packageTracker, bootstrapCtx, bootstrapCancel, appDetector,
 		graphBuilder, sorter, bootstrapGenerator, suggestedFixBuilder, diagnosticEmitter
 }
 
 func TestAppAnalyzer_ContextCancellation(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker, validationContext, appDetector, graphBuilder, sorter,
+	providerRegistry, injectorRegistry, packageTracker, bootstrapCtx, bootstrapCancel, appDetector, graphBuilder, sorter,
 		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
 
 	injectorRegistry.Register(
@@ -80,12 +83,12 @@ func TestAppAnalyzer_ContextCancellation(t *testing.T) {
 	packageTracker.MarkPackageScanned("contextcancel")
 
 	// Cancel the validation context to simulate fatal validation error
-	validationContext.Cancel()
+	bootstrapCancel(fmt.Errorf("simulated validation error"))
 
 	packageLoader := &mockPackageLoader{}
 	analyzer := AppAnalyzer(
 		appDetector, injectorRegistry, providerRegistry, packageLoader,
-		packageTracker, validationContext,
+		packageTracker, bootstrapCtx,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
 
@@ -94,7 +97,7 @@ func TestAppAnalyzer_ContextCancellation(t *testing.T) {
 }
 
 func TestAppAnalyzer_MissingConstructor(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker, validationContext, appDetector, graphBuilder, sorter,
+	providerRegistry, injectorRegistry, packageTracker, bootstrapCtx, _, appDetector, graphBuilder, sorter,
 		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
 
 	providerRegistry.Register(
@@ -114,7 +117,7 @@ func TestAppAnalyzer_MissingConstructor(t *testing.T) {
 	packageLoader := &mockPackageLoader{}
 	analyzer := AppAnalyzer(
 		appDetector, injectorRegistry, providerRegistry, packageLoader,
-		packageTracker, validationContext,
+		packageTracker, bootstrapCtx,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
 	analysistest.Run(t, "testdata/bootstrapgen/missingctor", analyzer, ".")
@@ -122,7 +125,7 @@ func TestAppAnalyzer_MissingConstructor(t *testing.T) {
 }
 
 func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker, validationContext, appDetector, graphBuilder, sorter,
+	providerRegistry, injectorRegistry, packageTracker, bootstrapCtx, _, appDetector, graphBuilder, sorter,
 		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
 
 	injectorRegistry.Register(
@@ -153,7 +156,7 @@ func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
 	packageLoader := &mockPackageLoader{}
 	analyzer := AppAnalyzer(
 		appDetector, injectorRegistry, providerRegistry, packageLoader,
-		packageTracker, validationContext,
+		packageTracker, bootstrapCtx,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 	)
 	analysistest.Run(t, "testdata/bootstrapgen/multipleapp", analyzer, "./...")
@@ -165,7 +168,8 @@ func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
 // This scenario cannot be triggered via analysistest because Go TypeNames are unique per package.
 func TestAppAnalyzer_CorrelationErrorNonFatal(t *testing.T) {
 	injectorReg := registry.NewInjectorRegistry()
-	validationCtx := registry.NewValidationContext()
+	bootstrapCtx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
 
 	// First registration succeeds
 	err := injectorReg.Register(
@@ -205,7 +209,7 @@ func TestAppAnalyzer_CorrelationErrorNonFatal(t *testing.T) {
 	}
 
 	// Context should NOT be cancelled (correlation errors are non-fatal)
-	if validationCtx.IsCancelled() {
+	if bootstrapCtx.Err() != nil {
 		t.Error("ValidationContext should NOT be cancelled for correlation errors")
 	}
 }
