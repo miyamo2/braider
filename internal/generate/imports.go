@@ -2,6 +2,7 @@ package generate
 
 import (
 	"go/ast"
+	"go/types"
 	"regexp"
 	"sort"
 	"strconv"
@@ -31,14 +32,15 @@ var goReservedKeywords = map[string]bool{
 }
 
 // CollectImports extracts unique package paths from the dependency graph.
-// It excludes the current package and returns a sorted list of import info with aliases.
+// It excludes the current package and returns a sorted list of import info with aliases,
+// along with an alias map (pkgPath -> alias) for use by qualifier functions.
 func CollectImports(
 	g *graph.Graph,
 	currentPackage, currentPkgName string,
 	existingAliases map[string]string,
-) []ImportInfo {
+) ([]ImportInfo, map[string]string) {
 	if g == nil {
-		return []ImportInfo{}
+		return []ImportInfo{}, make(map[string]string)
 	}
 
 	importSet := make(map[string]bool)
@@ -59,6 +61,15 @@ func CollectImports(
 			}
 		} else if node.PackageName != currentPkgName {
 			importSet[pkgPath] = true
+		}
+
+		// Also include packages referenced by RegisteredType (for Typed[I] option)
+		if node.RegisteredType != nil {
+			for _, regPkgPath := range extractPackagePaths(node.RegisteredType) {
+				if regPkgPath != "" && regPkgPath != currentPackage {
+					importSet[regPkgPath] = true
+				}
+			}
 		}
 	}
 
@@ -88,7 +99,34 @@ func CollectImports(
 		return imports[i].Path < imports[j].Path
 	})
 
-	return imports
+	return imports, aliasMap
+}
+
+// extractPackagePaths extracts all unique package paths from a types.Type.
+// This handles named types, pointer types, and interface types with embedded types.
+func extractPackagePaths(t types.Type) []string {
+	var paths []string
+	seen := make(map[string]bool)
+
+	var visit func(types.Type)
+	visit = func(t types.Type) {
+		switch typ := t.(type) {
+		case *types.Named:
+			if obj := typ.Obj(); obj != nil {
+				if pkg := obj.Pkg(); pkg != nil {
+					p := pkg.Path()
+					if !seen[p] {
+						seen[p] = true
+						paths = append(paths, p)
+					}
+				}
+			}
+		case *types.Pointer:
+			visit(typ.Elem())
+		}
+	}
+	visit(t)
+	return paths
 }
 
 // detectExistingAliases scans the target file for user-defined import aliases.

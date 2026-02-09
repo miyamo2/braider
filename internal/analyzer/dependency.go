@@ -221,12 +221,16 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 				OptionMetadata:  metadata,
 			},
 		); err != nil {
+			existingLocation := pass.Pkg.Path()
+			if existing := r.provideRegistry.Get(typeName); existing != nil {
+				existingLocation = existing.PackagePath
+			}
 			r.diagnosticEmitter.EmitDuplicateNamedDependencyWarning(
 				reporter,
 				provider.CallExpr.Pos(),
 				typeName,
 				metadata.Name,
-				pass.Pkg.Path(),
+				existingLocation,
 				pass.Pkg.Path(),
 			)
 		}
@@ -305,12 +309,17 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 				OptionMetadata:  metadata,
 			},
 		); err != nil {
+			injectorTypeName := pass.Pkg.Path() + "." + injector.TypeSpec.Name.Name
+			existingLocation := pass.Pkg.Path()
+			if existing := r.injectRegistry.Get(injectorTypeName); existing != nil {
+				existingLocation = existing.PackagePath
+			}
 			r.diagnosticEmitter.EmitDuplicateNamedDependencyWarning(
 				reporter,
 				injector.TypeSpec.Pos(),
-				pass.Pkg.Path()+"."+injector.TypeSpec.Name.Name,
+				injectorTypeName,
 				metadata.Name,
-				pass.Pkg.Path(),
+				existingLocation,
 				pass.Pkg.Path(),
 			)
 		}

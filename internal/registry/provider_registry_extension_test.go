@@ -25,7 +25,9 @@ func TestProviderInfo_OptionMetadataFields(t *testing.T) {
 			},
 		}
 
-		r.Register(info)
+		if err := r.Register(info); err != nil {
+			t.Fatal(err)
+		}
 
 		got := r.Get("example.com/repo.UserRepository")
 		if got == nil {
@@ -58,7 +60,9 @@ func TestProviderInfo_OptionMetadataFields(t *testing.T) {
 			},
 		}
 
-		r.Register(info)
+		if err := r.Register(info); err != nil {
+			t.Fatal(err)
+		}
 
 		got := r.Get("example.com/repo.OrderRepository")
 		if got == nil {
@@ -83,7 +87,9 @@ func TestProviderInfo_OptionMetadataFields(t *testing.T) {
 			},
 		}
 
-		r.Register(info)
+		if err := r.Register(info); err != nil {
+			t.Fatal(err)
+		}
 
 		got := r.Get("example.com/repo.BasicRepository")
 		if got == nil {

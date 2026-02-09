@@ -25,7 +25,9 @@ func TestInjectorInfo_OptionMetadataFields(t *testing.T) {
 			},
 		}
 
-		r.Register(info)
+		if err := r.Register(info); err != nil {
+			t.Fatalf("Register() returned error: %v", err)
+		}
 
 		got := r.Get("example.com/service.UserService")
 		if got == nil {
@@ -58,7 +60,9 @@ func TestInjectorInfo_OptionMetadataFields(t *testing.T) {
 			},
 		}
 
-		r.Register(info)
+		if err := r.Register(info); err != nil {
+			t.Fatalf("Register() returned error: %v", err)
+		}
 
 		got := r.Get("example.com/service.OrderService")
 		if got == nil {
@@ -82,7 +86,9 @@ func TestInjectorInfo_OptionMetadataFields(t *testing.T) {
 			},
 		}
 
-		r.Register(info)
+		if err := r.Register(info); err != nil {
+			t.Fatalf("Register() returned error: %v", err)
+		}
 
 		got := r.Get("example.com/service.CustomService")
 		if got == nil {
@@ -107,7 +113,9 @@ func TestInjectorInfo_OptionMetadataFields(t *testing.T) {
 			},
 		}
 
-		r.Register(info)
+		if err := r.Register(info); err != nil {
+			t.Fatal(err)
+		}
 
 		got := r.Get("example.com/service.BasicService")
 		if got == nil {

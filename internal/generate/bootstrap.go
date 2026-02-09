@@ -83,7 +83,7 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 	// Collect imports
 	currentPackage := pass.Pkg.Path()
 	currentPkgName := pass.Pkg.Name()
-	imports := CollectImports(g, currentPackage, currentPkgName, existingAliases)
+	imports, aliasMap := CollectImports(g, currentPackage, currentPkgName, existingAliases)
 
 	// Build struct fields and initialization code
 	// Note: If all nodes are Provide (IsField=false), structFields will be empty
@@ -135,9 +135,9 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 				if p.Path() == currentPackage {
 					return "" // Same package, no qualifier
 				}
-				// Use alias if available, otherwise package name
-				if node.PackageAlias != "" {
-					return node.PackageAlias
+				// Look up alias for the RegisteredType's package from the alias map
+				if alias, ok := aliasMap[p.Path()]; ok && alias != "" {
+					return alias
 				}
 				return p.Name()
 			})

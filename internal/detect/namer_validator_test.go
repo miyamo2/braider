@@ -37,6 +37,15 @@ func (ConcatName) Name() string { return "prefix" + "suffix" }
 type FuncCallName struct{}
 func (FuncCallName) Name() string { return getName() }
 func getName() string { return "name" }
+
+// Invalid multiple return statements namer
+type BranchingName struct{ flag bool }
+func (b BranchingName) Name() string {
+	if b.flag {
+		return "primary"
+	}
+	return "secondary"
+}
 `
 
 	fset := token.NewFileSet()
@@ -99,6 +108,12 @@ func getName() string { return "name" }
 			typeName:    "FuncCallName",
 			wantErr:     true,
 			errContains: "must return hardcoded string literal",
+		},
+		{
+			name:        "multiple return statements namer",
+			typeName:    "BranchingName",
+			wantErr:     true,
+			errContains: "must have exactly one return statement",
 		},
 	}
 

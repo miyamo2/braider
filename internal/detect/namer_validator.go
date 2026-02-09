@@ -5,6 +5,8 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"strconv"
+	"unicode"
 
 	"github.com/miyamo2/braider/internal/loader"
 	"golang.org/x/tools/go/analysis"
@@ -127,7 +129,18 @@ func (v *namerValidatorImpl) findMethodDecl(
 		)
 	}
 
-	// Search in external package files
+	// Extract the expected type name from namerType for receiver matching.
+	// Unwrap pointer if present.
+	expectedType := namerType
+	if ptr, ok := expectedType.(*types.Pointer); ok {
+		expectedType = ptr.Elem()
+	}
+	var expectedTypeName string
+	if named, ok := expectedType.(*types.Named); ok {
+		expectedTypeName = named.Obj().Name()
+	}
+
+	// Search in external package files, verifying receiver type name
 	for _, file := range pkg.Syntax {
 		for _, decl := range file.Decls {
 			funcDecl, ok := decl.(*ast.FuncDecl)
@@ -135,10 +148,19 @@ func (v *namerValidatorImpl) findMethodDecl(
 				continue
 			}
 
-			if funcDecl.Name.Name == "Name" && funcDecl.Recv != nil {
-				// For external packages, we can't easily verify the exact receiver type
-				// Just check it's a method named Name
-				return funcDecl, nil
+			if funcDecl.Name.Name != "Name" || funcDecl.Recv == nil {
+				continue
+			}
+
+			// Match receiver type name against expected type name
+			if expectedTypeName != "" && len(funcDecl.Recv.List) > 0 {
+				recvExpr := funcDecl.Recv.List[0].Type
+				if star, ok := recvExpr.(*ast.StarExpr); ok {
+					recvExpr = star.X
+				}
+				if ident, ok := recvExpr.(*ast.Ident); ok && ident.Name == expectedTypeName {
+					return funcDecl, nil
+				}
 			}
 		}
 	}
@@ -170,34 +192,38 @@ func (v *namerValidatorImpl) matchesReceiverType(pass *analysis.Pass, recv *ast.
 	return types.Identical(recvType, namerType)
 }
 
-// validateLiteralReturn validates that the method returns a string literal.
+// validateLiteralReturn validates that all return statements in the method return the same string literal.
 func (v *namerValidatorImpl) validateLiteralReturn(methodDecl *ast.FuncDecl) (string, error) {
 	if methodDecl.Body == nil {
 		return "", fmt.Errorf("Name() method has no body")
 	}
 
-	// Find return statement
-	var returnStmt *ast.ReturnStmt
+	// Collect all return statements
+	var returnStmts []*ast.ReturnStmt
 	ast.Inspect(
 		methodDecl.Body, func(n ast.Node) bool {
 			if ret, ok := n.(*ast.ReturnStmt); ok {
-				returnStmt = ret
-				return false // Stop searching after first return
+				returnStmts = append(returnStmts, ret)
 			}
 			return true
 		},
 	)
 
-	if returnStmt == nil {
+	if len(returnStmts) == 0 {
 		return "", fmt.Errorf("Name() method has no return statement")
 	}
 
-	if len(returnStmt.Results) != 1 {
+	if len(returnStmts) > 1 {
+		return "", fmt.Errorf("Name() method must have exactly one return statement, found %d", len(returnStmts))
+	}
+
+	// Validate the single return statement returns a string literal
+	if len(returnStmts[0].Results) != 1 {
 		return "", fmt.Errorf("Name() method must return exactly one value")
 	}
 
 	// Check if return value is a string literal
-	result := returnStmt.Results[0]
+	result := returnStmts[0].Results[0]
 	basicLit, ok := result.(*ast.BasicLit)
 	if !ok {
 		return "", fmt.Errorf("Name() must return hardcoded string literal, found %T", result)
@@ -207,15 +233,48 @@ func (v *namerValidatorImpl) validateLiteralReturn(methodDecl *ast.FuncDecl) (st
 		return "", fmt.Errorf("Name() must return hardcoded string literal, found %s", basicLit.Kind)
 	}
 
-	// Strip quotes from string literal
-	name := basicLit.Value
-	if len(name) >= 2 && name[0] == '"' && name[len(name)-1] == '"' {
-		name = name[1 : len(name)-1]
+	// Unquote the string literal (handles double quotes, backticks, and escape sequences)
+	unquoted, err := unquoteStringLiteral(basicLit.Value)
+	if err != nil {
+		return "", fmt.Errorf("Name() has invalid string literal %s: %w", basicLit.Value, err)
 	}
 
-	if name == "" {
+	if unquoted == "" {
 		return "", fmt.Errorf("Name() must return non-empty string literal")
 	}
 
-	return name, nil
+	// Validate that the name is a valid Go identifier
+	if !isValidGoIdentifier(unquoted) {
+		return "", fmt.Errorf("Name() must return a valid Go identifier, got %q", unquoted)
+	}
+
+	return unquoted, nil
+}
+
+// unquoteStringLiteral unquotes a Go string literal (double-quoted or backtick).
+func unquoteStringLiteral(lit string) (string, error) {
+	if len(lit) >= 2 && lit[0] == '`' && lit[len(lit)-1] == '`' {
+		// Raw string literal: strip backticks, no escape processing
+		return lit[1 : len(lit)-1], nil
+	}
+	return strconv.Unquote(lit)
+}
+
+// isValidGoIdentifier checks if a string is a valid Go identifier.
+func isValidGoIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, r := range s {
+		if i == 0 {
+			if !unicode.IsLetter(r) && r != '_' {
+				return false
+			}
+		} else {
+			if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' {
+				return false
+			}
+		}
+	}
+	return true
 }

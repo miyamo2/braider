@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/miyamo2/braider/pkg/annotation"
+	"typed_inject/domain"
 	"typed_inject/service"
 )
 

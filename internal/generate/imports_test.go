@@ -188,7 +188,7 @@ func TestCollectImports(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(
 			tt.name, func(t *testing.T) {
-				got := CollectImports(tt.graph, tt.currentPackage, tt.currentPkgName, nil)
+				got, _ := CollectImports(tt.graph, tt.currentPackage, tt.currentPkgName, nil)
 				// Handle nil vs empty slice comparison
 				if len(got) == 0 && len(tt.want) == 0 {
 					return

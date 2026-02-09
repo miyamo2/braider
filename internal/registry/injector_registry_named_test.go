@@ -37,7 +37,9 @@ func TestInjectorRegistry_GetByName(t *testing.T) {
 			},
 		}
 
-		r.Register(info)
+		if err := r.Register(info); err != nil {
+			t.Fatalf("Register() returned error: %v", err)
+		}
 
 		got, ok := r.GetByName("example.com/service.UserService", "primaryUser")
 		if !ok {
@@ -61,7 +63,9 @@ func TestInjectorRegistry_GetByName(t *testing.T) {
 			TypeName: "example.com/service.UserService",
 			Name:     "primaryUser",
 		}
-		r.Register(info)
+		if err := r.Register(info); err != nil {
+			t.Fatalf("Register() returned error: %v", err)
+		}
 
 		got, ok := r.GetByName("example.com/service.UserService", "secondaryUser")
 		if ok {
@@ -79,7 +83,9 @@ func TestInjectorRegistry_GetByName(t *testing.T) {
 			TypeName: "example.com/service.UserService",
 			Name:     "",
 		}
-		r.Register(info)
+		if err := r.Register(info); err != nil {
+			t.Fatalf("Register() returned error: %v", err)
+		}
 
 		got, ok := r.GetByName("example.com/service.UserService", "anyName")
 		if ok {
@@ -104,8 +110,12 @@ func TestInjectorRegistry_GetByName(t *testing.T) {
 			Name:     "secondaryUser",
 		}
 
-		r.Register(info1)
-		r.Register(info2)
+		if err := r.Register(info1); err != nil {
+			t.Fatalf("Register(info1) returned error: %v", err)
+		}
+		if err := r.Register(info2); err != nil {
+			t.Fatalf("Register(info2) returned error: %v", err)
+		}
 
 		got1, ok1 := r.GetByName("example.com/service.UserService#primary", "primaryUser")
 		got2, ok2 := r.GetByName("example.com/service.UserService#secondary", "secondaryUser")

@@ -37,7 +37,9 @@ func TestProviderRegistry_GetByName(t *testing.T) {
 			},
 		}
 
-		r.Register(info)
+		if err := r.Register(info); err != nil {
+			t.Fatal(err)
+		}
 
 		got, ok := r.GetByName("example.com/repo.UserRepository", "primaryRepo")
 		if !ok {
@@ -61,7 +63,9 @@ func TestProviderRegistry_GetByName(t *testing.T) {
 			TypeName: "example.com/repo.UserRepository",
 			Name:     "primaryRepo",
 		}
-		r.Register(info)
+		if err := r.Register(info); err != nil {
+			t.Fatal(err)
+		}
 
 		got, ok := r.GetByName("example.com/repo.UserRepository", "secondaryRepo")
 		if ok {
@@ -79,7 +83,9 @@ func TestProviderRegistry_GetByName(t *testing.T) {
 			TypeName: "example.com/repo.UserRepository",
 			Name:     "",
 		}
-		r.Register(info)
+		if err := r.Register(info); err != nil {
+			t.Fatal(err)
+		}
 
 		got, ok := r.GetByName("example.com/repo.UserRepository", "anyName")
 		if ok {
@@ -102,8 +108,12 @@ func TestProviderRegistry_GetByName(t *testing.T) {
 			Name:     "secondaryRepo",
 		}
 
-		r.Register(info1)
-		r.Register(info2)
+		if err := r.Register(info1); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.Register(info2); err != nil {
+			t.Fatal(err)
+		}
 
 		got1, ok1 := r.GetByName("example.com/repo.UserRepository#primary", "primaryRepo")
 		got2, ok2 := r.GetByName("example.com/repo.UserRepository#secondary", "secondaryRepo")

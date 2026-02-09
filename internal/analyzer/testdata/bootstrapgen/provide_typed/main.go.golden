@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/miyamo2/braider/pkg/annotation"
+	"provide_typed/domain"
 	"provide_typed/repository"
 	"provide_typed/service"
 )
