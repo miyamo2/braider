@@ -98,10 +98,10 @@ func NewAppAnalyzeRunner(
 
 func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 	resultCh := make(chan runResult, 1)
-	defer close(resultCh)
 
 	go func() {
 		resultCh <- r.run(r.bootstrapCtx, pass)
+		defer close(resultCh)
 	}()
 
 	select {
