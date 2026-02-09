@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"go/ast"
 	"time"
@@ -100,14 +101,14 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 	defer close(resultCh)
 
 	go func() {
-		resultCh <- r.run(pass)
+		resultCh <- r.run(r.bootstrapCtx, pass)
 	}()
 
 	select {
 	case <-r.bootstrapCtx.Done():
-		return nil, r.bootstrapCtx.Err()
+		return nil, nil
 	case result := <-resultCh:
-		return result.value, result.err
+		return result.value, nil
 	}
 }
 
@@ -116,7 +117,7 @@ type runResult struct {
 	err   error
 }
 
-func (r *AppAnalyzeRunner) run(pass *analysis.Pass) runResult {
+func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) runResult {
 	reporter := &passReporter{pass: pass}
 	// Phase 1: Detect App annotations
 	apps := r.appDetector.DetectAppAnnotations(pass)
@@ -174,9 +175,10 @@ func (r *AppAnalyzeRunner) run(pass *analysis.Pass) runResult {
 
 	// Wait for all packages with timeout
 	if len(allPkgPaths) > 0 {
-		ctx := context.Background()
-
 		if err := r.packageTracker.WaitForAllPackagesWithContext(ctx, allPkgPaths); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return runResult{err: fmt.Errorf("package scanning canceled: %w", err)}
+			}
 			// Emit timeout warning diagnostic but continue
 			// The registry may be incomplete, but we proceed with what we have
 			r.diagnosticEmitter.EmitPackageWaitWarning(reporter, apps[0].Pos, err.Error())
