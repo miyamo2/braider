@@ -99,11 +99,14 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 	resultCh := make(chan runResult, 1)
 	defer close(resultCh)
 
+	go func() {
+		resultCh <- r.run(pass)
+	}()
+
 	select {
 	case <-r.bootstrapCtx.Done():
 		return nil, r.bootstrapCtx.Err()
-	case resultCh <- r.run(pass):
-		result := <-resultCh
+	case result := <-resultCh:
 		return result.value, result.err
 	}
 }
