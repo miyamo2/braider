@@ -9,6 +9,9 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
+// ProvideTypeName is the type name for the Provide annotation.
+const ProvideTypeName = "Provide"
+
 // ProviderCandidate represents a detected provider from annotation.Provide[T](fn) call.
 type ProviderCandidate struct {
 	// CallExpr is the annotation.Provide[T](fn) call expression
@@ -63,10 +66,12 @@ func (d *provideCallDetector) DetectProviders(pass *analysis.Pass) []ProviderCan
 			(*ast.GenDecl)(nil),
 		}
 
-		insp.Preorder(nodeFilter, func(n ast.Node) {
-			genDecl := n.(*ast.GenDecl)
-			candidates = d.processGenDecl(pass, genDecl, candidates)
-		})
+		insp.Preorder(
+			nodeFilter, func(n ast.Node) {
+				genDecl := n.(*ast.GenDecl)
+				candidates = d.processGenDecl(pass, genDecl, candidates)
+			},
+		)
 	} else {
 		for _, file := range pass.Files {
 			for _, decl := range file.Decls {
@@ -81,7 +86,9 @@ func (d *provideCallDetector) DetectProviders(pass *analysis.Pass) []ProviderCan
 }
 
 // processGenDecl processes a GenDecl and looks for var _ = annotation.Provide[T](fn) patterns.
-func (d *provideCallDetector) processGenDecl(pass *analysis.Pass, genDecl *ast.GenDecl, candidates []ProviderCandidate) []ProviderCandidate {
+func (d *provideCallDetector) processGenDecl(
+	pass *analysis.Pass, genDecl *ast.GenDecl, candidates []ProviderCandidate,
+) []ProviderCandidate {
 	for _, spec := range genDecl.Specs {
 		valueSpec, ok := spec.(*ast.ValueSpec)
 		if !ok {

@@ -12,7 +12,7 @@ import (
 )
 
 // InterfaceRegistry maps interface types to their implementing injectable structs.
-// It supports both provider (annotation.Provide) and injector (annotation.Inject) structs.
+// It supports both provider (annotation.Provide) and injector (annotation.Injectable) structs.
 type InterfaceRegistry struct {
 	// interfaces maps interface type name to list of implementing type names
 	interfaces map[string][]string
@@ -102,7 +102,7 @@ type UnresolvedInterfaceError struct {
 
 func (e *UnresolvedInterfaceError) Error() string {
 	return fmt.Sprintf(
-		"no injectable struct implements interface %s; add annotation.Provide or annotation.Inject to an implementing struct or change parameter to concrete type",
+		"no injectable struct implements interface %s; add annotation.Provide or annotation.Injectable to an implementing struct or change parameter to concrete type",
 		e.InterfaceType,
 	)
 }

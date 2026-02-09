@@ -11,20 +11,17 @@ import (
 // AnnotationPath is the import path for the annotation package.
 const AnnotationPath = "github.com/miyamo2/braider/pkg/annotation"
 
-// InjectTypeName is the type name for the Inject annotation.
-const InjectTypeName = "Inject"
-
 // InjectableTypeName is the type name for the Injectable[T] generic interface.
 const InjectableTypeName = "Injectable"
 
-// InjectDetector detects annotation.Inject embedding in structs.
+// InjectDetector detects annotation.Injectable[T] embedding in structs.
 type InjectDetector interface {
-	// HasInjectAnnotation checks if a struct embeds annotation.Inject.
-	// Returns true if the struct has an embedded annotation.Inject field.
+	// HasInjectAnnotation checks if a struct embeds annotation.Injectable[T].
+	// Returns true if the struct has an embedded annotation.Injectable[T] field.
 	HasInjectAnnotation(pass *analysis.Pass, st *ast.StructType) bool
 
-	// FindInjectField returns the embedded Inject field if present.
-	// Returns nil if no Inject embedding is found.
+	// FindInjectField returns the embedded Injectable field if present.
+	// Returns nil if no Injectable embedding is found.
 	FindInjectField(pass *analysis.Pass, st *ast.StructType) *ast.Field
 }
 
@@ -36,12 +33,12 @@ func NewInjectDetector() InjectDetector {
 	return &injectDetector{}
 }
 
-// HasInjectAnnotation checks if a struct embeds annotation.Inject.
+// HasInjectAnnotation checks if a struct embeds annotation.Injectable[T].
 func (d *injectDetector) HasInjectAnnotation(pass *analysis.Pass, st *ast.StructType) bool {
 	return d.FindInjectField(pass, st) != nil
 }
 
-// FindInjectField returns the embedded Inject field if present.
+// FindInjectField returns the embedded Injectable field if present.
 func (d *injectDetector) FindInjectField(pass *analysis.Pass, st *ast.StructType) *ast.Field {
 	if st.Fields == nil {
 		return nil
@@ -64,7 +61,7 @@ func (d *injectDetector) FindInjectField(pass *analysis.Pass, st *ast.StructType
 	return nil
 }
 
-// isInjectType checks if the given expression is the annotation.Inject type.
+// isInjectType checks if the given expression is the annotation.Injectable[T] type.
 func (d *injectDetector) isInjectType(pass *analysis.Pass, expr ast.Expr) bool {
 	// Use the type checker to get the type
 	tv, ok := pass.TypesInfo.Types[expr]
@@ -80,8 +77,7 @@ func (d *injectDetector) isInjectType(pass *analysis.Pass, expr ast.Expr) bool {
 	return d.isNamedInjectType(tv.Type)
 }
 
-// isNamedInjectType checks if the type is the annotation.Inject named type
-// or annotation.Injectable[T] generic interface.
+// isNamedInjectType checks if the type is the annotation.Injectable[T] named type.
 func (d *injectDetector) isNamedInjectType(t types.Type) bool {
 	named, ok := t.(*types.Named)
 	if !ok {
@@ -93,9 +89,8 @@ func (d *injectDetector) isNamedInjectType(t types.Type) bool {
 		return false
 	}
 
-	// Check type name - accept both Inject and Injectable
-	typeName := obj.Name()
-	if typeName != InjectTypeName && typeName != InjectableTypeName {
+	// Check type name
+	if obj.Name() != InjectableTypeName {
 		return false
 	}
 

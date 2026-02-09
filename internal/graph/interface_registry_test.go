@@ -272,7 +272,7 @@ func TestInterfaceRegistry_ErrorMessages(t *testing.T) {
 			ParameterPos:  token.Pos(100),
 		}
 		msg := err.Error()
-		want := "no injectable struct implements interface io.Reader; add annotation.Provide or annotation.Inject to an implementing struct or change parameter to concrete type"
+		want := "no injectable struct implements interface io.Reader; add annotation.Provide or annotation.Injectable to an implementing struct or change parameter to concrete type"
 		if msg != want {
 			t.Errorf("UnresolvedInterfaceError.Error() = %q, want %q", msg, want)
 		}

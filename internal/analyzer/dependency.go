@@ -11,7 +11,7 @@ import (
 	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
-// DependencyAnalyzer detects annotation.Provide and annotation.Inject structs
+// DependencyAnalyzer detects annotation.Provide and annotation.Injectable structs
 // across all packages and registers them to global registries.
 func DependencyAnalyzer(
 	provideRegistry *registry.ProviderRegistry,
@@ -105,7 +105,7 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 	// Detect Inject structs that need constructors and generate them via SuggestedFix
 	injectCandidates := r.structDetector.DetectCandidates(pass)
 	for _, candidate := range injectCandidates {
-		// Analyze fields (excluding annotation.Inject)
+		// Analyze fields (excluding annotation.Injectable)
 		fields := r.fieldAnalyzer.AnalyzeFields(pass, candidate.StructType, candidate.InjectField)
 
 		// Skip if no injectable fields

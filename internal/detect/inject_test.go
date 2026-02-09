@@ -133,10 +133,10 @@ func (i *fakeImporter) Import(path string) (*types.Package, error) {
 // createAnnotationPackage creates a fake annotation package for testing.
 func createAnnotationPackage() *types.Package {
 	annotationPkg := types.NewPackage(detect.AnnotationPath, "annotation")
-	// Create the Inject struct type - pass nil for underlying, NewNamed will set it
+	// Create the Injectable struct type - pass nil for underlying, NewNamed will set it
 	injectStruct := types.NewStruct(nil, nil)
 	injectNamed := types.NewNamed(
-		types.NewTypeName(token.NoPos, annotationPkg, detect.InjectTypeName, nil),
+		types.NewTypeName(token.NoPos, annotationPkg, detect.InjectableTypeName, nil),
 		injectStruct,
 		nil,
 	)
@@ -150,7 +150,7 @@ func createWrongAnnotationPackage() *types.Package {
 	wrongPkg := types.NewPackage("github.com/other/annotation", "annotation")
 	injectStruct := types.NewStruct(nil, nil)
 	injectNamed := types.NewNamed(
-		types.NewTypeName(token.NoPos, wrongPkg, detect.InjectTypeName, nil),
+		types.NewTypeName(token.NoPos, wrongPkg, detect.InjectableTypeName, nil),
 		injectStruct,
 		nil,
 	)
@@ -170,13 +170,13 @@ func TestInjectDetector_HasInjectAnnotation(t *testing.T) {
 		expected bool
 	}{
 		{
-			name: "standard annotation.Inject embedding",
+			name: "standard annotation.Injectable[T] embedding",
 			src: `package test
 
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type MyService struct {
-	annotation.Inject
+	annotation.Injectable
 	repo Repository
 }
 
@@ -205,7 +205,7 @@ type Repository interface{}
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type MyService struct {
-	inject annotation.Inject
+	inject annotation.Injectable
 	repo   Repository
 }
 
@@ -222,7 +222,7 @@ import "github.com/miyamo2/braider/pkg/annotation"
 
 type MyService struct {
 	repo Repository
-	annotation.Inject
+	annotation.Injectable
 }
 
 type Repository interface{}
@@ -237,7 +237,7 @@ type Repository interface{}
 import "github.com/other/annotation"
 
 type MyService struct {
-	annotation.Inject
+	annotation.Injectable
 	repo Repository
 }
 
@@ -297,7 +297,7 @@ func TestInjectDetector_FindInjectField(t *testing.T) {
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type MyService struct {
-	annotation.Inject
+	annotation.Injectable
 	repo Repository
 }
 
@@ -315,7 +315,7 @@ import "github.com/miyamo2/braider/pkg/annotation"
 
 type MyService struct {
 	repo Repository
-	annotation.Inject
+	annotation.Injectable
 }
 
 type Repository interface{}
@@ -344,7 +344,7 @@ type Repository interface{}
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type MyService struct {
-	inject annotation.Inject
+	inject annotation.Injectable
 	repo   Repository
 }
 
@@ -410,7 +410,7 @@ func TestInjectDetector_FindInjectField_TypeOfFallback(t *testing.T) {
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type MyService struct {
-	annotation.Inject
+	annotation.Injectable
 	repo Repository
 }
 
@@ -471,7 +471,7 @@ func TestInjectDetector_AliasedImport(t *testing.T) {
 import ann "github.com/miyamo2/braider/pkg/annotation"
 
 type MyService struct {
-	ann.Inject
+	ann.Injectable
 	repo Repository
 }
 
@@ -611,7 +611,7 @@ func TestInjectDetector_TypeCheckingEdgeCases(t *testing.T) {
 import "github.com/other/annotation"
 
 type MyService struct {
-	annotation.Inject
+	annotation.Injectable
 }
 `,
 			pkgs:         map[string]*types.Package{"github.com/other/annotation": wrongPkg},
@@ -622,15 +622,15 @@ type MyService struct {
 			name: "inject with wrong type name",
 			src: `package test
 
-type Inject struct{}
+type Injectable struct{}
 
 type MyService struct {
-	Inject
+	Injectable
 }
 `,
 			pkgs:         nil,
 			expectInject: false,
-			description:  "Local Inject type should not be detected",
+			description:  "Local Injectable type should not be detected",
 		},
 	}
 

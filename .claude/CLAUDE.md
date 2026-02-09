@@ -72,7 +72,6 @@ Analyzer generates:
 #### Detectors (pattern recognition)
 - **AppDetector**: Detects and validates `annotation.App(main)` annotations
 - **ProvideCallDetector**: Detects `var _ = annotation.Provide[T](fn)` package-level calls
-- **ProvideDetector**: Detects `annotation.Provider[T]` embedding in structs
 - **InjectDetector**: Detects `annotation.Injectable` fields in structs
 - **StructDetector**: Combines struct + Inject field detection
 - **FieldAnalyzer**: Extracts injectable fields from structs (excluding annotation fields)

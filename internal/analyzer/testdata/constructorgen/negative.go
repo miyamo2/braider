@@ -5,7 +5,7 @@ import (
 	"github.com/miyamo2/braider/pkg/annotation/inject"
 )
 
-// NoInjectService has no annotation.Inject embedding - should be skipped
+// NoInjectService has no annotation.Injectable embedding - should be skipped
 type NoInjectService struct {
 	repo NoInjectRepo
 }
@@ -20,7 +20,7 @@ type NamedInjectService struct {
 
 type NamedInjectRepo interface{}
 
-// InjectOnlyService has only annotation.Inject (no injectable fields) - should be skipped
+// InjectOnlyService has only annotation.Injectable (no injectable fields) - should be skipped
 type InjectOnlyService struct {
 	annotation.Injectable[inject.Default]
 }
