@@ -1,0 +1,20 @@
+package main
+
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"provide_named/repository"
+)
+
+var _ = annotation.App(main) // want "bootstrap code is missing"
+
+func main() {
+	_ = dependency
+}
+
+// braider:hash:4851dbf8caa8e671
+var dependency = func() struct {
+} {
+	primaryRepo := repository.NewUserRepository()
+	return struct {
+	}{}
+}()

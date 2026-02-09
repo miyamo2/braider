@@ -7,6 +7,7 @@
 package analyzer
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/miyamo2/braider/internal/detect"
@@ -21,6 +22,16 @@ import (
 // setupIntegrationDeps creates shared registries and real components for integration tests.
 // Returns both DependencyAnalyzer and AppAnalyzer configured with the same shared state.
 func setupIntegrationDeps() (*analysis.Analyzer, *analysis.Analyzer) {
+	depAnalyzer, appAnalyzer, _, _, _ := buildIntegrationDeps()
+	return depAnalyzer, appAnalyzer
+}
+
+// buildIntegrationDeps creates all shared components and returns analyzers plus raw registries.
+func buildIntegrationDeps() (
+	*analysis.Analyzer, *analysis.Analyzer,
+	*registry.InjectorRegistry, *registry.ProviderRegistry,
+	*registry.ValidationContext,
+) {
 	// Shared registries
 	providerReg := registry.NewProviderRegistry()
 	injectorReg := registry.NewInjectorRegistry()
@@ -66,7 +77,7 @@ func setupIntegrationDeps() (*analysis.Analyzer, *analysis.Analyzer) {
 		suggestedFixBuilder, diagnosticEmitter,
 	)
 
-	return depAnalyzer, appAnalyzer
+	return depAnalyzer, appAnalyzer, injectorReg, providerReg, validationCtx
 }
 
 func TestIntegration_BasicSinglePackage(t *testing.T) {
@@ -278,4 +289,90 @@ func TestIntegration_ErrorCases(t *testing.T) {
 
 	// Phase 2: AppAnalyzer skips due to cancelled validation context (no diagnostics expected)
 	analysistest.Run(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_ErrorNonLiteralNamer tests Named[N] with non-literal Name() return:
+// Namer returns variable instead of string literal -> fatal validation error -> AppAnalyzer skipped.
+func TestIntegration_ErrorNonLiteralNamer(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/error_nonliteral"
+
+	// Phase 1: DependencyAnalyzer detects non-literal Name() return and emits diagnostic
+	analysistest.Run(t, testdir, depAnalyzer, "error_nonliteral/service")
+
+	// Phase 2: AppAnalyzer skips due to cancelled validation context (no diagnostics expected)
+	analysistest.Run(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_ProvideNamed tests Provide[provide.Named[N]] flow:
+// provider with named registration -> bootstrap uses custom variable name from Name() method.
+func TestIntegration_ProvideNamed(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/provide_named"
+
+	// Phase 1: DependencyAnalyzer scans repository package with Named provider
+	analysistest.Run(t, testdir, depAnalyzer, "provide_named/repository")
+
+	// Phase 2: AppAnalyzer generates bootstrap with named variable
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_ErrorProvideTyped tests Provide[provide.Typed[I]] constraint violation:
+// concrete type does not implement interface -> fatal validation error -> AppAnalyzer skipped.
+func TestIntegration_ErrorProvideTyped(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/error_provide_typed"
+
+	// Phase 1: DependencyAnalyzer scans packages; repository triggers constraint violation
+	analysistest.Run(t, testdir, depAnalyzer, "error_provide_typed/domain")
+	analysistest.Run(t, testdir, depAnalyzer, "error_provide_typed/repository")
+
+	// Phase 2: AppAnalyzer skips due to cancelled validation context (no diagnostics expected)
+	analysistest.Run(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_ErrorDuplicateName tests duplicate (TypeName, Name) detection:
+// Same named dependency registered twice -> non-fatal warning emitted.
+// Uses programmatic registry access since analysistest cannot naturally test duplicate registration
+// (each analysistest.Run creates a fresh analysis pass for the same source).
+func TestIntegration_ErrorDuplicateName(t *testing.T) {
+	depAnalyzer, _, injectorReg, _, _ := buildIntegrationDeps()
+	testdir := "testdata/bootstrapgen/error_duplicate_name"
+
+	// First scan: registers Named service via analysistest (succeeds without duplicate)
+	analysistest.Run(t, testdir, depAnalyzer, "error_duplicate_name/service")
+
+	// Verify first registration succeeded
+	allInjectors := injectorReg.GetAll()
+	if len(allInjectors) == 0 {
+		t.Fatal("expected at least one injector registered after first scan")
+	}
+
+	// Find the registered injector
+	var registeredInfo *registry.InjectorInfo
+	for _, info := range allInjectors {
+		if info.Name == "primary" {
+			registeredInfo = info
+			break
+		}
+	}
+	if registeredInfo == nil {
+		t.Fatal("expected injector with name \"primary\" to be registered")
+	}
+
+	// Programmatic duplicate: re-register with same (TypeName, Name) to verify duplicate detection
+	err := injectorReg.Register(&registry.InjectorInfo{
+		TypeName:        registeredInfo.TypeName,
+		PackagePath:     "another/package",
+		PackageName:     "another",
+		LocalName:       registeredInfo.LocalName,
+		ConstructorName: registeredInfo.ConstructorName,
+		Name:            "primary",
+	})
+	if err == nil {
+		t.Fatal("expected duplicate registration error, got nil")
+	}
+	if !strings.Contains(err.Error(), "duplicate named dependency") {
+		t.Fatalf("expected error containing \"duplicate named dependency\", got: %s", err.Error())
+	}
 }

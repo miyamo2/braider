@@ -191,7 +191,7 @@
   - Test correlation error flow: duplicate names → non-fatal diagnostic → bootstrap generation continues
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.5, 2.6, 2.7, 2.8, 3.4, 3.5, 3.6, 3.7, 4.2, 4.3, 4.4, 4.5, 6.1, 6.2, 6.3, 6.4, 6.5, 7.1, 7.2, 7.4, 7.5, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
 
-- [ ] 8.7 (P) E2E tests using analysistest
+- [x] 8.7 (P) E2E tests using analysistest
   - Create testdata/refine_annotation/typed_inject with Injectable[Typed[I]] struct, verify constructor signature and bootstrap code
   - Create testdata/refine_annotation/named_inject with multiple Named[N] structs, verify distinct variables and no name collision
   - Create testdata/refine_annotation/without_constructor with WithoutConstructor option, verify no constructor generated and manual constructor used
