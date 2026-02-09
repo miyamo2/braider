@@ -258,7 +258,7 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 		// Extract option metadata for inject
 		var metadata detect.OptionMetadata
 		if injector.InjectField != nil && r.optionExtractor != nil {
-			concreteType := pass.TypesInfo.ObjectOf(injector.TypeSpec.Name).Type()
+			concreteType := types.NewPointer(pass.TypesInfo.ObjectOf(injector.TypeSpec.Name).Type())
 			var err error
 			metadata, err = r.optionExtractor.ExtractInjectOptions(pass, injector.InjectField.Type, concreteType)
 			if err != nil {
