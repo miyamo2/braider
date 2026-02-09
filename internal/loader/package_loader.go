@@ -10,6 +10,7 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
+
 // PackageLoader loads all packages in a Go module.
 type PackageLoader interface {
 	// LoadModulePackageNames loads all packages in the module.
@@ -30,17 +31,13 @@ type PackageLoader interface {
 
 // packageLoader is the default implementation of PackageLoader.
 type packageLoader struct {
-	mu             sync.Mutex
-	pkgCache       map[string]*packages.Package // all packages (module + external)
-	modulePkgPaths map[string][]string          // moduleRoot → package paths belonging to that module
+	pkgCache       sync.Map // key: string (pkgPath), value: *packages.Package
+	modulePkgPaths sync.Map // key: string (moduleRoot), value: []string
 }
 
 // NewPackageLoader creates a new PackageLoader instance.
 func NewPackageLoader() PackageLoader {
-	return &packageLoader{
-		pkgCache:       make(map[string]*packages.Package),
-		modulePkgPaths: make(map[string][]string),
-	}
+	return &packageLoader{}
 }
 
 // LoadModulePackageNames loads all packages in the module.
@@ -63,16 +60,13 @@ func (l *packageLoader) LoadModulePackageNames(dir string) ([]string, error) {
 // LoadModulePackageAST loads all packages in the module with full AST.
 // Returns only packages belonging to the module, not external packages loaded via LoadPackage.
 func (l *packageLoader) LoadModulePackageAST(dir string) (iter.Seq[*packages.Package], error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	moduleRoot, err := l.FindModuleRoot(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	if paths, ok := l.modulePkgPaths[moduleRoot]; ok {
-		return l.packagesByPaths(paths), nil
+	if v, ok := l.modulePkgPaths.Load(moduleRoot); ok {
+		return l.packagesByPaths(v.([]string)), nil
 	}
 
 	cfg := &packages.Config{
@@ -89,12 +83,12 @@ func (l *packageLoader) LoadModulePackageAST(dir string) (iter.Seq[*packages.Pac
 	var paths []string
 	for _, pkg := range pkgs {
 		if pkg.PkgPath != "" {
-			l.pkgCache[pkg.PkgPath] = pkg
+			l.pkgCache.Store(pkg.PkgPath, pkg)
 			paths = append(paths, pkg.PkgPath)
 		}
 	}
 
-	l.modulePkgPaths[moduleRoot] = paths
+	l.modulePkgPaths.Store(moduleRoot, paths)
 
 	return l.packagesByPaths(paths), nil
 }
@@ -103,8 +97,8 @@ func (l *packageLoader) LoadModulePackageAST(dir string) (iter.Seq[*packages.Pac
 func (l *packageLoader) packagesByPaths(paths []string) iter.Seq[*packages.Package] {
 	return func(yield func(*packages.Package) bool) {
 		for _, path := range paths {
-			if pkg, ok := l.pkgCache[path]; ok {
-				if !yield(pkg) {
+			if v, ok := l.pkgCache.Load(path); ok {
+				if !yield(v.(*packages.Package)) {
 					return
 				}
 			}
@@ -115,11 +109,8 @@ func (l *packageLoader) packagesByPaths(paths []string) iter.Seq[*packages.Packa
 // LoadPackage loads a single package by its import path.
 // Uses the cache to avoid redundant loading.
 func (l *packageLoader) LoadPackage(pkgPath string) (*packages.Package, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	if pkg, ok := l.pkgCache[pkgPath]; ok {
-		return pkg, nil
+	if v, ok := l.pkgCache.Load(pkgPath); ok {
+		return v.(*packages.Package), nil
 	}
 
 	cfg := &packages.Config{
@@ -135,7 +126,7 @@ func (l *packageLoader) LoadPackage(pkgPath string) (*packages.Package, error) {
 		return nil, os.ErrNotExist
 	}
 
-	l.pkgCache[pkgPath] = pkgs[0]
+	l.pkgCache.Store(pkgPath, pkgs[0])
 
 	return pkgs[0], nil
 }
