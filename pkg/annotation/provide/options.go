@@ -1,3 +1,22 @@
+// Package provide provides option interfaces for configuring
+// annotation.Provide behavior in braider's dependency injection system.
+//
+// Options control how the braider analyzer registers provider functions.
+// Available options:
+//
+//   - [Default]: registers the provider function under its declared return type
+//   - [Typed]: registers the provider function as returning a specific interface type
+//   - [Named]: registers the provider function with a specific name for disambiguation
+//
+// Options can be combined by embedding multiple option interfaces in an
+// anonymous interface:
+//
+//	var _ = annotation.Provide[interface {
+//	    provide.Typed[RepositoryInterface]
+//	    provide.Named[RepoName]
+//	}](NewRepository)
+//
+// Custom option types must implement the [Option] interface.
 package provide
 
 import (

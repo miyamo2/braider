@@ -1,3 +1,25 @@
+// Package inject provides option interfaces for configuring
+// annotation.Injectable behavior in braider's dependency injection system.
+//
+// Options control how the braider analyzer generates constructors and
+// registers dependencies. Available options:
+//
+//   - [Default]: generates a constructor returning *StructType (default behavior)
+//   - [Typed]: registers the dependency as an interface type instead of the concrete struct
+//   - [Named]: registers the dependency with a specific name for disambiguation
+//   - [WithoutConstructor]: skips constructor generation, requiring a manual New<Type> function
+//
+// Options can be combined by embedding multiple option interfaces in an
+// anonymous interface:
+//
+//	type MyService struct {
+//	    annotation.Injectable[interface {
+//	        inject.Typed[ServiceInterface]
+//	        inject.Named[ServiceName]
+//	    }]
+//	}
+//
+// Custom option types must implement the [Option] interface.
 package inject
 
 import "github.com/miyamo2/braider/pkg/annotation/namer"

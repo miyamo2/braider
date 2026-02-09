@@ -146,7 +146,7 @@
   - If context active, proceed with normal bootstrap generation using updated `BootstrapGenerator`
   - _Requirements: 8.5_
 
-- [ ] 8. Implement comprehensive test coverage
+- [x] 8. Implement comprehensive test coverage
 - [x] 8.1 (P) Unit tests for OptionExtractor
   - Test type parameter extraction for each option type: Default, Typed[I], Named[N], WithoutConstructor
   - Test mixed-in option types implementing multiple interfaces (Typed[I] + Named[N])
@@ -199,22 +199,22 @@
   - Create testdata/refine_annotation/error_cases with constraint violations, non-literal names, duplicate names, verify diagnostics
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.5, 2.6, 2.7, 2.8, 3.4, 3.5, 3.6, 3.7, 4.2, 4.3, 4.4, 4.5, 8.1, 8.2, 8.3, 8.4_
 
-- [ ] 9. Add godoc documentation and examples
-- [ ] 9.1 (P) Document public API interfaces
+- [x] 9. Add godoc documentation and examples
+- [x] 9.1 (P) Document public API interfaces
   - Add godoc comments to Injectable[T] and Provider[T] interfaces with usage examples showing Default, Typed[I], Named[N], WithoutConstructor patterns
   - Add godoc comments to inject.Option, inject.Default, inject.Typed[T], inject.Named[T], inject.WithoutConstructor interfaces with code examples
   - Add godoc comments to provide.Option, provide.Default, provide.Typed[T], provide.Named[T] interfaces with code examples
   - Add godoc comments to namer.Namer interface explaining hardcoded literal requirement
   - _Requirements: 9.1, 9.2, 9.3_
 
-- [ ] 9.2 (P) Create example projects
+- [x] 9.2 (P) Create example projects
   - Create example project demonstrating interface-typed dependencies with Injectable[Typed[I]] and Provide[Typed[I]]
   - Create example project demonstrating named dependencies with Injectable[Named[N]] for multiple instances of same type
   - Create example project demonstrating custom constructors with Injectable[WithoutConstructor]
   - Create example project demonstrating mixed options with custom types implementing multiple option interfaces
   - _Requirements: 9.4_
 
-- [ ] 9.3 (P) Update README documentation
+- [x] 9.3 (P) Update README documentation
   - Document generic annotation pattern with Injectable[T] and Provider[T] syntax
   - Explain option types: Default, Typed[I], Named[N], WithoutConstructor
   - Link to example projects for each pattern
