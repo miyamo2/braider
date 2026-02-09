@@ -6,14 +6,16 @@ import (
 
 type option struct{}
 
-// Option configures annotaion.Inject behavior.
+// Option configures annotation.Provide behavior.
 //
 // Your custom options(mixed-in options) must implement this interface.
 type Option interface {
 	isOption() option
 }
 
-// Default configures the annotation.Provide to default behavior.
+// Default configures annotation.Provide to default behavior.
+//
+// The analyzer registers the provider function under its return type.
 type Default interface {
 	Option
 	isDefault()
@@ -21,6 +23,18 @@ type Default interface {
 
 // Typed configures the annotation.Provide to register a function as factory for a specific type.
 // If not set, the return type of the provider function is used as the registration type.
+//
+// Example:
+//
+//	type Repository interface {
+//		FindByID(id string) (string, error)
+//	}
+//
+//	type UserRepository struct{}
+//
+//	func NewUserRepository() *UserRepository { return &UserRepository{} }
+//
+//	var _ = annotation.Provide[provide.Typed[Repository]](NewUserRepository)
 type Typed[T any] interface {
 	Option
 	typed() T
@@ -28,6 +42,16 @@ type Typed[T any] interface {
 
 // Named configures the annotation.Provide to register a function as factory for a specific name.
 // If not set, the provider is registered without a name.
+//
+// Name values must come from a Namer implementation that returns a string literal.
+//
+// Example:
+//
+//	type PrimaryRepoName struct{}
+//
+//	func (PrimaryRepoName) Name() string { return "primaryRepo" }
+//
+//	var _ = annotation.Provide[provide.Named[PrimaryRepoName]](NewRepository)
 type Named[T namer.Namer] interface {
 	Option
 	named() T
