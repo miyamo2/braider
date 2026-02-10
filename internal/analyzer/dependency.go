@@ -194,8 +194,25 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 			}
 		}
 
-		// Determine the type name from return type
-		typeName := pass.Pkg.Path() + "." + provider.ReturnTypeName
+		// Determine the type name from return type's actual package
+		var typePkgPath, typePkgName string
+		if provider.ReturnType != nil {
+			rt := provider.ReturnType
+			if ptr, ok := rt.(*types.Pointer); ok {
+				rt = ptr.Elem()
+			}
+			if named, ok := rt.(*types.Named); ok {
+				if pkg := named.Obj().Pkg(); pkg != nil {
+					typePkgPath = pkg.Path()
+					typePkgName = pkg.Name()
+				}
+			}
+		}
+		if typePkgPath == "" {
+			typePkgPath = pass.Pkg.Path()
+			typePkgName = pass.Pkg.Name()
+		}
+		typeName := typePkgPath + "." + provider.ReturnTypeName
 
 		// Determine registered type
 		var registeredType types.Type
@@ -209,8 +226,8 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 		if err := r.provideRegistry.Register(
 			&registry.ProviderInfo{
 				TypeName:        typeName,
-				PackagePath:     pass.Pkg.Path(),
-				PackageName:     pass.Pkg.Name(),
+				PackagePath:     typePkgPath,
+				PackageName:     typePkgName,
 				LocalName:       provider.ReturnTypeName,
 				ConstructorName: provider.ProviderFuncName,
 				Dependencies:    dependencies,

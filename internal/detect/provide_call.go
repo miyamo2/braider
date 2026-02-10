@@ -26,7 +26,7 @@ type ProviderCandidate struct {
 	ReturnType types.Type
 	// ReturnTypeName is the local name of the return type (e.g., "userRepository")
 	ReturnTypeName string
-	// PackagePath is the import path of the package
+	// PackagePath is the import path of the return type's package
 	PackagePath string
 	// Implements contains interface types the return type implements
 	Implements []string
@@ -207,6 +207,23 @@ func (d *provideCallDetector) extractCandidate(pass *analysis.Pass, callExpr *as
 		implements = d.detectImplementedInterfacesFromType(pass, returnType)
 	}
 
+	// Derive PackagePath from return type's actual package
+	var packagePath string
+	if returnType != nil {
+		rt := returnType
+		if ptr, ok := rt.(*types.Pointer); ok {
+			rt = ptr.Elem()
+		}
+		if named, ok := rt.(*types.Named); ok {
+			if pkg := named.Obj().Pkg(); pkg != nil {
+				packagePath = pkg.Path()
+			}
+		}
+	}
+	if packagePath == "" {
+		packagePath = pass.Pkg.Path()
+	}
+
 	return &ProviderCandidate{
 		CallExpr:         callExpr,
 		ProviderFunc:     providerFuncExpr,
@@ -214,7 +231,7 @@ func (d *provideCallDetector) extractCandidate(pass *analysis.Pass, callExpr *as
 		ProviderFuncName: funcName,
 		ReturnType:       returnType,
 		ReturnTypeName:   returnTypeName,
-		PackagePath:      pass.Pkg.Path(),
+		PackagePath:      packagePath,
 		Implements:       implements,
 	}
 }

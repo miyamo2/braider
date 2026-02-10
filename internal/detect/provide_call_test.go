@@ -313,7 +313,7 @@ var _ = annotation.Provide(NewRepo)
 		t.Errorf("ReturnTypeName = %q, want %q", c.ReturnTypeName, "MyRepo")
 	}
 
-	// Verify PackagePath matches pass.Pkg.Path()
+	// Verify PackagePath matches pass.Pkg.Path() (return type is in the same package)
 	if c.PackagePath != pass.Pkg.Path() {
 		t.Errorf("PackagePath = %q, want %q", c.PackagePath, pass.Pkg.Path())
 	}
@@ -395,6 +395,11 @@ var _ = annotation.Provide(helper.NewRepo)
 		// SelectorExpr function name extraction should return the selector name
 		if candidates[0].ProviderFuncName != "NewRepo" {
 			t.Errorf("ProviderFuncName = %q, want %q", candidates[0].ProviderFuncName, "NewRepo")
+		}
+
+		// PackagePath should be the return type's package, not the calling package
+		if candidates[0].PackagePath != "example.com/helper" {
+			t.Errorf("PackagePath = %q, want %q", candidates[0].PackagePath, "example.com/helper")
 		}
 	})
 
