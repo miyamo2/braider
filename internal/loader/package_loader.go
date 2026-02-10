@@ -42,18 +42,34 @@ func NewPackageLoader() PackageLoader {
 
 // LoadModulePackageNames loads all packages in the module.
 func (l *packageLoader) LoadModulePackageNames(dir string) ([]string, error) {
-	pkgs, err := l.LoadModulePackageAST(dir)
+	moduleRoot, err := l.FindModuleRoot(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	// modulePkgPaths キャッシュがあればそれを返す
+	if v, ok := l.modulePkgPaths.Load(moduleRoot); ok {
+		return v.([]string), nil
+	}
+
+	// NeedName のみの軽量ロード
+	cfg := &packages.Config{
+		Mode: packages.NeedName,
+		Dir:  moduleRoot,
+	}
+	pkgs, err := packages.Load(cfg, "./...")
 	if err != nil {
 		return nil, err
 	}
 
 	var paths []string
-	for pkg := range pkgs {
+	for _, pkg := range pkgs {
 		if pkg.PkgPath != "" {
 			paths = append(paths, pkg.PkgPath)
 		}
 	}
 
+	l.modulePkgPaths.Store(moduleRoot, paths)
 	return paths, nil
 }
 
@@ -66,7 +82,17 @@ func (l *packageLoader) LoadModulePackageAST(dir string) (iter.Seq[*packages.Pac
 	}
 
 	if v, ok := l.modulePkgPaths.Load(moduleRoot); ok {
-		return l.packagesByPaths(v.([]string)), nil
+		paths := v.([]string)
+		// pkgCache にもデータがあるか確認（軽量ロード後は pkgCache が空の可能性）
+		if len(paths) > 0 {
+			if _, cached := l.pkgCache.Load(paths[0]); cached {
+				return l.packagesByPaths(paths), nil
+			}
+		} else {
+			// 空モジュール（パッケージなし）の場合は空の iter.Seq を返す
+			return l.packagesByPaths(paths), nil
+		}
+		// pkgCache が空の場合はフルロードにフォールスルー
 	}
 
 	cfg := &packages.Config{

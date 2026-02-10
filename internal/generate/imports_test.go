@@ -402,6 +402,28 @@ func TestDetectPackageCollisions(t *testing.T) {
 				"example.com/typed/domain": "domain",
 			},
 		},
+		{
+			name: "collision via anonymous interface RegisteredType",
+			g: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"example.com/other/domain.Entity": {
+						PackagePath: "example.com/other/domain",
+						PackageName: "domain",
+					},
+					"example.com/service.MyService": {
+						PackagePath: "example.com/service",
+						PackageName: "service",
+						RegisteredType: createAnonymousInterface(
+							createNamedTypeInPackage("IRepository", "example.com/typed/domain", "domain"),
+						),
+					},
+				},
+			},
+			want: map[string]string{
+				"example.com/other/domain": "domain",
+				"example.com/typed/domain": "domain",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -562,6 +584,95 @@ func TestGenerateAliases(t *testing.T) {
 			got := generateAliases(tt.collisions, tt.existingAliases)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("generateAliases() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// createAnonymousInterface creates an anonymous interface with embedded named types.
+func createAnonymousInterface(embeds ...*types.Named) *types.Interface {
+	embedTypes := make([]types.Type, len(embeds))
+	for i, e := range embeds {
+		embedTypes[i] = e
+	}
+	iface := types.NewInterfaceType(nil, embedTypes)
+	iface.Complete()
+	return iface
+}
+
+func TestExtractPackageName(t *testing.T) {
+	tests := []struct {
+		name       string
+		typ        types.Type
+		targetPath string
+		want       string
+	}{
+		{
+			name:       "named type matching targetPath",
+			typ:        createNamedTypeInPackage("Foo", "example.com/foo", "foo"),
+			targetPath: "example.com/foo",
+			want:       "foo",
+		},
+		{
+			name:       "named type not matching targetPath",
+			typ:        createNamedTypeInPackage("Foo", "example.com/foo", "foo"),
+			targetPath: "example.com/bar",
+			want:       "",
+		},
+		{
+			name:       "pointer to named type",
+			typ:        types.NewPointer(createNamedTypeInPackage("Bar", "example.com/bar", "bar")),
+			targetPath: "example.com/bar",
+			want:       "bar",
+		},
+		{
+			name: "anonymous interface with embedded named type",
+			typ: createAnonymousInterface(
+				createNamedTypeInPackage("IRepo", "example.com/domain", "domain"),
+			),
+			targetPath: "example.com/domain",
+			want:       "domain",
+		},
+		{
+			name:       "anonymous interface with no embeds",
+			typ:        createAnonymousInterface(),
+			targetPath: "example.com/domain",
+			want:       "",
+		},
+		{
+			name: "nested anonymous interface",
+			typ: func() types.Type {
+				inner := createAnonymousInterface(
+					createNamedTypeInPackage("IRepo", "example.com/deep", "deep"),
+				)
+				// Create a named wrapper for the inner interface so it can be embedded
+				pkg := types.NewPackage("example.com/wrapper", "wrapper")
+				tn := types.NewTypeName(token.NoPos, pkg, "IWrapper", nil)
+				named := types.NewNamed(tn, inner, nil)
+				// Build outer anonymous interface that embeds the named wrapper
+				outer := types.NewInterfaceType(nil, []types.Type{named})
+				outer.Complete()
+				return outer
+			}(),
+			targetPath: "example.com/deep",
+			want:       "",
+		},
+		{
+			name: "anonymous interface with multiple embeds - match second",
+			typ: createAnonymousInterface(
+				createNamedTypeInPackage("IFoo", "example.com/foo", "foo"),
+				createNamedTypeInPackage("IBar", "example.com/bar", "bar"),
+			),
+			targetPath: "example.com/bar",
+			want:       "bar",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractPackageName(tt.typ, tt.targetPath)
+			if got != tt.want {
+				t.Errorf("extractPackageName() = %q, want %q", got, tt.want)
 			}
 		})
 	}

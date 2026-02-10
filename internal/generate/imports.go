@@ -169,6 +169,12 @@ func extractPackageName(t types.Type, targetPath string) string {
 		}
 	case *types.Pointer:
 		return extractPackageName(typ.Elem(), targetPath)
+	case *types.Interface:
+		for i := 0; i < typ.NumEmbeddeds(); i++ {
+			if name := extractPackageName(typ.EmbeddedType(i), targetPath); name != "" {
+				return name
+			}
+		}
 	}
 	return ""
 }

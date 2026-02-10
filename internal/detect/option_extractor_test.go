@@ -152,6 +152,33 @@ func TestOptionExtractor_ExtractInjectOptions_WithoutConstructor(t *testing.T) {
 	}
 }
 
+func TestOptionExtractor_ExtractInjectOptions_TypedNonInterface(t *testing.T) {
+	pkg, pass := LoadTestPackage(t, "option_extractor/typed_non_interface")
+	injectableExpr, _, structName := FindInjectableField(t, pkg)
+
+	// Extract concrete type from the struct
+	obj := pkg.Types.Scope().Lookup(structName)
+	if obj == nil {
+		t.Fatalf("Struct %s not found in package scope", structName)
+	}
+	concreteType := types.NewPointer(obj.Type())
+
+	mockValidator := &MockNamerValidator{}
+	extractor := NewOptionExtractor(mockValidator)
+
+	_, err := extractor.ExtractInjectOptions(pass, injectableExpr, concreteType)
+
+	if err == nil {
+		t.Error("Expected error for Typed[I] with non-interface type, got nil")
+		return
+	}
+
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "Typed[I] requires an interface type") {
+		t.Errorf("Expected error to contain 'Typed[I] requires an interface type', got: %v", err)
+	}
+}
+
 func TestOptionExtractor_ExtractInjectOptions_InterfaceImplValidationError(t *testing.T) {
 	pkg, pass := LoadTestPackage(t, "option_extractor/interface_validation_error")
 	injectableExpr, _, structName := FindInjectableField(t, pkg)

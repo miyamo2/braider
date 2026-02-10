@@ -113,13 +113,15 @@ func (e *optionExtractorImpl) extractMetadataFromOptionType(pass *analysis.Pass,
 
 	// Check for Typed[I]
 	if typedInterface := e.extractTypedInterface(optionType); typedInterface != nil {
+		iface, ok := typedInterface.Underlying().(*types.Interface)
+		if !ok {
+			return OptionMetadata{}, fmt.Errorf("Typed[I] requires an interface type, but got %s", typedInterface)
+		}
 		metadata.TypedInterface = typedInterface
 		// Validate concrete type implements interface if both are available
 		if concreteType != nil {
-			if iface, ok := typedInterface.Underlying().(*types.Interface); ok {
-				if !types.Implements(concreteType, iface) {
-					return OptionMetadata{}, fmt.Errorf("concrete type %s does not implement interface %s", concreteType, typedInterface)
-				}
+			if !types.Implements(concreteType, iface) {
+				return OptionMetadata{}, fmt.Errorf("concrete type %s does not implement interface %s", concreteType, typedInterface)
 			}
 		}
 	}
