@@ -176,9 +176,7 @@ type _variable struct {
 //
 // Example:
 //
-//	const DSN = "xxx"
-//
-//	var _ annotation.Variable[variable.Default](DSN)
+//	var _ annotation.Variable[variable.Default](os.Stdout)
 func Variable[T variable.Option](variable any) _variable {
 	_ = variable
 	return _variable{}
