@@ -86,10 +86,12 @@ func TestAppAnalyzer_ContextCancellation(t *testing.T) {
 	bootstrapCancel(fmt.Errorf("simulated validation error"))
 
 	packageLoader := &mockPackageLoader{}
+	variableReg := registry.NewVariableRegistry()
 	analyzer := AppAnalyzer(
 		appDetector, injectorRegistry, providerRegistry, packageLoader,
 		packageTracker, bootstrapCtx,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+		variableReg,
 	)
 
 	// Should not emit any diagnostics when context is cancelled
@@ -115,10 +117,12 @@ func TestAppAnalyzer_MissingConstructor(t *testing.T) {
 	packageTracker.MarkPackageScanned("missingctor")
 
 	packageLoader := &mockPackageLoader{}
+	variableReg := registry.NewVariableRegistry()
 	analyzer := AppAnalyzer(
 		appDetector, injectorRegistry, providerRegistry, packageLoader,
 		packageTracker, bootstrapCtx,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+		variableReg,
 	)
 	analysistest.Run(t, "testdata/bootstrapgen/missingctor", analyzer, ".")
 	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/missingctor", analyzer, ".")
@@ -154,10 +158,12 @@ func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
 	packageTracker.MarkPackageScanned("multipleapp/cmd/2")
 
 	packageLoader := &mockPackageLoader{}
+	variableReg := registry.NewVariableRegistry()
 	analyzer := AppAnalyzer(
 		appDetector, injectorRegistry, providerRegistry, packageLoader,
 		packageTracker, bootstrapCtx,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
+		variableReg,
 	)
 	analysistest.Run(t, "testdata/bootstrapgen/multipleapp", analyzer, "./...")
 }

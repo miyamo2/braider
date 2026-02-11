@@ -152,3 +152,25 @@ func (r *VariableRegistry) GetByName(typeName, name string) (*VariableInfo, bool
 	info, exists := inner[name]
 	return info, exists
 }
+
+// GetNamesByType returns a sorted slice of non-empty names registered for the given type name.
+// Returns nil if no entries exist for the type or no entries have non-empty names.
+func (r *VariableRegistry) GetNamesByType(typeName string) []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	inner, ok := r.variables[typeName]
+	if !ok {
+		return nil
+	}
+	var names []string
+	for name := range inner {
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	sort.Strings(names)
+	return names
+}

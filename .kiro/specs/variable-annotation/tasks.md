@@ -80,7 +80,7 @@
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.4, 3.5, 6.1, 6.2, 6.3, 6.4, 7.1_
   - _Contracts: DependencyAnalyzer (extension)_
 
-- [ ] 7. AppAnalyzer integration
+- [x] 7. AppAnalyzer integration
   - Wire the Variable registry into the AppAnalyzer
   - Retrieve all Variable entries alongside providers and injectors when building the dependency graph
   - Pass Variable data to the graph builder and ensure generated bootstrap code correctly includes Variables from any scanned package

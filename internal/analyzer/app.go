@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"strings"
 	"time"
 
 	"github.com/miyamo2/braider/internal/detect"
@@ -33,6 +34,7 @@ func AppAnalyzer(
 	bootstrapGen generate.BootstrapGenerator,
 	fixBuilder report.SuggestedFixBuilder,
 	diagnosticEmitter report.DiagnosticEmitter,
+	variableRegistry *registry.VariableRegistry,
 ) *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "braider_app",
@@ -49,6 +51,7 @@ func AppAnalyzer(
 			bootstrapGen,
 			fixBuilder,
 			diagnosticEmitter,
+			variableRegistry,
 		).Run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	}
@@ -66,6 +69,7 @@ type AppAnalyzeRunner struct {
 	bootstrapGen      generate.BootstrapGenerator
 	fixBuilder        report.SuggestedFixBuilder
 	diagnosticEmitter report.DiagnosticEmitter
+	variableRegistry  *registry.VariableRegistry
 }
 
 func NewAppAnalyzeRunner(
@@ -80,6 +84,7 @@ func NewAppAnalyzeRunner(
 	bootstrapGen generate.BootstrapGenerator,
 	fixBuilder report.SuggestedFixBuilder,
 	diagnosticEmitter report.DiagnosticEmitter,
+	variableRegistry *registry.VariableRegistry,
 ) *AppAnalyzeRunner {
 	return &AppAnalyzeRunner{
 		appDetector:       appDetector,
@@ -93,6 +98,7 @@ func NewAppAnalyzeRunner(
 		bootstrapGen:      bootstrapGen,
 		fixBuilder:        fixBuilder,
 		diagnosticEmitter: diagnosticEmitter,
+		variableRegistry:  variableRegistry,
 	}
 }
 
@@ -173,15 +179,26 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) (interf
 		}
 	}
 
-	// Phase 3: Retrieve all providers and injectors from global registries
+	// Phase 3: Retrieve all providers, injectors, and variables from global registries
 	providers := r.provideRegistry.GetAll()
 	injectors := r.injectRegistry.GetAll()
+	var variables []*registry.VariableInfo
+	if r.variableRegistry != nil {
+		variables = r.variableRegistry.GetAll()
+	}
 
 	// Phase 4: Build dependency graph
-	depGraph, err := r.graphBuilder.BuildGraph(pass, providers, injectors, nil)
+	depGraph, err := r.graphBuilder.BuildGraph(pass, providers, injectors, variables)
 	if err != nil {
-		// Report graph construction errors to the user
-		r.diagnosticEmitter.EmitGraphBuildError(reporter, apps[0].Pos, err.Error())
+		// Check for unresolvable type with name mismatch hint (Req 6.5)
+		errMsg := err.Error()
+		if unresolvedErr, ok := err.(*graph.UnresolvableTypeError); ok && r.variableRegistry != nil {
+			hint := r.buildNameMismatchHint(unresolvedErr.TypeName)
+			if hint != "" {
+				errMsg = errMsg + "; " + hint
+			}
+		}
+		r.diagnosticEmitter.EmitGraphBuildError(reporter, apps[0].Pos, errMsg)
 		return nil, nil
 	}
 
@@ -232,6 +249,28 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) (interf
 	}
 
 	return nil, nil
+}
+
+// buildNameMismatchHint checks if an unresolvable dependency type matches a Variable
+// registration with a different name, and returns a hint message if so.
+func (r *AppAnalyzeRunner) buildNameMismatchHint(typeName string) string {
+	// Strip pointer prefix for lookup
+	normalizedName := typeName
+	if strings.HasPrefix(typeName, "*") {
+		normalizedName = typeName[1:]
+	}
+
+	availableNames := r.variableRegistry.GetNamesByType(normalizedName)
+	if len(availableNames) == 0 {
+		return ""
+	}
+
+	// Build hint with available named variants
+	var hints []string
+	for _, name := range availableNames {
+		hints = append(hints, normalizedName+"#"+name)
+	}
+	return fmt.Sprintf("did you mean %s?", strings.Join(hints, " or "))
 }
 
 // findMainFunction finds the main function declaration in the package.

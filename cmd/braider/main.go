@@ -80,6 +80,7 @@ func main() {
 		bootstrapGenerator,
 		suggestedFixBuilder,
 		diagnosticEmitter,
+		variableRegistry,
 	)
 
 	// Step 7: Pass to multichecker

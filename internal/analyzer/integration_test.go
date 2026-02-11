@@ -80,6 +80,7 @@ func buildIntegrationDeps() (
 		packageTracker, ctx,
 		graphBuilder, sorter, bootstrapGenerator,
 		suggestedFixBuilder, diagnosticEmitter,
+		variableReg,
 	)
 
 	return depAnalyzer, appAnalyzer, injectorReg, providerReg
