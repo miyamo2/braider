@@ -6,6 +6,7 @@
 package annotation
 
 import (
+	"github.com/miyamo2/braider/internal/annotation"
 	"github.com/miyamo2/braider/pkg/annotation/inject"
 	"github.com/miyamo2/braider/pkg/annotation/provide"
 )
@@ -39,23 +40,13 @@ import (
 //		}]
 //	}
 type Injectable[T inject.Option] interface {
-	isInjectable()
+	annotation.Injectable
 	option() T
 }
 
-// Provider is a marker interface returned by Provide[T].
-//
-// Use Provide[T] with a blank identifier to register provider functions.
-//
-//	var _ = annotation.Provide[provide.Default](NewRepository)
-type Provider[T provide.Option] interface {
-	isProvider()
-	option() T
+type provider[T provide.Option] struct {
+	annotation.Provider
 }
-
-type provider[T provide.Option] struct{}
-
-func (p provider[T]) isProvider() {}
 
 func (p provider[T]) option() T {
 	var zero T
@@ -74,9 +65,13 @@ func (p provider[T]) option() T {
 //	var _ = annotation.Provide[provide.Default](NewRepository)
 //	var _ = annotation.Provide[provide.Typed[Repository]](NewRepository)
 //	var _ = annotation.Provide[provide.Named[PrimaryRepoName]](NewRepository)
-func Provide[T provide.Option](providerFunc any) Provider[T] {
+func Provide[T provide.Option](providerFunc any) provider[T] {
 	_ = providerFunc
 	return provider[T]{}
+}
+
+type app struct {
+	annotation.App
 }
 
 // App marks a struct as the top-level dependency injection target.
@@ -163,6 +158,6 @@ func Provide[T provide.Option](providerFunc any) Provider[T] {
 //			Service: service,
 //		}
 //	}
-func App(_ func()) struct{} {
-	return struct{}{}
+func App(_ func()) annotation.App {
+	return app{}
 }

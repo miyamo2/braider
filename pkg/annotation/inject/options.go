@@ -22,15 +22,16 @@
 // Custom option types must implement the [Option] interface.
 package inject
 
-import "github.com/miyamo2/braider/pkg/annotation/namer"
-
-type option struct{}
+import (
+	"github.com/miyamo2/braider/internal/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/namer"
+)
 
 // Option configures annotation.Injectable behavior.
 //
 // Your custom options(mixed-in options) must implement this interface.
 type Option interface {
-	isOption() option
+	annotation.InjectableOption
 }
 
 // Default configures annotation.Injectable to the default behavior.
@@ -38,7 +39,7 @@ type Option interface {
 // The analyzer generates a constructor that returns *StructType.
 type Default interface {
 	Option
-	isDefault()
+	annotation.InjectableDefault
 }
 
 // Typed configures the annotation.Injectable to register an instance in the container with a specific type.
@@ -55,7 +56,7 @@ type Default interface {
 //	}
 type Typed[T any] interface {
 	Option
-	typed() T
+	annotation.InjectableTyped[T]
 }
 
 // Named configures the annotation.Injectable to register an instance in the container with a specific name.
@@ -74,7 +75,7 @@ type Typed[T any] interface {
 //	}
 type Named[T namer.Namer] interface {
 	Option
-	named() T
+	annotation.InjectableNamed[T]
 }
 
 // WithoutConstructor configures the annotation.Injectable to skip generating a constructor function.
@@ -90,5 +91,5 @@ type Named[T namer.Namer] interface {
 //	func NewCustomService() *CustomService { return &CustomService{} }
 type WithoutConstructor interface {
 	Option
-	withoutConstructor()
+	annotation.InjectableWithoutConstructor
 }
