@@ -10,7 +10,6 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-
 // PackageLoader loads all packages in a Go module.
 type PackageLoader interface {
 	// LoadModulePackageNames loads all packages in the module.
@@ -69,7 +68,6 @@ func (l *packageLoader) LoadModulePackageNames(dir string) ([]string, error) {
 		}
 	}
 
-	l.modulePkgPaths.Store(moduleRoot, paths)
 	return paths, nil
 }
 
