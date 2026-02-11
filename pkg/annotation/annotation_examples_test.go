@@ -1,9 +1,12 @@
 package annotation_test
 
 import (
+	"os"
+
 	"github.com/miyamo2/braider/pkg/annotation"
 	"github.com/miyamo2/braider/pkg/annotation/inject"
 	"github.com/miyamo2/braider/pkg/annotation/provide"
+	"github.com/miyamo2/braider/pkg/annotation/variable"
 )
 
 // ExampleInjectable_default demonstrates the default Injectable annotation.
@@ -105,6 +108,27 @@ func ExampleProvide_named() {
 type primaryDBName struct{}
 
 func (primaryDBName) Name() string { return "primaryDB" }
+
+// ExampleVariable_default demonstrates registering a pre-existing variable.
+// When Variable[variable.Default] is used, braider registers the variable
+// under its declared type without invoking any constructor.
+func ExampleVariable_default() {
+	var _ = annotation.Variable[variable.Default](os.Stdout)
+}
+
+// ExampleVariable_typed demonstrates registering a variable as an interface type.
+// When Variable[variable.Typed[I]] is used, braider registers the variable
+// under the interface type I instead of the argument's declared type.
+func ExampleVariable_typed() {
+	var _ = annotation.Variable[variable.Typed[any]](os.Stdout)
+}
+
+// ExampleVariable_named demonstrates registering a variable with a name.
+// When Variable[variable.Named[N]] is used, braider registers the variable
+// with the name returned by N.Name().
+func ExampleVariable_named() {
+	var _ = annotation.Variable[variable.Named[primaryDBName]](os.Stdout)
+}
 
 // ExampleApp demonstrates marking the entry point for bootstrap code generation.
 // annotation.App(main) triggers braider to generate an IIFE that initializes

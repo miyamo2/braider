@@ -179,6 +179,127 @@ func TestOptionExtractor_ExtractInjectOptions_TypedNonInterface(t *testing.T) {
 	}
 }
 
+func TestOptionExtractor_ExtractVariableOptions_Default(t *testing.T) {
+	pkg, pass := LoadTestPackage(t, "option_extractor/variable_default")
+	callExpr, argType := FindVariableCall(t, pkg)
+
+	mockValidator := &MockNamerValidator{}
+	extractor := NewOptionExtractor(mockValidator)
+
+	metadata, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !metadata.IsDefault {
+		t.Error("Expected IsDefault=true")
+	}
+	if metadata.WithoutConstructor {
+		t.Error("Expected WithoutConstructor=false for Variable")
+	}
+	if metadata.TypedInterface != nil {
+		t.Errorf("Expected TypedInterface=nil, got %v", metadata.TypedInterface)
+	}
+	if metadata.Name != "" {
+		t.Errorf("Expected Name=\"\", got %q", metadata.Name)
+	}
+}
+
+func TestOptionExtractor_ExtractVariableOptions_Typed(t *testing.T) {
+	pkg, pass := LoadTestPackage(t, "option_extractor/variable_typed")
+	callExpr, argType := FindVariableCall(t, pkg)
+
+	// Find MyWriter type
+	ifaceObj := pkg.Types.Scope().Lookup("MyWriter")
+	if ifaceObj == nil {
+		t.Fatal("MyWriter not found")
+	}
+	ifaceType := ifaceObj.Type()
+
+	mockValidator := &MockNamerValidator{}
+	extractor := NewOptionExtractor(mockValidator)
+
+	metadata, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if metadata.TypedInterface == nil {
+		t.Error("Expected TypedInterface to be set, got nil")
+	} else if metadata.TypedInterface != ifaceType {
+		t.Errorf("Expected TypedInterface=%v, got %v", ifaceType, metadata.TypedInterface)
+	}
+
+	if metadata.IsDefault {
+		t.Error("Expected IsDefault=false for Typed option, got true")
+	}
+}
+
+func TestOptionExtractor_ExtractVariableOptions_Named(t *testing.T) {
+	pkg, pass := LoadTestPackage(t, "option_extractor/variable_named")
+	callExpr, argType := FindVariableCall(t, pkg)
+
+	mockValidator := &MockNamerValidator{
+		ExtractNameFn: func(pass *analysis.Pass, nt types.Type) (string, error) {
+			return "stdout", nil
+		},
+	}
+	extractor := NewOptionExtractor(mockValidator)
+
+	metadata, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if metadata.Name != "stdout" {
+		t.Errorf("Expected Name=\"stdout\", got %q", metadata.Name)
+	}
+}
+
+func TestOptionExtractor_ExtractVariableOptions_Mixed(t *testing.T) {
+	pkg, pass := LoadTestPackage(t, "option_extractor/variable_mixed")
+	callExpr, argType := FindVariableCall(t, pkg)
+
+	// Find MyWriter type
+	ifaceObj := pkg.Types.Scope().Lookup("MyWriter")
+	if ifaceObj == nil {
+		t.Fatal("MyWriter not found")
+	}
+	ifaceType := ifaceObj.Type()
+
+	mockValidator := &MockNamerValidator{
+		ExtractNameFn: func(pass *analysis.Pass, nt types.Type) (string, error) {
+			return "stdout", nil
+		},
+	}
+	extractor := NewOptionExtractor(mockValidator)
+
+	metadata, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should have both Typed and Named
+	if metadata.TypedInterface == nil {
+		t.Error("Expected TypedInterface to be set, got nil")
+	} else if metadata.TypedInterface != ifaceType {
+		t.Errorf("Expected TypedInterface=%v, got %v", ifaceType, metadata.TypedInterface)
+	}
+
+	if metadata.Name != "stdout" {
+		t.Errorf("Expected Name=\"stdout\", got %q", metadata.Name)
+	}
+
+	// WithoutConstructor should never be set for Variable
+	if metadata.WithoutConstructor {
+		t.Error("Expected WithoutConstructor=false for Variable")
+	}
+}
+
 func TestOptionExtractor_ExtractInjectOptions_InterfaceImplValidationError(t *testing.T) {
 	pkg, pass := LoadTestPackage(t, "option_extractor/interface_validation_error")
 	injectableExpr, _, structName := FindInjectableField(t, pkg)

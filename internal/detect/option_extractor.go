@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	injectOptionsPath  = "github.com/miyamo2/braider/pkg/annotation/inject"
-	provideOptionsPath = "github.com/miyamo2/braider/pkg/annotation/provide"
+	injectOptionsPath   = "github.com/miyamo2/braider/pkg/annotation/inject"
+	provideOptionsPath  = "github.com/miyamo2/braider/pkg/annotation/provide"
+	variableOptionsPath = "github.com/miyamo2/braider/pkg/annotation/variable"
 )
 
 // OptionExtractor extracts and validates type parameters from generic annotations.
@@ -22,6 +23,11 @@ type OptionExtractor interface {
 	// ExtractProvideOptions extracts option metadata from Provider[T] type parameter.
 	// Validates provider function return type compatibility with Typed[I] if present.
 	ExtractProvideOptions(pass *analysis.Pass, callExpr *ast.CallExpr, providerFunc types.Type) (OptionMetadata, error)
+
+	// ExtractVariableOptions extracts option metadata from Variable[T] type parameter.
+	// Validates argument type compatibility with Typed[I] if present.
+	// WithoutConstructor is not applicable to Variables and is never set.
+	ExtractVariableOptions(pass *analysis.Pass, callExpr *ast.CallExpr, argumentType types.Type) (OptionMetadata, error)
 }
 
 // optionExtractorImpl implements OptionExtractor.
@@ -98,8 +104,35 @@ func (e *optionExtractorImpl) ExtractProvideOptions(pass *analysis.Pass, callExp
 	return e.extractMetadataFromOptionType(pass, optionType, concreteType)
 }
 
+// ExtractVariableOptions extracts options from Variable[T] type parameter.
+func (e *optionExtractorImpl) ExtractVariableOptions(pass *analysis.Pass, callExpr *ast.CallExpr, argumentType types.Type) (OptionMetadata, error) {
+	// Get the type of the call expression (returns _variable which wraps T)
+	typ := pass.TypesInfo.TypeOf(callExpr)
+	if typ == nil {
+		return OptionMetadata{IsDefault: true}, nil
+	}
+
+	// Extract the Named type (_variable[T])
+	named, ok := typ.(*types.Named)
+	if !ok {
+		return OptionMetadata{IsDefault: true}, nil
+	}
+
+	// Get type arguments
+	typeArgs := named.TypeArgs()
+	if typeArgs == nil || typeArgs.Len() == 0 {
+		return OptionMetadata{IsDefault: true}, nil
+	}
+
+	// Extract option type T
+	optionType := typeArgs.At(0)
+
+	// For Variable, concreteType is the argument expression's type
+	return e.extractMetadataFromOptionType(pass, optionType, argumentType)
+}
+
 // extractMetadataFromOptionType extracts metadata from an option type parameter.
-// Shared logic between ExtractInjectOptions and ExtractProvideOptions.
+// Shared logic between ExtractInjectOptions, ExtractProvideOptions, and ExtractVariableOptions.
 func (e *optionExtractorImpl) extractMetadataFromOptionType(pass *analysis.Pass, optionType types.Type, concreteType types.Type) (OptionMetadata, error) {
 	metadata := OptionMetadata{}
 
@@ -170,7 +203,7 @@ func (e *optionExtractorImpl) isDefaultOptionDirect(typ types.Type) bool {
 		return obj.Name() == "Default"
 	}
 
-	return obj.Name() == "Default" && (pkg.Path() == injectOptionsPath || pkg.Path() == provideOptionsPath)
+	return obj.Name() == "Default" && (pkg.Path() == injectOptionsPath || pkg.Path() == provideOptionsPath || pkg.Path() == variableOptionsPath)
 }
 
 // isWithoutConstructorOption checks if the type is inject.WithoutConstructor.
@@ -223,7 +256,7 @@ func (e *optionExtractorImpl) extractTypedInterfaceDirect(typ types.Type) types.
 
 	// Verify package path
 	if pkg := obj.Pkg(); pkg != nil {
-		if pkg.Path() != injectOptionsPath && pkg.Path() != provideOptionsPath {
+		if pkg.Path() != injectOptionsPath && pkg.Path() != provideOptionsPath && pkg.Path() != variableOptionsPath {
 			return nil
 		}
 	}
@@ -258,7 +291,7 @@ func (e *optionExtractorImpl) extractNamerTypeDirect(typ types.Type) types.Type 
 
 	// Verify package path
 	if pkg := obj.Pkg(); pkg != nil {
-		if pkg.Path() != injectOptionsPath && pkg.Path() != provideOptionsPath {
+		if pkg.Path() != injectOptionsPath && pkg.Path() != provideOptionsPath && pkg.Path() != variableOptionsPath {
 			return nil
 		}
 	}

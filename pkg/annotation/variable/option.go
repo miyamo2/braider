@@ -22,7 +22,7 @@ type Default interface {
 //
 // Example:
 //
-//	var _ = annotation.Variable[variable.Typed[io.Write]](os.Stdout)
+//	var _ = annotation.Variable[variable.Typed[io.Writer]](os.Stdout)
 type Typed[T any] interface {
 	Option
 	annotation.VariableTyped

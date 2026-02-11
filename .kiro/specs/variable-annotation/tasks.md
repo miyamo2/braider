@@ -1,14 +1,14 @@
 # Implementation Plan
 
-- [ ] 1. Variable annotation public API and option package
-- [ ] 1.1 (P) Define the Variable option types and annotation function
+- [x] 1. Variable annotation public API and option package
+- [x] 1.1 (P) Define the Variable option types and annotation function
   - The `pkg/annotation/variable/option.go` and `annotation.Variable[T]()` already exist; verify they compile and that `Default`, `Typed[I]`, and `Named[N]` option types match the patterns used by `inject` and `provide`
   - Ensure `variable.Option` is recognized by the OptionExtractor infrastructure (internal annotation marker types: `VariableOption`, `VariableDefault`, `VariableTyped`, `VariableNamed`)
   - Add or verify example tests for basic, typed, and named Variable usage in `pkg/annotation/`
   - _Requirements: 1.1, 2.1, 2.2, 2.3_
 
-- [ ] 2. Variable call detection
-- [ ] 2.1 Implement the VariableCallDetector
+- [x] 2. Variable call detection
+- [x] 2.1 Implement the VariableCallDetector
   - Create a detector that scans package-level `var _ = annotation.Variable[T](value)` declarations
   - Identify the call expression, resolve the argument expression type via type info, and extract canonical expression text using AST formatting
   - Collect all package paths referenced by the expression (for import handling) and determine whether the expression is already package-qualified
@@ -16,7 +16,7 @@
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6_
   - _Contracts: VariableCallDetector Service_
 
-- [ ] 2.2 Extend option extraction for Variable options
+- [x] 2.2 Extend option extraction for Variable options
   - Add an extraction method that parses Variable option metadata from the type parameter of `annotation.Variable[T]`
   - Support `Default`, `Typed[I]`, `Named[N]`, and mixed anonymous-interface option combinations
   - Reuse existing default-check, typed-interface, and namer-type extraction logic by recognizing the Variable option package path alongside inject and provide paths

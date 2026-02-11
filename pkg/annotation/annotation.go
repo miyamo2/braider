@@ -163,8 +163,13 @@ func App(_ func()) annotation.App {
 	return app{}
 }
 
-type _variable struct {
+type _variable[T variable.Option] struct {
 	annotation.Variable
+}
+
+func (v _variable[T]) option() T {
+	var zero T
+	return zero
 }
 
 // Variable marks a variable as a dependency to be provided.
@@ -176,8 +181,8 @@ type _variable struct {
 //
 // Example:
 //
-//	var _ annotation.Variable[variable.Default](os.Stdout)
-func Variable[T variable.Option](variable any) _variable {
+//	var _ = annotation.Variable[variable.Default](os.Stdout)
+func Variable[T variable.Option](variable any) _variable[T] {
 	_ = variable
-	return _variable{}
+	return _variable[T]{}
 }
