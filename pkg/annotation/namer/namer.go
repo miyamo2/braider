@@ -26,6 +26,10 @@
 //	var _ = annotation.Provide[provide.Named[PrimaryDBName]](NewPrimaryDB)
 package namer
 
+import "github.com/miyamo2/braider/internal/annotation"
+
+var _ Namer = (annotation.Namer)(nil)
+
 // Namer provides a Name method for naming dependencies.
 //
 // The Name method must return a hardcoded string literal in its return

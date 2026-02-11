@@ -20,6 +20,7 @@
 package provide
 
 import (
+	"github.com/miyamo2/braider/internal/annotation"
 	"github.com/miyamo2/braider/pkg/annotation/namer"
 )
 
@@ -29,7 +30,7 @@ type option struct{}
 //
 // Your custom options(mixed-in options) must implement this interface.
 type Option interface {
-	isOption() option
+	annotation.ProviderOption
 }
 
 // Default configures annotation.Provide to default behavior.
@@ -37,7 +38,7 @@ type Option interface {
 // The analyzer registers the provider function under its return type.
 type Default interface {
 	Option
-	isDefault()
+	annotation.ProviderDefault
 }
 
 // Typed configures the annotation.Provide to register a function as factory for a specific type.
@@ -56,7 +57,7 @@ type Default interface {
 //	var _ = annotation.Provide[provide.Typed[Repository]](NewUserRepository)
 type Typed[T any] interface {
 	Option
-	typed() T
+	annotation.ProviderTyped[T]
 }
 
 // Named configures the annotation.Provide to register a function as factory for a specific name.
@@ -73,5 +74,5 @@ type Typed[T any] interface {
 //	var _ = annotation.Provide[provide.Named[PrimaryRepoName]](NewRepository)
 type Named[T namer.Namer] interface {
 	Option
-	named() T
+	annotation.ProviderNamed[T]
 }

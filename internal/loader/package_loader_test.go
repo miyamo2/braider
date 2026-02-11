@@ -258,11 +258,11 @@ func TestPackageLoader_LoadPackageBeforeLoadModulePackageAST(t *testing.T) {
 		t.Skipf("skipping test: not running in a Go module: %v", err)
 	}
 
-	// Load an external package first (annotation is a separate module under pkg/)
-	externalPkgPath := "github.com/miyamo2/braider/pkg/annotation"
+	// Load an external package first (a dependency outside the braider module)
+	externalPkgPath := "golang.org/x/tools/go/packages"
 	pkg1, err := l.LoadPackage(externalPkgPath)
 	if err != nil {
-		t.Skipf("skipping test: annotation package not available: %v", err)
+		t.Skipf("skipping test: external package not available: %v", err)
 	}
 
 	if pkg1.PkgPath != externalPkgPath {
