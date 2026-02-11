@@ -24,6 +24,8 @@ type VariableInfo struct {
 	ExpressionText string
 	// ExpressionPkgs contains package paths referenced by the expression
 	ExpressionPkgs []string
+	// ExpressionPkgNames contains package names parallel to ExpressionPkgs (for collision detection)
+	ExpressionPkgNames []string
 	// IsQualified indicates whether the expression is already package-qualified (SelectorExpr)
 	IsQualified bool
 	// Dependencies is always empty for Variables (Variables have no dependencies)

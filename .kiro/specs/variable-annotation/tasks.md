@@ -56,8 +56,8 @@
   - _Requirements: 4.3, 4.5_
   - _Contracts: InterfaceRegistry Service (extension)_
 
-- [ ] 5. Bootstrap code generation for Variables
-- [ ] 5.1 Extend bootstrap generation to emit expression assignments
+- [x] 5. Bootstrap code generation for Variables
+- [x] 5.1 Extend bootstrap generation to emit expression assignments
   - When generating initialization code for Variable nodes, emit a local variable assignment using the stored expression text instead of a constructor call
   - Apply package qualification for local references from other packages, using the package alias when available
   - Ensure Variable expression assignment is checked before the existing constructor-name validation, so Variable nodes do not trigger the "requires a constructor" error
@@ -65,7 +65,7 @@
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 7.3_
   - _Contracts: BootstrapGenerator Service (extension), CollectImports (extension)_
 
-- [ ] 5.2 Extend hash computation to include Variable expression data
+- [x] 5.2 Extend hash computation to include Variable expression data
   - Include Variable expression text in the graph hash so that adding, removing, or changing a Variable registration triggers bootstrap regeneration
   - Ensure the hash contribution is empty for non-Variable nodes, preserving existing hash values for projects that do not use Variables
   - _Requirements: 5.5, 5.6_

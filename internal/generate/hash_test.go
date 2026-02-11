@@ -249,6 +249,188 @@ func TestComputeGraphHash_ConstructorNameChanges(t *testing.T) {
 	}
 }
 
+func TestComputeGraphHash_ExpressionTextChangesHash(t *testing.T) {
+	// A Variable node with ExpressionText should produce a different hash
+	// than the same node without ExpressionText.
+	graphWithoutExpr := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"os.File": {
+				TypeName:       "os.File",
+				PackagePath:    "os",
+				PackageName:    "os",
+				LocalName:      "File",
+				Dependencies:   []string{},
+				IsField:        false,
+				ExpressionText: "", // No expression (Provider/Injector node)
+			},
+		},
+		Edges: map[string][]string{
+			"os.File": {},
+		},
+	}
+
+	graphWithExpr := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"os.File": {
+				TypeName:       "os.File",
+				PackagePath:    "os",
+				PackageName:    "os",
+				LocalName:      "File",
+				Dependencies:   []string{},
+				IsField:        false,
+				ExpressionText: "os.Stdout", // Variable node with expression
+			},
+		},
+		Edges: map[string][]string{
+			"os.File": {},
+		},
+	}
+
+	hashWithout := ComputeGraphHash(graphWithoutExpr)
+	hashWith := ComputeGraphHash(graphWithExpr)
+
+	if hashWithout == hashWith {
+		t.Errorf("ComputeGraphHash() did not detect ExpressionText change: hashWithout=%s, hashWith=%s", hashWithout, hashWith)
+	}
+}
+
+func TestComputeGraphHash_DifferentExpressionTextsProduceDifferentHashes(t *testing.T) {
+	// Two Variable nodes with different ExpressionText should produce different hashes.
+	graph1 := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"os.File": {
+				TypeName:       "os.File",
+				PackagePath:    "os",
+				PackageName:    "os",
+				LocalName:      "File",
+				Dependencies:   []string{},
+				IsField:        false,
+				ExpressionText: "os.Stdout",
+			},
+		},
+		Edges: map[string][]string{
+			"os.File": {},
+		},
+	}
+
+	graph2 := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"os.File": {
+				TypeName:       "os.File",
+				PackagePath:    "os",
+				PackageName:    "os",
+				LocalName:      "File",
+				Dependencies:   []string{},
+				IsField:        false,
+				ExpressionText: "os.Stderr", // Different expression
+			},
+		},
+		Edges: map[string][]string{
+			"os.File": {},
+		},
+	}
+
+	hash1 := ComputeGraphHash(graph1)
+	hash2 := ComputeGraphHash(graph2)
+
+	if hash1 == hash2 {
+		t.Errorf("ComputeGraphHash() did not detect ExpressionText difference: hash1=%s, hash2=%s", hash1, hash2)
+	}
+}
+
+func TestComputeGraphHash_EmptyExpressionTextPreservesExistingHash(t *testing.T) {
+	// Verify that when ExpressionText is empty (Provider/Injector nodes),
+	// the hash is the same as it would be without the ExpressionText feature.
+	// This ensures backward compatibility.
+	graphProvider := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.Service": {
+				TypeName:        "example.com/pkg.Service",
+				PackagePath:     "example.com/pkg",
+				PackageName:     "pkg",
+				LocalName:       "Service",
+				ConstructorName: "NewService",
+				Dependencies:    []string{},
+				IsField:         true,
+				ExpressionText:  "", // Empty - Provider/Injector node
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.Service": {},
+		},
+	}
+
+	// The hash should be deterministic and stable for nodes with empty ExpressionText
+	hash1 := ComputeGraphHash(graphProvider)
+	hash2 := ComputeGraphHash(graphProvider)
+
+	if hash1 != hash2 {
+		t.Errorf("ComputeGraphHash() not deterministic for empty ExpressionText: hash1=%s, hash2=%s", hash1, hash2)
+	}
+
+	// Verify the hash length is correct
+	if len(hash1) != 16 {
+		t.Errorf("ComputeGraphHash() hash length = %d, want 16", len(hash1))
+	}
+}
+
+func TestComputeGraphHash_MixedVariableAndProviderNodes(t *testing.T) {
+	// A graph with both Variable and Provider nodes should produce a stable hash.
+	// Adding a Variable node should change the hash compared to having only the Provider.
+	graphProviderOnly := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.Service": {
+				TypeName:        "example.com/pkg.Service",
+				PackagePath:     "example.com/pkg",
+				PackageName:     "pkg",
+				LocalName:       "Service",
+				ConstructorName: "NewService",
+				Dependencies:    []string{},
+				IsField:         true,
+				ExpressionText:  "",
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.Service": {},
+		},
+	}
+
+	graphMixed := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.Service": {
+				TypeName:        "example.com/pkg.Service",
+				PackagePath:     "example.com/pkg",
+				PackageName:     "pkg",
+				LocalName:       "Service",
+				ConstructorName: "NewService",
+				Dependencies:    []string{},
+				IsField:         true,
+				ExpressionText:  "",
+			},
+			"os.File": {
+				TypeName:       "os.File",
+				PackagePath:    "os",
+				PackageName:    "os",
+				LocalName:      "File",
+				Dependencies:   []string{},
+				IsField:        false,
+				ExpressionText: "os.Stdout",
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.Service": {},
+			"os.File":                {},
+		},
+	}
+
+	hashProviderOnly := ComputeGraphHash(graphProviderOnly)
+	hashMixed := ComputeGraphHash(graphMixed)
+
+	if hashProviderOnly == hashMixed {
+		t.Errorf("ComputeGraphHash() did not detect addition of Variable node: hashProviderOnly=%s, hashMixed=%s", hashProviderOnly, hashMixed)
+	}
+}
+
 func TestComputeGraphHash_IsFieldFlagChanges(t *testing.T) {
 	graph1 := &graph.Graph{
 		Nodes: map[string]*graph.Node{

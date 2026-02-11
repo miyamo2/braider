@@ -71,6 +71,13 @@ func CollectImports(
 				}
 			}
 		}
+
+		// Also include packages referenced by expression (for Variable nodes)
+		for _, exprPkgPath := range node.ExpressionPkgs {
+			if exprPkgPath != "" && exprPkgPath != currentPackage {
+				importSet[exprPkgPath] = true
+			}
+		}
 	}
 
 	// Detect collisions and generate aliases
@@ -211,6 +218,13 @@ func detectPackageCollisions(g *graph.Graph) map[string]string {
 			for _, regPkgPath := range extractPackagePaths(node.RegisteredType) {
 				pkgName := extractPackageName(node.RegisteredType, regPkgPath)
 				addPackage(pkgName, regPkgPath)
+			}
+		}
+
+		// Also include packages from expression (for Variable nodes)
+		for i, exprPkgPath := range node.ExpressionPkgs {
+			if i < len(node.ExpressionPkgNames) {
+				addPackage(node.ExpressionPkgNames[i], exprPkgPath)
 			}
 		}
 	}

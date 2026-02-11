@@ -184,9 +184,6 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		if node == nil {
 			continue
 		}
-		if len(node.ConstructorName) == 0 {
-			return nil, fmt.Errorf("injectable struct %s requires a constructor", typeName)
-		}
 
 		// Determine variable name
 		// Use custom name if provided (Named[N] option), otherwise derive from type name
@@ -194,12 +191,34 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		if node.IsField {
 			varName = fieldNames[typeName]
 		} else {
-			// Provide types use local variables
+			// Provide/Variable types use local variables
 			// Use custom name if provided, otherwise derive
 			varName = node.Name
 			if varName == "" {
 				varName = DeriveFieldName(typeName)
 			}
+		}
+
+		// Variable node: emit expression assignment
+		// MUST be checked BEFORE ConstructorName validation to avoid
+		// triggering "requires a constructor" error for Variable nodes.
+		if node.ExpressionText != "" {
+			expressionText := node.ExpressionText
+			if !node.IsQualified && node.PackagePath != currentPackage {
+				// Local reference from another package — add package qualifier
+				qualifier := node.PackageAlias
+				if qualifier == "" {
+					qualifier = node.PackageName
+				}
+				expressionText = qualifier + "." + expressionText
+			}
+			inits = append(inits, fmt.Sprintf("\t%s := %s", varName, expressionText))
+			continue
+		}
+
+		// Provider/Injector node: constructor call (existing logic)
+		if len(node.ConstructorName) == 0 {
+			return nil, fmt.Errorf("injectable struct %s requires a constructor", typeName)
 		}
 
 		// Build constructor call with dependencies

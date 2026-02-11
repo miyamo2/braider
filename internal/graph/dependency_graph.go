@@ -43,9 +43,10 @@ type Node struct {
 	IsField         bool        // True for Inject structs (dependency struct fields), false for Provide structs (local variables only)
 	RegisteredType  types.Type  // Interface type for Typed[I], concrete type otherwise (nil = use concrete type)
 	Name            string      // Dependency name from Named[N], empty if unnamed
-	ExpressionText  string      // Formatted expression source text for Variable nodes (empty for Provider/Injector nodes)
-	ExpressionPkgs  []string    // Package paths referenced by expression (for Variable nodes; nil for others)
-	IsQualified     bool        // Whether expression is already package-qualified (for Variable nodes; false for others)
+	ExpressionText     string   // Formatted expression source text for Variable nodes (empty for Provider/Injector nodes)
+	ExpressionPkgs     []string // Package paths referenced by expression (for Variable nodes; nil for others)
+	ExpressionPkgNames []string // Package names parallel to ExpressionPkgs (for collision detection; nil for others)
+	IsQualified        bool     // Whether expression is already package-qualified (for Variable nodes; false for others)
 }
 
 // UnresolvableTypeError represents a dependency type that cannot be resolved.
@@ -139,9 +140,10 @@ func (b *DependencyGraphBuilder) BuildGraph(
 			IsField:         false,      // Variables are local vars in IIFE
 			RegisteredType:  variable.RegisteredType,
 			Name:            variable.Name,
-			ExpressionText:  variable.ExpressionText,
-			ExpressionPkgs:  variable.ExpressionPkgs,
-			IsQualified:     variable.IsQualified,
+			ExpressionText:     variable.ExpressionText,
+			ExpressionPkgs:     variable.ExpressionPkgs,
+			ExpressionPkgNames: variable.ExpressionPkgNames,
+			IsQualified:        variable.IsQualified,
 		}
 		graph.Nodes[nodeKey] = node
 	}

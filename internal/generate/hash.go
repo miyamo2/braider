@@ -15,11 +15,13 @@ const hashLength = 16
 
 // ComputeGraphHash computes a deterministic hash from the dependency graph.
 // It generates a 16-character hex string (64-bit hash) based on sorted type names,
-// constructor names, IsField flags, and their dependencies.
+// constructor names, IsField flags, ExpressionText (for Variable nodes), and their dependencies.
 // Using 64-bit reduces collision probability compared to 32-bit hashes.
 //
-// The hash is computed from node fields (ConstructorName, Dependencies) which must
+// The hash is computed from node fields (ConstructorName, Dependencies, ExpressionText) which must
 // be properly initialized. Empty strings and nil slices are handled gracefully.
+// When ExpressionText is empty (Provider/Injector nodes), no additional bytes are written,
+// preserving existing hash values for projects that do not use Variable annotations.
 func ComputeGraphHash(g *graph.Graph) string {
 	if g == nil {
 		return "0000000000000000"
@@ -48,6 +50,14 @@ func ComputeGraphHash(g *graph.Graph) string {
 			h.Write([]byte{0})
 		}
 		h.Write([]byte{0})
+
+		// ExpressionText (for Variable nodes — affects generated code)
+		// When ExpressionText is empty (Provider/Injector nodes), no bytes are written,
+		// preserving existing hash values for projects that do not use Variables.
+		if node.ExpressionText != "" {
+			h.Write([]byte(node.ExpressionText))
+			h.Write([]byte{0})
+		}
 
 		// Add dependencies in sorted order
 		sortedDeps := make([]string, len(node.Dependencies))

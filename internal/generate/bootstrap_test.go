@@ -408,6 +408,301 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 	}
 }
 
+func TestBootstrapGenerator_GenerateBootstrap_VariableExpressionAssignment(t *testing.T) {
+	tests := []struct {
+		name        string
+		graph       *graph.Graph
+		sortedTypes []string
+		currentPkg  string
+		currentName string
+		wantErr     bool
+		checkOutput func(t *testing.T, bootstrap *GeneratedBootstrap)
+	}{
+		{
+			name: "basic variable node emits expression assignment",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"os.File": {
+						TypeName:       "os.File",
+						PackagePath:    "os",
+						PackageName:    "os",
+						LocalName:      "File",
+						Dependencies:   []string{},
+						IsField:        false,
+						ExpressionText: "os.Stdout",
+						IsQualified:    true,
+					},
+				},
+				Edges: map[string][]string{
+					"os.File": {},
+				},
+			},
+			sortedTypes: []string{"os.File"},
+			currentPkg:  "main",
+			currentName: "main",
+			wantErr:     false,
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				// Should contain expression assignment, not a constructor call
+				if !strings.Contains(bootstrap.DependencyVar, "file := os.Stdout") {
+					t.Errorf("missing expression assignment, got: %s", bootstrap.DependencyVar)
+				}
+				// Should NOT contain any constructor call for this node
+				if strings.Contains(bootstrap.DependencyVar, "NewFile") {
+					t.Error("should not contain constructor call for Variable node")
+				}
+			},
+		},
+		{
+			name: "variable node does not trigger constructor error",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"os.File": {
+						TypeName:        "os.File",
+						PackagePath:     "os",
+						PackageName:     "os",
+						LocalName:       "File",
+						ConstructorName: "", // No constructor
+						Dependencies:    []string{},
+						IsField:         false,
+						ExpressionText:  "os.Stdout",
+						IsQualified:     true,
+					},
+				},
+				Edges: map[string][]string{
+					"os.File": {},
+				},
+			},
+			sortedTypes: []string{"os.File"},
+			currentPkg:  "main",
+			currentName: "main",
+			wantErr:     false, // Must NOT error, even though ConstructorName is empty
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				if !strings.Contains(bootstrap.DependencyVar, "file := os.Stdout") {
+					t.Errorf("missing expression assignment, got: %s", bootstrap.DependencyVar)
+				}
+			},
+		},
+		{
+			name: "variable with named dependency uses custom name",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"os.File": {
+						TypeName:       "os.File",
+						PackagePath:    "os",
+						PackageName:    "os",
+						LocalName:      "File",
+						Dependencies:   []string{},
+						IsField:        false,
+						ExpressionText: "os.Stdout",
+						IsQualified:    true,
+						Name:           "stdoutWriter",
+					},
+				},
+				Edges: map[string][]string{
+					"os.File": {},
+				},
+			},
+			sortedTypes: []string{"os.File"},
+			currentPkg:  "main",
+			currentName: "main",
+			wantErr:     false,
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				if !strings.Contains(bootstrap.DependencyVar, "stdoutWriter := os.Stdout") {
+					t.Errorf("missing named expression assignment, got: %s", bootstrap.DependencyVar)
+				}
+			},
+		},
+		{
+			name: "unqualified variable from another package gets qualification",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"example.com/config.Config": {
+						TypeName:       "example.com/config.Config",
+						PackagePath:    "example.com/config",
+						PackageName:    "config",
+						LocalName:      "Config",
+						Dependencies:   []string{},
+						IsField:        false,
+						ExpressionText: "DefaultConfig",
+						IsQualified:    false, // Local reference, not yet qualified
+					},
+				},
+				Edges: map[string][]string{
+					"example.com/config.Config": {},
+				},
+			},
+			sortedTypes: []string{"example.com/config.Config"},
+			currentPkg:  "main",
+			currentName: "main",
+			wantErr:     false,
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				// Should prepend package qualifier for unqualified expression from another package
+				// Variable name is derived from type name (Config -> config), not expression text
+				if !strings.Contains(bootstrap.DependencyVar, "config := config.DefaultConfig") {
+					t.Errorf("missing qualified expression assignment, got: %s", bootstrap.DependencyVar)
+				}
+			},
+		},
+		{
+			name: "unqualified variable from same package stays unqualified",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"main.Config": {
+						TypeName:       "main.Config",
+						PackagePath:    "main",
+						PackageName:    "main",
+						LocalName:      "Config",
+						Dependencies:   []string{},
+						IsField:        false,
+						ExpressionText: "DefaultConfig",
+						IsQualified:    false, // Local reference in same package
+					},
+				},
+				Edges: map[string][]string{
+					"main.Config": {},
+				},
+			},
+			sortedTypes: []string{"main.Config"},
+			currentPkg:  "main",
+			currentName: "main",
+			wantErr:     false,
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				// Same package - should NOT add qualifier
+				// Variable name derived from type name: Config -> config
+				if !strings.Contains(bootstrap.DependencyVar, "config := DefaultConfig") {
+					t.Errorf("should not qualify same-package expression, got: %s", bootstrap.DependencyVar)
+				}
+			},
+		},
+		{
+			name: "unqualified variable with package alias uses alias as qualifier",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"example.com/config.Config": {
+						TypeName:       "example.com/config.Config",
+						PackagePath:    "example.com/config",
+						PackageName:    "config",
+						PackageAlias:   "cfg",
+						LocalName:      "Config",
+						Dependencies:   []string{},
+						IsField:        false,
+						ExpressionText: "DefaultConfig",
+						IsQualified:    false,
+					},
+				},
+				Edges: map[string][]string{
+					"example.com/config.Config": {},
+				},
+			},
+			sortedTypes: []string{"example.com/config.Config"},
+			currentPkg:  "main",
+			currentName: "main",
+			wantErr:     false,
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				// Should use alias "cfg" instead of package name "config"
+				// Variable name derived from type name: Config -> config
+				if !strings.Contains(bootstrap.DependencyVar, "config := cfg.DefaultConfig") {
+					t.Errorf("should use package alias as qualifier, got: %s", bootstrap.DependencyVar)
+				}
+			},
+		},
+		{
+			name: "mixed variable and provider nodes in correct order",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"os.File": {
+						TypeName:       "os.File",
+						PackagePath:    "os",
+						PackageName:    "os",
+						LocalName:      "File",
+						Dependencies:   []string{},
+						IsField:        false,
+						ExpressionText: "os.Stdout",
+						IsQualified:    true,
+					},
+					"example.com/pkg.Service": {
+						TypeName:        "example.com/pkg.Service",
+						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
+						LocalName:       "Service",
+						ConstructorName: "NewService",
+						Dependencies:    []string{"os.File"},
+						IsField:         true,
+					},
+				},
+				Edges: map[string][]string{
+					"os.File":                {},
+					"example.com/pkg.Service": {"os.File"},
+				},
+			},
+			sortedTypes: []string{"os.File", "example.com/pkg.Service"},
+			currentPkg:  "main",
+			currentName: "main",
+			wantErr:     false,
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				// Variable should use expression assignment
+				if !strings.Contains(bootstrap.DependencyVar, "file := os.Stdout") {
+					t.Errorf("missing Variable expression assignment, got: %s", bootstrap.DependencyVar)
+				}
+				// Service should use constructor call
+				if !strings.Contains(bootstrap.DependencyVar, "service := pkg.NewService(file)") {
+					t.Errorf("missing Service constructor call, got: %s", bootstrap.DependencyVar)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bg := NewBootstrapGenerator()
+
+			currentPkg := tt.currentPkg
+			if currentPkg == "" {
+				currentPkg = "main"
+			}
+			currentName := tt.currentName
+			if currentName == "" {
+				currentName = "main"
+			}
+
+			pass := &analysis.Pass{
+				Pkg: types.NewPackage(currentPkg, currentName),
+			}
+
+			bootstrap, err := bg.GenerateBootstrap(pass, tt.graph, tt.sortedTypes)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GenerateBootstrap() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr && tt.checkOutput != nil {
+				tt.checkOutput(t, bootstrap)
+			}
+		})
+	}
+}
+
 func TestBootstrapGenerator_DetectExistingBootstrap(t *testing.T) {
 	tests := []struct {
 		name   string
