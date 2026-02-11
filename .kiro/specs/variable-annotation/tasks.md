@@ -71,7 +71,7 @@
   - _Requirements: 5.5, 5.6_
   - _Contracts: ComputeGraphHash (extension)_
 
-- [ ] 6. DependencyAnalyzer integration (Phase 2.5)
+- [x] 6. DependencyAnalyzer integration (Phase 2.5)
   - Wire the Variable call detector and Variable registry into the DependencyAnalyzer
   - Add a new phase (Phase 2.5, after Provide detection and before Inject re-detection) that detects Variable annotations, extracts options, determines the registered type, and registers entries in the Variable registry
   - Emit diagnostic errors for unresolvable expression types, namer validation failures, and type incompatibility with `Typed[I]`

@@ -3,6 +3,8 @@ package analyzer
 import (
 	"context"
 	"go/types"
+	"sort"
+	"strings"
 
 	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/generate"
@@ -28,10 +30,12 @@ func DependencyAnalyzer(
 	constructorGenerator generate.ConstructorGenerator,
 	suggestedFixBuilder report.SuggestedFixBuilder,
 	diagnosticEmitter report.DiagnosticEmitter,
+	variableCallDetector detect.VariableCallDetector,
+	variableRegistry *registry.VariableRegistry,
 ) *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "braider_dependency",
-		Doc:  "detects Provide and Inject annotated structs and registers to global registry",
+		Doc:  "detects Provide, Inject, and Variable annotated structs and registers to global registry",
 		Run: NewDependencyAnalyzeRunner(
 			provideRegistry,
 			injectRegistry,
@@ -46,6 +50,8 @@ func DependencyAnalyzer(
 			constructorGenerator,
 			suggestedFixBuilder,
 			diagnosticEmitter,
+			variableCallDetector,
+			variableRegistry,
 		).Run,
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 	}
@@ -65,6 +71,8 @@ type DependencyAnalyzeRunner struct {
 	constructorGenerator generate.ConstructorGenerator
 	suggestedFixBuilder  report.SuggestedFixBuilder
 	diagnosticEmitter    report.DiagnosticEmitter
+	variableCallDetector detect.VariableCallDetector
+	variableRegistry     *registry.VariableRegistry
 }
 
 func NewDependencyAnalyzeRunner(
@@ -81,6 +89,8 @@ func NewDependencyAnalyzeRunner(
 	constructorGenerator generate.ConstructorGenerator,
 	suggestedFixBuilder report.SuggestedFixBuilder,
 	diagnosticEmitter report.DiagnosticEmitter,
+	variableCallDetector detect.VariableCallDetector,
+	variableRegistry *registry.VariableRegistry,
 ) *DependencyAnalyzeRunner {
 	return &DependencyAnalyzeRunner{
 		provideRegistry:      provideRegistry,
@@ -96,6 +106,8 @@ func NewDependencyAnalyzeRunner(
 		constructorGenerator: constructorGenerator,
 		suggestedFixBuilder:  suggestedFixBuilder,
 		diagnosticEmitter:    diagnosticEmitter,
+		variableCallDetector: variableCallDetector,
+		variableRegistry:     variableRegistry,
 	}
 }
 
@@ -253,6 +265,69 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 		}
 	}
 
+	// Phase 2.5: Detect and register Variable annotations
+	if r.variableCallDetector != nil && r.variableRegistry != nil {
+		variables := r.variableCallDetector.DetectVariables(pass)
+		for _, variable := range variables {
+			// Extract option metadata
+			var metadata detect.OptionMetadata
+			if variable.CallExpr != nil && r.optionExtractor != nil {
+				var err error
+				metadata, err = r.optionExtractor.ExtractVariableOptions(pass, variable.CallExpr, variable.ArgumentType)
+				if err != nil {
+					r.diagnosticEmitter.EmitOptionValidationError(reporter, variable.CallExpr.Pos(), err.Error())
+					r.bootstrapCancel(err)
+					continue
+				}
+			}
+
+			// Determine registered type
+			var registeredType types.Type
+			if metadata.TypedInterface != nil {
+				registeredType = metadata.TypedInterface
+			} else {
+				registeredType = variable.ArgumentType
+			}
+
+			// Extract package name and local name from argument type
+			pkgName := extractPackageNameFromType(pass, variable.ArgumentType)
+			localName := extractLocalNameFromTypeName(variable.TypeName)
+
+			// Convert ExpressionPkgs map to sorted parallel slices for deterministic output
+			exprPkgPaths, exprPkgNames := convertExpressionPkgs(variable.ExpressionPkgs)
+
+			// Register to VariableRegistry
+			if err := r.variableRegistry.Register(&registry.VariableInfo{
+				TypeName:           variable.TypeName,
+				PackagePath:        variable.PackagePath,
+				PackageName:        pkgName,
+				LocalName:          localName,
+				ExpressionText:     variable.ExpressionText,
+				ExpressionPkgs:     exprPkgPaths,
+				ExpressionPkgNames: exprPkgNames,
+				IsQualified:        variable.IsQualified,
+				Dependencies:       []string{},
+				Implements:         variable.Implements,
+				RegisteredType:     registeredType,
+				Name:               metadata.Name,
+				OptionMetadata:     metadata,
+			}); err != nil {
+				existingLocation := pass.Pkg.Path()
+				if existing, ok := r.variableRegistry.GetByName(variable.TypeName, metadata.Name); ok {
+					existingLocation = existing.PackagePath
+				}
+				r.diagnosticEmitter.EmitDuplicateNamedDependencyWarning(
+					reporter,
+					variable.CallExpr.Pos(),
+					variable.TypeName,
+					metadata.Name,
+					existingLocation,
+					pass.Pkg.Path(),
+				)
+			}
+		}
+	}
+
 	// Phase 3: Detect and register Inject structs with IsPending flag
 	// Re-detect injectors to include state after constructor generation
 	injectors := r.structDetector.DetectCandidates(pass)
@@ -378,6 +453,47 @@ func dependenciesMatch(expected, actual []string) bool {
 	}
 
 	return true
+}
+
+// extractPackageNameFromType extracts the package name from a types.Type.
+// Dereferences pointer types and returns pass.Pkg.Name() as fallback.
+func extractPackageNameFromType(pass *analysis.Pass, t types.Type) string {
+	if ptr, ok := t.(*types.Pointer); ok {
+		t = ptr.Elem()
+	}
+	if named, ok := t.(*types.Named); ok {
+		if pkg := named.Obj().Pkg(); pkg != nil {
+			return pkg.Name()
+		}
+	}
+	return pass.Pkg.Name()
+}
+
+// extractLocalNameFromTypeName extracts the local type name from a fully qualified type name.
+// e.g., "os.File" -> "File", "example.com/pkg.Struct" -> "Struct"
+func extractLocalNameFromTypeName(typeName string) string {
+	if idx := strings.LastIndex(typeName, "."); idx != -1 {
+		return typeName[idx+1:]
+	}
+	return typeName
+}
+
+// convertExpressionPkgs converts a map[string]string (path -> name) to sorted parallel slices.
+// Sorting ensures deterministic output regardless of map iteration order.
+func convertExpressionPkgs(pkgMap map[string]string) (paths []string, names []string) {
+	if len(pkgMap) == 0 {
+		return nil, nil
+	}
+	paths = make([]string, 0, len(pkgMap))
+	for pkgPath := range pkgMap {
+		paths = append(paths, pkgPath)
+	}
+	sort.Strings(paths)
+	names = make([]string, 0, len(paths))
+	for _, p := range paths {
+		names = append(names, pkgMap[p])
+	}
+	return paths, names
 }
 
 // passReporter adapts analysis.Pass to report.Reporter interface.

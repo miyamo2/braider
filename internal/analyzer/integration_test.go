@@ -63,11 +63,16 @@ func buildIntegrationDeps() (
 	// App detection
 	appDetector := detect.NewAppDetector()
 
+	// Variable components
+	variableCallDetector := detect.NewVariableCallDetector()
+	variableReg := registry.NewVariableRegistry()
+
 	depAnalyzer := DependencyAnalyzer(
 		providerReg, injectorReg, packageTracker, bootstrapCancel,
 		provideCallDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
+		variableCallDetector, variableReg,
 	)
 
 	appAnalyzer := AppAnalyzer(
