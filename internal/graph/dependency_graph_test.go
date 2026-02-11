@@ -202,7 +202,7 @@ func TestDependencyGraph_BuildGraph(t *testing.T) {
 
 			// Build graph
 			builder := NewDependencyGraphBuilder()
-			graph, err := builder.BuildGraph(pass, tt.providers, tt.injectors)
+			graph, err := builder.BuildGraph(pass, tt.providers, tt.injectors, nil)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("BuildGraph() error = %v, wantErr %v", err, tt.wantErr)
@@ -323,7 +323,7 @@ func TestDependencyGraph_IsField(t *testing.T) {
 			pass := createMockPassForGraph(t)
 
 			builder := NewDependencyGraphBuilder()
-			graph, err := builder.BuildGraph(pass, tt.providers, tt.injectors)
+			graph, err := builder.BuildGraph(pass, tt.providers, tt.injectors, nil)
 			if err != nil {
 				t.Fatalf("BuildGraph() error = %v", err)
 			}
@@ -415,7 +415,7 @@ func TestDependencyGraph_InterfaceResolution(t *testing.T) {
 			pass := createMockPassForGraph(t)
 
 			builder := NewDependencyGraphBuilder()
-			graph, err := builder.BuildGraph(pass, tt.providers, tt.injectors)
+			graph, err := builder.BuildGraph(pass, tt.providers, tt.injectors, nil)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("BuildGraph() error = %v, wantErr %v", err, tt.wantErr)
@@ -562,7 +562,7 @@ func TestDependencyGraph_BuildGraph_PointerDependencies(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			pass := createMockPassForGraph(t)
 			builder := NewDependencyGraphBuilder()
-			graph, err := builder.BuildGraph(pass, tt.providers, tt.injectors)
+			graph, err := builder.BuildGraph(pass, tt.providers, tt.injectors, nil)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("BuildGraph() error = %v, wantErr %v", err, tt.wantErr)
@@ -631,7 +631,7 @@ func TestDependencyGraph_BuildGraph_NamedDependencies(t *testing.T) {
 	builder := NewDependencyGraphBuilder()
 	pass := createMockPassForGraph(t)
 
-	graph, err := builder.BuildGraph(pass, providers, injectors)
+	graph, err := builder.BuildGraph(pass, providers, injectors, nil)
 	if err != nil {
 		t.Fatalf("BuildGraph() unexpected error = %v", err)
 	}
@@ -668,4 +668,359 @@ func TestDependencyGraph_BuildGraph_NamedDependencies(t *testing.T) {
 	if secondaryRepoNode.Name != "secondaryRepo" {
 		t.Errorf("secondaryRepo node should have Name=secondaryRepo, got %s", secondaryRepoNode.Name)
 	}
+}
+
+// TestNode_VariableMetadataFields tests that Node struct supports Variable metadata fields.
+func TestNode_VariableMetadataFields(t *testing.T) {
+	t.Run("ExpressionText field stores expression source text", func(t *testing.T) {
+		node := &Node{
+			TypeName:       "os.File",
+			ExpressionText: "os.Stdout",
+		}
+		if node.ExpressionText != "os.Stdout" {
+			t.Errorf("ExpressionText = %q, want %q", node.ExpressionText, "os.Stdout")
+		}
+	})
+
+	t.Run("ExpressionPkgs field stores package paths", func(t *testing.T) {
+		node := &Node{
+			TypeName:       "os.File",
+			ExpressionPkgs: []string{"os"},
+		}
+		if len(node.ExpressionPkgs) != 1 || node.ExpressionPkgs[0] != "os" {
+			t.Errorf("ExpressionPkgs = %v, want [\"os\"]", node.ExpressionPkgs)
+		}
+	})
+
+	t.Run("IsQualified field stores qualification status", func(t *testing.T) {
+		node := &Node{
+			TypeName:    "os.File",
+			IsQualified: true,
+		}
+		if !node.IsQualified {
+			t.Error("IsQualified should be true")
+		}
+	})
+
+	t.Run("Variable metadata fields default to zero values for non-Variable nodes", func(t *testing.T) {
+		node := &Node{
+			TypeName:        "example.com/repo.UserRepository",
+			PackagePath:     "example.com/repo",
+			PackageName:     "repo",
+			LocalName:       "UserRepository",
+			ConstructorName: "NewUserRepository",
+			Dependencies:    []string{},
+			InDegree:        0,
+			IsField:         false,
+		}
+		if node.ExpressionText != "" {
+			t.Errorf("ExpressionText should be empty for non-Variable node, got %q", node.ExpressionText)
+		}
+		if node.ExpressionPkgs != nil {
+			t.Errorf("ExpressionPkgs should be nil for non-Variable node, got %v", node.ExpressionPkgs)
+		}
+		if node.IsQualified {
+			t.Error("IsQualified should be false for non-Variable node")
+		}
+	})
+}
+
+// TestDependencyGraph_BuildGraph_VariableNodes tests graph construction with Variable nodes.
+func TestDependencyGraph_BuildGraph_VariableNodes(t *testing.T) {
+	t.Run("single variable with no dependencies creates node", func(t *testing.T) {
+		pass := createMockPassForGraph(t)
+		builder := NewDependencyGraphBuilder()
+
+		variables := []*registry.VariableInfo{
+			{
+				TypeName:       "os.File",
+				PackagePath:    "os",
+				PackageName:    "os",
+				LocalName:      "File",
+				ExpressionText: "os.Stdout",
+				ExpressionPkgs: []string{"os"},
+				IsQualified:    true,
+				Dependencies:   []string{},
+			},
+		}
+
+		graph, err := builder.BuildGraph(pass, nil, nil, variables)
+		if err != nil {
+			t.Fatalf("BuildGraph() error = %v", err)
+		}
+
+		node, ok := graph.Nodes["os.File"]
+		if !ok {
+			t.Fatal("expected Variable node 'os.File' in graph")
+		}
+		if node.TypeName != "os.File" {
+			t.Errorf("TypeName = %q, want %q", node.TypeName, "os.File")
+		}
+		if node.PackagePath != "os" {
+			t.Errorf("PackagePath = %q, want %q", node.PackagePath, "os")
+		}
+		if node.PackageName != "os" {
+			t.Errorf("PackageName = %q, want %q", node.PackageName, "os")
+		}
+		if node.LocalName != "File" {
+			t.Errorf("LocalName = %q, want %q", node.LocalName, "File")
+		}
+		if node.ConstructorName != "" {
+			t.Errorf("ConstructorName should be empty for Variable node, got %q", node.ConstructorName)
+		}
+		if node.IsField {
+			t.Error("IsField should be false for Variable node")
+		}
+		if node.ExpressionText != "os.Stdout" {
+			t.Errorf("ExpressionText = %q, want %q", node.ExpressionText, "os.Stdout")
+		}
+		if len(node.ExpressionPkgs) != 1 || node.ExpressionPkgs[0] != "os" {
+			t.Errorf("ExpressionPkgs = %v, want [\"os\"]", node.ExpressionPkgs)
+		}
+		if !node.IsQualified {
+			t.Error("IsQualified should be true")
+		}
+		if node.InDegree != 0 {
+			t.Errorf("InDegree = %d, want 0 (Variables have no dependencies)", node.InDegree)
+		}
+		if len(node.Dependencies) != 0 {
+			t.Errorf("Dependencies = %v, want empty", node.Dependencies)
+		}
+	})
+
+	t.Run("named variable uses composite key", func(t *testing.T) {
+		pass := createMockPassForGraph(t)
+		builder := NewDependencyGraphBuilder()
+
+		variables := []*registry.VariableInfo{
+			{
+				TypeName:       "os.File",
+				PackagePath:    "os",
+				PackageName:    "os",
+				LocalName:      "File",
+				ExpressionText: "os.Stdout",
+				ExpressionPkgs: []string{"os"},
+				IsQualified:    true,
+				Dependencies:   []string{},
+				Name:           "output",
+			},
+		}
+
+		graph, err := builder.BuildGraph(pass, nil, nil, variables)
+		if err != nil {
+			t.Fatalf("BuildGraph() error = %v", err)
+		}
+
+		// Should use composite key "TypeName#Name"
+		node, ok := graph.Nodes["os.File#output"]
+		if !ok {
+			t.Fatal("expected Variable node 'os.File#output' in graph")
+		}
+		if node.Name != "output" {
+			t.Errorf("Name = %q, want %q", node.Name, "output")
+		}
+	})
+
+	t.Run("variable coexists with provider and injector nodes", func(t *testing.T) {
+		pass := createMockPassForGraph(t)
+		builder := NewDependencyGraphBuilder()
+
+		providers := []*registry.ProviderInfo{
+			{
+				TypeName:        "example.com/repo.UserRepository",
+				PackagePath:     "example.com/repo",
+				PackageName:     "repo",
+				LocalName:       "UserRepository",
+				ConstructorName: "NewUserRepository",
+				Dependencies:    []string{},
+			},
+		}
+		injectors := []*registry.InjectorInfo{
+			{
+				TypeName:        "example.com/service.UserService",
+				PackagePath:     "example.com/service",
+				PackageName:     "service",
+				LocalName:       "UserService",
+				ConstructorName: "NewUserService",
+				Dependencies:    []string{"example.com/repo.UserRepository"},
+			},
+		}
+		variables := []*registry.VariableInfo{
+			{
+				TypeName:       "os.File",
+				PackagePath:    "os",
+				PackageName:    "os",
+				LocalName:      "File",
+				ExpressionText: "os.Stdout",
+				ExpressionPkgs: []string{"os"},
+				IsQualified:    true,
+				Dependencies:   []string{},
+			},
+		}
+
+		graph, err := builder.BuildGraph(pass, providers, injectors, variables)
+		if err != nil {
+			t.Fatalf("BuildGraph() error = %v", err)
+		}
+
+		// All three node types should be present
+		if len(graph.Nodes) != 3 {
+			t.Errorf("expected 3 nodes, got %d", len(graph.Nodes))
+		}
+
+		// Provider node
+		if _, ok := graph.Nodes["example.com/repo.UserRepository"]; !ok {
+			t.Error("expected provider node")
+		}
+		// Injector node
+		if _, ok := graph.Nodes["example.com/service.UserService"]; !ok {
+			t.Error("expected injector node")
+		}
+		// Variable node
+		varNode, ok := graph.Nodes["os.File"]
+		if !ok {
+			t.Error("expected variable node")
+		} else {
+			if varNode.IsField {
+				t.Error("variable node should have IsField=false")
+			}
+			if varNode.ExpressionText != "os.Stdout" {
+				t.Errorf("variable node ExpressionText = %q, want %q", varNode.ExpressionText, "os.Stdout")
+			}
+		}
+	})
+
+	t.Run("variable with RegisteredType preserves the field", func(t *testing.T) {
+		pass := createMockPassForGraph(t)
+		builder := NewDependencyGraphBuilder()
+
+		variables := []*registry.VariableInfo{
+			{
+				TypeName:       "os.File",
+				PackagePath:    "os",
+				PackageName:    "os",
+				LocalName:      "File",
+				ExpressionText: "os.Stdout",
+				Dependencies:   []string{},
+				// RegisteredType would be set for Typed[I] but nil here for default
+			},
+		}
+
+		graph, err := builder.BuildGraph(pass, nil, nil, variables)
+		if err != nil {
+			t.Fatalf("BuildGraph() error = %v", err)
+		}
+
+		node := graph.Nodes["os.File"]
+		if node == nil {
+			t.Fatal("expected Variable node in graph")
+		}
+		// RegisteredType should be nil if not set (default Variable)
+		if node.RegisteredType != nil {
+			t.Errorf("RegisteredType should be nil for default Variable, got %v", node.RegisteredType)
+		}
+	})
+
+	t.Run("backward compatibility: nil variables parameter works", func(t *testing.T) {
+		pass := createMockPassForGraph(t)
+		builder := NewDependencyGraphBuilder()
+
+		providers := []*registry.ProviderInfo{
+			{
+				TypeName:        "example.com/repo.UserRepository",
+				PackagePath:     "example.com/repo",
+				PackageName:     "repo",
+				LocalName:       "UserRepository",
+				ConstructorName: "NewUserRepository",
+				Dependencies:    []string{},
+			},
+		}
+
+		graph, err := builder.BuildGraph(pass, providers, nil, nil)
+		if err != nil {
+			t.Fatalf("BuildGraph() error = %v", err)
+		}
+
+		if len(graph.Nodes) != 1 {
+			t.Errorf("expected 1 node, got %d", len(graph.Nodes))
+		}
+	})
+
+	t.Run("variable node has zero edges", func(t *testing.T) {
+		pass := createMockPassForGraph(t)
+		builder := NewDependencyGraphBuilder()
+
+		variables := []*registry.VariableInfo{
+			{
+				TypeName:       "os.File",
+				PackagePath:    "os",
+				PackageName:    "os",
+				LocalName:      "File",
+				ExpressionText: "os.Stdout",
+				Dependencies:   []string{},
+			},
+		}
+
+		graph, err := builder.BuildGraph(pass, nil, nil, variables)
+		if err != nil {
+			t.Fatalf("BuildGraph() error = %v", err)
+		}
+
+		edges := graph.Edges["os.File"]
+		if len(edges) != 0 {
+			t.Errorf("Variable node should have 0 edges, got %d", len(edges))
+		}
+	})
+
+	t.Run("injector depends on variable node", func(t *testing.T) {
+		pass := createMockPassForGraph(t)
+		builder := NewDependencyGraphBuilder()
+
+		variables := []*registry.VariableInfo{
+			{
+				TypeName:       "os.File",
+				PackagePath:    "os",
+				PackageName:    "os",
+				LocalName:      "File",
+				ExpressionText: "os.Stdout",
+				Dependencies:   []string{},
+			},
+		}
+		injectors := []*registry.InjectorInfo{
+			{
+				TypeName:        "example.com/service.Service",
+				PackagePath:     "example.com/service",
+				PackageName:     "service",
+				LocalName:       "Service",
+				ConstructorName: "NewService",
+				Dependencies:    []string{"os.File"},
+			},
+		}
+
+		graph, err := builder.BuildGraph(pass, nil, injectors, variables)
+		if err != nil {
+			t.Fatalf("BuildGraph() error = %v", err)
+		}
+
+		// Service should depend on the Variable node
+		serviceEdges := graph.Edges["example.com/service.Service"]
+		if len(serviceEdges) != 1 {
+			t.Fatalf("Service should have 1 dependency, got %d", len(serviceEdges))
+		}
+		if serviceEdges[0] != "os.File" {
+			t.Errorf("Service should depend on os.File, got %s", serviceEdges[0])
+		}
+
+		// Variable node should have InDegree=0
+		varNode := graph.Nodes["os.File"]
+		if varNode.InDegree != 0 {
+			t.Errorf("Variable InDegree = %d, want 0", varNode.InDegree)
+		}
+
+		// Service node should have InDegree=1
+		serviceNode := graph.Nodes["example.com/service.Service"]
+		if serviceNode.InDegree != 1 {
+			t.Errorf("Service InDegree = %d, want 1", serviceNode.InDegree)
+		}
+	})
 }

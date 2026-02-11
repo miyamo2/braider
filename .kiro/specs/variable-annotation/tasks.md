@@ -25,8 +25,8 @@
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
   - _Contracts: OptionExtractor Service (extension)_
 
-- [ ] 3. Variable registry
-- [ ] 3.1 (P) Implement the VariableRegistry
+- [x] 3. Variable registry
+- [x] 3.1 (P) Implement the VariableRegistry
   - Create a thread-safe registry for Variable annotation entries, using the same nested-map and mutex pattern as the existing provider and injector registries
   - Store all necessary metadata: fully qualified type name, package path, package name, local type name, expression text, expression packages, qualification status, interface implementations, registered type, and optional name
   - Detect and reject duplicate `(TypeName, Name)` pairs, returning an error with conflicting information
@@ -35,12 +35,12 @@
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
   - _Contracts: VariableRegistry State_
 
-- [ ] 4. Dependency graph integration
-- [ ] 4.1 Extend graph node structure for Variable metadata
+- [x] 4. Dependency graph integration
+- [x] 4.1 Extend graph node structure for Variable metadata
   - Add fields to the graph node to carry expression text, expression package references, and qualification status; these fields remain empty for non-Variable nodes
   - _Requirements: 4.1, 4.2_
 
-- [ ] 4.2 Extend graph building to include Variable nodes
+- [x] 4.2 Extend graph building to include Variable nodes
   - Accept Variable registry entries when constructing the dependency graph
   - Create zero-dependency nodes with no constructor name, `IsField` set to false, and expression metadata populated from the registry entry
   - Use composite keys for named Variable nodes (`TypeName#Name`), consistent with existing named dependency handling
@@ -49,7 +49,7 @@
   - _Requirements: 4.1, 4.2, 4.4, 4.5, 4.6_
   - _Contracts: DependencyGraphBuilder Service (extension)_
 
-- [ ] 4.3 Extend interface registry to include Variable implementations
+- [x] 4.3 Extend interface registry to include Variable implementations
   - When building the interface registry, process Variable entries alongside providers and injectors so that `Typed[I]` registrations map the interface to the Variable's concrete type
   - Without this, dependencies referencing the interface type would fail to resolve
   - Depends on 4.2 for the Variable data flowing into the graph builder

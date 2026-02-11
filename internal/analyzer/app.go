@@ -178,7 +178,7 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) (interf
 	injectors := r.injectRegistry.GetAll()
 
 	// Phase 4: Build dependency graph
-	depGraph, err := r.graphBuilder.BuildGraph(pass, providers, injectors)
+	depGraph, err := r.graphBuilder.BuildGraph(pass, providers, injectors, nil)
 	if err != nil {
 		// Report graph construction errors to the user
 		r.diagnosticEmitter.EmitGraphBuildError(reporter, apps[0].Pos, err.Error())
