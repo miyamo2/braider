@@ -56,7 +56,8 @@ type Default interface {
 //	}
 type Typed[T any] interface {
 	Option
-	annotation.InjectableTyped[T]
+	annotation.InjectableTyped
+	typeParam() T
 }
 
 // Named configures the annotation.Injectable to register an instance in the container with a specific name.
@@ -75,7 +76,8 @@ type Typed[T any] interface {
 //	}
 type Named[T namer.Namer] interface {
 	Option
-	annotation.InjectableNamed[T]
+	annotation.InjectableNamed
+	nameParam() T
 }
 
 // WithoutConstructor configures the annotation.Injectable to skip generating a constructor function.

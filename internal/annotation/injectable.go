@@ -18,12 +18,16 @@ type InjectableDefault interface {
 	_IsInjectableDefault() InjectableDefaultMarker
 }
 
-type InjectableTyped[T any] interface {
-	_IsInjectableTyped() T
+type InjectableTypedMarker struct{}
+
+type InjectableTyped interface {
+	_IsInjectableTyped() InjectableTypedMarker
 }
 
-type InjectableNamed[T Namer] interface {
-	_IsInjectableNamed() T
+type InjectableNamedMarker struct{}
+
+type InjectableNamed interface {
+	_IsInjectableNamed() InjectableNamedMarker
 }
 
 type InjectableWithoutConstructorMarker struct{}
