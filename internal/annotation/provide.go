@@ -18,10 +18,14 @@ type ProviderDefault interface {
 	_IsProviderDefault() ProviderDefaultMarker
 }
 
-type ProviderTyped[T any] interface {
-	_IsProviderTyped() T
+type ProviderTypedMarker struct{}
+
+type ProviderTyped interface {
+	_IsProviderTyped() ProviderTypedMarker
 }
 
-type ProviderNamed[T Namer] interface {
-	_IsProviderNamed() T
+type ProviderNamedMarker struct{}
+
+type ProviderNamed interface {
+	_IsProviderNamed() ProviderNamedMarker
 }

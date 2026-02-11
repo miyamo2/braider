@@ -55,7 +55,8 @@ type Default interface {
 //	var _ = annotation.Provide[provide.Typed[Repository]](NewUserRepository)
 type Typed[T any] interface {
 	Option
-	annotation.ProviderTyped[T]
+	annotation.ProviderTyped
+	typeParam() T
 }
 
 // Named configures the annotation.Provide to register a function as factory for a specific name.
@@ -72,5 +73,6 @@ type Typed[T any] interface {
 //	var _ = annotation.Provide[provide.Named[PrimaryRepoName]](NewRepository)
 type Named[T namer.Namer] interface {
 	Option
-	annotation.ProviderNamed[T]
+	annotation.ProviderNamed
+	nameParam() T
 }
