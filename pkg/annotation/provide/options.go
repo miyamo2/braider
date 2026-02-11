@@ -24,8 +24,6 @@ import (
 	"github.com/miyamo2/braider/pkg/annotation/namer"
 )
 
-type option struct{}
-
 // Option configures annotation.Provide behavior.
 //
 // Your custom options(mixed-in options) must implement this interface.
