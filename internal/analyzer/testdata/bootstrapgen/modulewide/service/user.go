@@ -4,13 +4,14 @@ import (
 	"modulewide/repository"
 
 	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
 )
 
 type UserService struct {
-	annotation.Inject
+	annotation.Injectable[inject.Default]
 	repo repository.UserRepository
 }
 
-func NewUserService(repo repository.UserRepository) UserService {
-	return UserService{repo: repo}
+func NewUserService(repo repository.UserRepository) *UserService {
+	return &UserService{repo: repo}
 }

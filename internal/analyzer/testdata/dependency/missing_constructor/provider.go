@@ -1,8 +1,6 @@
 package missing_constructor
 
-import "github.com/miyamo2/braider/pkg/annotation"
-
-// UserRepository is a Provide struct without a constructor.
-type UserRepository struct { // want "Provide struct UserRepository requires a constructor"
-	annotation.Provide
-}
+// UserRepository is a struct without a constructor and without Provide annotation.
+// With the new annotation.Provide[T](fn) API, a missing constructor means
+// there is no Provide call, so no provider is registered.
+type UserRepository struct{}

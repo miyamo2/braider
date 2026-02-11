@@ -475,3 +475,197 @@ func createMockPassForGraph(t *testing.T) *analysis.Pass {
 		TypesInfo: info,
 	}
 }
+
+// TestDependencyGraph_BuildGraph_PointerDependencies tests that pointer-type dependencies are
+// resolved by stripping the "*" prefix and matching against the concrete type node.
+func TestDependencyGraph_BuildGraph_PointerDependencies(t *testing.T) {
+	tests := []struct {
+		name      string
+		providers []*registry.ProviderInfo
+		injectors []*registry.InjectorInfo
+		wantEdges map[string][]string
+		wantErr   bool
+	}{
+		{
+			name: "pointer dependency resolved to concrete node",
+			providers: []*registry.ProviderInfo{
+				{
+					TypeName:        "example.com/repo.UserRepository",
+					PackagePath:     "example.com/repo",
+					PackageName:     "repo",
+					LocalName:       "UserRepository",
+					ConstructorName: "NewUserRepository",
+					Dependencies:    []string{},
+				},
+			},
+			injectors: []*registry.InjectorInfo{
+				{
+					TypeName:        "example.com/service.UserService",
+					PackagePath:     "example.com/service",
+					PackageName:     "service",
+					LocalName:       "UserService",
+					ConstructorName: "NewUserService",
+					Dependencies:    []string{"*example.com/repo.UserRepository"},
+				},
+			},
+			wantEdges: map[string][]string{
+				"example.com/repo.UserRepository": {},
+				"example.com/service.UserService": {"example.com/repo.UserRepository"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "pointer dependency not in graph remains unresolvable",
+			injectors: []*registry.InjectorInfo{
+				{
+					TypeName:        "example.com/service.UserService",
+					PackagePath:     "example.com/service",
+					PackageName:     "service",
+					LocalName:       "UserService",
+					ConstructorName: "NewUserService",
+					Dependencies:    []string{"*example.com/external.Unknown"},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "non-pointer dependency still works",
+			providers: []*registry.ProviderInfo{
+				{
+					TypeName:        "example.com/repo.UserRepository",
+					PackagePath:     "example.com/repo",
+					PackageName:     "repo",
+					LocalName:       "UserRepository",
+					ConstructorName: "NewUserRepository",
+					Dependencies:    []string{},
+				},
+			},
+			injectors: []*registry.InjectorInfo{
+				{
+					TypeName:        "example.com/service.UserService",
+					PackagePath:     "example.com/service",
+					PackageName:     "service",
+					LocalName:       "UserService",
+					ConstructorName: "NewUserService",
+					Dependencies:    []string{"example.com/repo.UserRepository"},
+				},
+			},
+			wantEdges: map[string][]string{
+				"example.com/repo.UserRepository": {},
+				"example.com/service.UserService": {"example.com/repo.UserRepository"},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass := createMockPassForGraph(t)
+			builder := NewDependencyGraphBuilder()
+			graph, err := builder.BuildGraph(pass, tt.providers, tt.injectors)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("BuildGraph() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if err != nil {
+				return
+			}
+
+			for from, wantTos := range tt.wantEdges {
+				gotTos, ok := graph.Edges[from]
+				if !ok {
+					t.Errorf("BuildGraph() missing edge from %s", from)
+					continue
+				}
+				if len(gotTos) != len(wantTos) {
+					t.Errorf("BuildGraph() edge %s -> count = %d, want %d", from, len(gotTos), len(wantTos))
+					continue
+				}
+				for i, wantTo := range wantTos {
+					if gotTos[i] != wantTo {
+						t.Errorf("BuildGraph() edge %s -> [%d] = %s, want %s", from, i, gotTos[i], wantTo)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestDependencyGraph_BuildGraph_NamedDependencies tests graph construction with named dependencies.
+func TestDependencyGraph_BuildGraph_NamedDependencies(t *testing.T) {
+	// Scenario: Two instances of Repository with different names, Service depends on one
+	providers := []*registry.ProviderInfo{
+		{
+			TypeName:        "example.com/repo.Repository",
+			PackagePath:     "example.com/repo",
+			PackageName:     "repo",
+			LocalName:       "Repository",
+			ConstructorName: "NewRepository",
+			Dependencies:    []string{},
+			Name:            "primaryRepo",
+		},
+		{
+			TypeName:        "example.com/repo.Repository",
+			PackagePath:     "example.com/repo",
+			PackageName:     "repo",
+			LocalName:       "Repository",
+			ConstructorName: "NewRepository",
+			Dependencies:    []string{},
+			Name:            "secondaryRepo",
+		},
+	}
+
+	injectors := []*registry.InjectorInfo{
+		{
+			TypeName:        "example.com/service.Service",
+			PackagePath:     "example.com/service",
+			PackageName:     "service",
+			LocalName:       "Service",
+			ConstructorName: "NewService",
+			Dependencies:    []string{"example.com/repo.Repository#primaryRepo"},
+		},
+	}
+
+	builder := NewDependencyGraphBuilder()
+	pass := createMockPassForGraph(t)
+
+	graph, err := builder.BuildGraph(pass, providers, injectors)
+	if err != nil {
+		t.Fatalf("BuildGraph() unexpected error = %v", err)
+	}
+
+	// Check that both named Repository instances are in the graph with composite keys
+	expectedKeys := []string{
+		"example.com/repo.Repository#primaryRepo",
+		"example.com/repo.Repository#secondaryRepo",
+		"example.com/service.Service",
+	}
+
+	for _, key := range expectedKeys {
+		if _, exists := graph.Nodes[key]; !exists {
+			t.Errorf("Expected node %s not found in graph", key)
+		}
+	}
+
+	// Check that Service depends on the named Repository
+	serviceEdges := graph.Edges["example.com/service.Service"]
+	if len(serviceEdges) != 1 {
+		t.Fatalf("Service should have 1 dependency, got %d", len(serviceEdges))
+	}
+	if serviceEdges[0] != "example.com/repo.Repository#primaryRepo" {
+		t.Errorf("Service should depend on primaryRepo, got %s", serviceEdges[0])
+	}
+
+	// Check Name field is preserved
+	primaryRepoNode := graph.Nodes["example.com/repo.Repository#primaryRepo"]
+	if primaryRepoNode.Name != "primaryRepo" {
+		t.Errorf("primaryRepo node should have Name=primaryRepo, got %s", primaryRepoNode.Name)
+	}
+
+	secondaryRepoNode := graph.Nodes["example.com/repo.Repository#secondaryRepo"]
+	if secondaryRepoNode.Name != "secondaryRepo" {
+		t.Errorf("secondaryRepo node should have Name=secondaryRepo, got %s", secondaryRepoNode.Name)
+	}
+}

@@ -14,13 +14,13 @@ type ConstructorCandidate struct {
 	TypeSpec            *ast.TypeSpec   // The struct type specification
 	StructType          *ast.StructType // The struct type node
 	GenDecl             *ast.GenDecl    // Parent declaration (for positioning)
-	InjectField         *ast.Field      // The embedded annotation.Inject field
+	InjectField         *ast.Field      // The embedded annotation.Injectable field
 	ExistingConstructor *ast.FuncDecl   // Existing constructor to replace (nil if none)
 }
 
 // StructDetector identifies structs requiring constructor generation.
 type StructDetector interface {
-	// DetectCandidates returns all structs with annotation.Inject embedding.
+	// DetectCandidates returns all structs with annotation.Injectable embedding.
 	DetectCandidates(pass *analysis.Pass) []ConstructorCandidate
 
 	// FindExistingConstructor returns the existing constructor function declaration if found.
@@ -40,7 +40,7 @@ func NewStructDetector(injectDetector InjectDetector) StructDetector {
 	}
 }
 
-// DetectCandidates returns all structs with annotation.Inject embedding.
+// DetectCandidates returns all structs with annotation.Injectable embedding.
 func (d *structDetector) DetectCandidates(pass *analysis.Pass) []ConstructorCandidate {
 	var candidates []ConstructorCandidate
 
@@ -89,7 +89,7 @@ func (d *structDetector) processGenDecl(pass *analysis.Pass, genDecl *ast.GenDec
 			continue
 		}
 
-		// Check for annotation.Inject embedding
+		// Check for annotation.Injectable embedding
 		injectField := d.injectDetector.FindInjectField(pass, structType)
 		if injectField == nil {
 			continue

@@ -3,11 +3,23 @@ package generate
 import (
 	"go/parser"
 	"go/token"
+	"go/types"
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/miyamo2/braider/internal/graph"
 )
+
+// createNamedTypeInPackage creates a *types.Named type with the given name in a synthetic package.
+// This is useful for testing RegisteredType-related behavior without needing real type-checked packages.
+func createNamedTypeInPackage(name, pkgPath, pkgName string) *types.Named {
+	pkg := types.NewPackage(pkgPath, pkgName)
+	typeName := types.NewTypeName(token.NoPos, pkg, name, nil)
+	iface := types.NewInterfaceType(nil, nil)
+	iface.Complete()
+	return types.NewNamed(typeName, iface, nil)
+}
 
 func TestCollectImports(t *testing.T) {
 	tests := []struct {
@@ -183,12 +195,38 @@ func TestCollectImports(t *testing.T) {
 			currentPkgName: "main",
 			want:           []ImportInfo{}, // Same main package
 		},
+		{
+			name: "RegisteredType package collision with node package",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"example.com/other/domain.Entity": {
+						TypeName:    "example.com/other/domain.Entity",
+						PackagePath: "example.com/other/domain",
+						PackageName: "domain",
+					},
+					"example.com/service.MyService": {
+						TypeName:       "example.com/service.MyService",
+						PackagePath:    "example.com/service",
+						PackageName:    "service",
+						RegisteredType: createNamedTypeInPackage("IRepository", "example.com/typed/domain", "domain"),
+					},
+				},
+				Edges: make(map[string][]string),
+			},
+			currentPackage: "main",
+			currentPkgName: "main",
+			want: []ImportInfo{
+				{Path: "example.com/other/domain", Alias: ""},
+				{Path: "example.com/service", Alias: ""},
+				{Path: "example.com/typed/domain", Alias: "domain2"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(
 			tt.name, func(t *testing.T) {
-				got := CollectImports(tt.graph, tt.currentPackage, tt.currentPkgName, nil)
+				got, _ := CollectImports(tt.graph, tt.currentPackage, tt.currentPkgName, nil)
 				// Handle nil vs empty slice comparison
 				if len(got) == 0 && len(tt.want) == 0 {
 					return
@@ -342,6 +380,48 @@ func TestDetectPackageCollisions(t *testing.T) {
 				"example.com/pkg/user":  "user",
 				"example.com/lib/user":  "user",
 				"example.com/util/user": "user",
+			},
+		},
+		{
+			name: "collision via RegisteredType package",
+			g: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"example.com/other/domain.Entity": {
+						PackagePath: "example.com/other/domain",
+						PackageName: "domain",
+					},
+					"example.com/service.MyService": {
+						PackagePath:    "example.com/service",
+						PackageName:    "service",
+						RegisteredType: createNamedTypeInPackage("IRepository", "example.com/typed/domain", "domain"),
+					},
+				},
+			},
+			want: map[string]string{
+				"example.com/other/domain": "domain",
+				"example.com/typed/domain": "domain",
+			},
+		},
+		{
+			name: "collision via anonymous interface RegisteredType",
+			g: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"example.com/other/domain.Entity": {
+						PackagePath: "example.com/other/domain",
+						PackageName: "domain",
+					},
+					"example.com/service.MyService": {
+						PackagePath: "example.com/service",
+						PackageName: "service",
+						RegisteredType: createAnonymousInterface(
+							createNamedTypeInPackage("IRepository", "example.com/typed/domain", "domain"),
+						),
+					},
+				},
+			},
+			want: map[string]string{
+				"example.com/other/domain": "domain",
+				"example.com/typed/domain": "domain",
 			},
 		},
 	}
@@ -504,6 +584,149 @@ func TestGenerateAliases(t *testing.T) {
 			got := generateAliases(tt.collisions, tt.existingAliases)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("generateAliases() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// createAnonymousInterface creates an anonymous interface with embedded named types.
+func createAnonymousInterface(embeds ...*types.Named) *types.Interface {
+	embedTypes := make([]types.Type, len(embeds))
+	for i, e := range embeds {
+		embedTypes[i] = e
+	}
+	iface := types.NewInterfaceType(nil, embedTypes)
+	iface.Complete()
+	return iface
+}
+
+func TestExtractPackageName(t *testing.T) {
+	tests := []struct {
+		name       string
+		typ        types.Type
+		targetPath string
+		want       string
+	}{
+		{
+			name:       "named type matching targetPath",
+			typ:        createNamedTypeInPackage("Foo", "example.com/foo", "foo"),
+			targetPath: "example.com/foo",
+			want:       "foo",
+		},
+		{
+			name:       "named type not matching targetPath",
+			typ:        createNamedTypeInPackage("Foo", "example.com/foo", "foo"),
+			targetPath: "example.com/bar",
+			want:       "",
+		},
+		{
+			name:       "pointer to named type",
+			typ:        types.NewPointer(createNamedTypeInPackage("Bar", "example.com/bar", "bar")),
+			targetPath: "example.com/bar",
+			want:       "bar",
+		},
+		{
+			name: "anonymous interface with embedded named type",
+			typ: createAnonymousInterface(
+				createNamedTypeInPackage("IRepo", "example.com/domain", "domain"),
+			),
+			targetPath: "example.com/domain",
+			want:       "domain",
+		},
+		{
+			name:       "anonymous interface with no embeds",
+			typ:        createAnonymousInterface(),
+			targetPath: "example.com/domain",
+			want:       "",
+		},
+		{
+			name: "nested anonymous interface",
+			typ: func() types.Type {
+				inner := createAnonymousInterface(
+					createNamedTypeInPackage("IRepo", "example.com/deep", "deep"),
+				)
+				// Create a named wrapper for the inner interface so it can be embedded
+				pkg := types.NewPackage("example.com/wrapper", "wrapper")
+				tn := types.NewTypeName(token.NoPos, pkg, "IWrapper", nil)
+				named := types.NewNamed(tn, inner, nil)
+				// Build outer anonymous interface that embeds the named wrapper
+				outer := types.NewInterfaceType(nil, []types.Type{named})
+				outer.Complete()
+				return outer
+			}(),
+			targetPath: "example.com/deep",
+			want:       "",
+		},
+		{
+			name: "anonymous interface with multiple embeds - match second",
+			typ: createAnonymousInterface(
+				createNamedTypeInPackage("IFoo", "example.com/foo", "foo"),
+				createNamedTypeInPackage("IBar", "example.com/bar", "bar"),
+			),
+			targetPath: "example.com/bar",
+			want:       "bar",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractPackageName(tt.typ, tt.targetPath)
+			if got != tt.want {
+				t.Errorf("extractPackageName() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractPackagePaths(t *testing.T) {
+	tests := []struct {
+		name string
+		typ  types.Type
+		want []string
+	}{
+		{
+			name: "named type",
+			typ:  createNamedTypeInPackage("Foo", "example.com/foo", "foo"),
+			want: []string{"example.com/foo"},
+		},
+		{
+			name: "pointer to named type",
+			typ:  types.NewPointer(createNamedTypeInPackage("Bar", "example.com/bar", "bar")),
+			want: []string{"example.com/bar"},
+		},
+		{
+			name: "interface with embedded named type",
+			typ: func() types.Type {
+				embedded := createNamedTypeInPackage("IRepo", "example.com/domain", "domain")
+				iface := types.NewInterfaceType(nil, []types.Type{embedded})
+				iface.Complete()
+				return iface
+			}(),
+			want: []string{"example.com/domain"},
+		},
+		{
+			name: "nil-package named type",
+			typ: func() types.Type {
+				// Built-in type has no package
+				typeName := types.NewTypeName(token.NoPos, nil, "error", nil)
+				iface := types.NewInterfaceType(nil, nil)
+				iface.Complete()
+				return types.NewNamed(typeName, iface, nil)
+			}(),
+			want: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractPackagePaths(tt.typ)
+			sort.Strings(got)
+			sort.Strings(tt.want)
+			if len(got) == 0 && len(tt.want) == 0 {
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("extractPackagePaths() = %v, want %v", got, tt.want)
 			}
 		})
 	}

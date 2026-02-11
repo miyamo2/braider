@@ -441,3 +441,76 @@ func TestTopologicalSort_AlphabeticalTieBreaking(t *testing.T) {
 		}
 	}
 }
+
+// TestTopologicalSort_NamedDependencies tests topological sorting with named dependencies.
+// Named dependencies use composite keys (TypeName, Name) to distinguish multiple instances.
+func TestTopologicalSort_NamedDependencies(t *testing.T) {
+	// Scenario: Two different instances of the same Repository type with different names
+	// Service depends on "primaryRepo" instance
+	graph := &Graph{
+		Nodes: map[string]*Node{
+			"example.com/repo.Repository#primaryRepo": {
+				TypeName:        "example.com/repo.Repository",
+				PackagePath:     "example.com/repo",
+				PackageName:     "repo",
+				LocalName:       "Repository",
+				ConstructorName: "NewRepository",
+				Dependencies:    []string{},
+				InDegree:        0,
+				IsField:         false,
+				Name:            "primaryRepo",
+			},
+			"example.com/repo.Repository#secondaryRepo": {
+				TypeName:        "example.com/repo.Repository",
+				PackagePath:     "example.com/repo",
+				PackageName:     "repo",
+				LocalName:       "Repository",
+				ConstructorName: "NewRepository",
+				Dependencies:    []string{},
+				InDegree:        0,
+				IsField:         false,
+				Name:            "secondaryRepo",
+			},
+			"example.com/service.Service": {
+				TypeName:        "example.com/service.Service",
+				PackagePath:     "example.com/service",
+				PackageName:     "service",
+				LocalName:       "Service",
+				ConstructorName: "NewService",
+				Dependencies:    []string{"example.com/repo.Repository#primaryRepo"},
+				InDegree:        1, // Depends on primaryRepo
+				IsField:         true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/repo.Repository#primaryRepo":   {},
+			"example.com/repo.Repository#secondaryRepo": {},
+			"example.com/service.Service":               {"example.com/repo.Repository#primaryRepo"},
+		},
+	}
+
+	sorter := NewTopologicalSorter()
+	gotOrder, err := sorter.Sort(graph)
+
+	if err != nil {
+		t.Fatalf("Sort() unexpected error = %v", err)
+	}
+
+	// Both Repository instances should appear before Service
+	// Order between the two Repository instances is alphabetical by composite key
+	expectedOrder := []string{
+		"example.com/repo.Repository#primaryRepo",
+		"example.com/repo.Repository#secondaryRepo",
+		"example.com/service.Service",
+	}
+
+	if len(gotOrder) != len(expectedOrder) {
+		t.Fatalf("Sort() returned %d items, want %d", len(gotOrder), len(expectedOrder))
+	}
+
+	for i, want := range expectedOrder {
+		if gotOrder[i] != want {
+			t.Errorf("Sort()[%d] = %s, want %s", i, gotOrder[i], want)
+		}
+	}
+}

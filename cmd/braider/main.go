@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/miyamo2/braider/internal/analyzer"
 	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/generate"
@@ -12,45 +14,49 @@ import (
 )
 
 func main() {
-	// Step 1: Registries
+	// Step 1: Registries and shared context
 	providerRegistry := registry.NewProviderRegistry()
 	injectorRegistry := registry.NewInjectorRegistry()
 	packageTracker := registry.NewPackageTracker()
+	bootstrapCtx, bootstrapCancel := context.WithCancelCause(context.Background())
 
+	// Step 2: Loaders
 	packageLoader := loader.NewPackageLoader()
 
-	// Step 2: Basic detectors (no dependencies)
-	provideDetector := detect.NewProvideDetector()
+	// Step 3: Basic detectors (no dependencies)
 	injectDetector := detect.NewInjectDetector()
 	fieldAnalyzer := detect.NewFieldAnalyzer()
 	constructorAnalyzer := detect.NewConstructorAnalyzer()
 	appDetector := detect.NewAppDetector()
 
-	// Step 3: Complex detectors (with dependencies)
-	provideStructDetector := detect.NewProvideStructDetector(provideDetector)
+	// Step 4: Complex detectors (with dependencies)
+	provideCallDetector := detect.NewProvideCallDetector()
 	structDetector := detect.NewStructDetector(injectDetector)
+	namerValidator := detect.NewNamerValidator(packageLoader)
+	optionExtractor := detect.NewOptionExtractor(namerValidator)
 
-	// Step 4: Graph components
+	// Step 5: Graph components
 	graphBuilder := graph.NewDependencyGraphBuilder()
 	sorter := graph.NewTopologicalSorter()
 
-	// Step 5: Generators and reporters
+	// Step 6: Generators and reporters
 	constructorGenerator := generate.NewConstructorGenerator()
 	bootstrapGenerator := generate.NewBootstrapGenerator()
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 
-	// Step 6: Instantiate analyzers
+	// Step 7: Instantiate analyzers
 	dependencyAnalyzer := analyzer.DependencyAnalyzer(
 		providerRegistry,
 		injectorRegistry,
 		packageTracker,
-		provideDetector,
-		provideStructDetector,
+		bootstrapCancel,
+		provideCallDetector,
 		injectDetector,
 		structDetector,
 		fieldAnalyzer,
 		constructorAnalyzer,
+		optionExtractor,
 		constructorGenerator,
 		suggestedFixBuilder,
 		diagnosticEmitter,
@@ -62,6 +68,7 @@ func main() {
 		providerRegistry,
 		packageLoader,
 		packageTracker,
+		bootstrapCtx,
 		graphBuilder,
 		sorter,
 		bootstrapGenerator,

@@ -14,14 +14,14 @@ func main() {
 
 // braider:hash:520042624f3072e5
 var dependency = func() struct {
-	userRepository repository.UserRepository
-	userService    service.UserService
+	userRepository *repository.UserRepository
+	userService    *service.UserService
 } {
 	userRepository := repository.NewUserRepository()
 	userService := service.NewUserService(userRepository)
 	return struct {
-		userRepository repository.UserRepository
-		userService    service.UserService
+		userRepository *repository.UserRepository
+		userService    *service.UserService
 	}{
 		userRepository: userRepository,
 		userService:    userService,

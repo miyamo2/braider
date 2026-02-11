@@ -1,6 +1,9 @@
 package main
 
-import "github.com/miyamo2/braider/pkg/annotation"
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
+)
 
 var _ = annotation.App(main)
 
@@ -9,24 +12,24 @@ func main() {
 	dependency.userService.Run()
 }
 
-// braider:hash:e0c021f7f5273495
+// braider:hash:8764fec6541913b1
 var dependency = func() struct {
-	userService UserService
+	userService *UserService
 } {
 	userService := NewUserService()
 	return struct {
-		userService UserService
+		userService *UserService
 	}{
 		userService: userService,
 	}
 }()
 
 type UserService struct {
-	annotation.Inject
+	annotation.Injectable[inject.Default]
 }
 
-func NewUserService() UserService {
-	return UserService{}
+func NewUserService() *UserService {
+	return &UserService{}
 }
 
 func (s UserService) Run() {}

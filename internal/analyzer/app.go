@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"go/ast"
 	"time"
@@ -26,6 +27,7 @@ func AppAnalyzer(
 	provideRegistry *registry.ProviderRegistry,
 	packageLoader loader.PackageLoader,
 	packageTracker *registry.PackageTracker,
+	bootstrapCtx context.Context,
 	graphBuilder *graph.DependencyGraphBuilder,
 	sorter *graph.TopologicalSorter,
 	bootstrapGen generate.BootstrapGenerator,
@@ -41,6 +43,7 @@ func AppAnalyzer(
 			provideRegistry,
 			packageLoader,
 			packageTracker,
+			bootstrapCtx,
 			graphBuilder,
 			sorter,
 			bootstrapGen,
@@ -57,6 +60,7 @@ type AppAnalyzeRunner struct {
 	provideRegistry   *registry.ProviderRegistry
 	packageLoader     loader.PackageLoader
 	packageTracker    *registry.PackageTracker
+	bootstrapCtx      context.Context
 	graphBuilder      *graph.DependencyGraphBuilder
 	sorter            *graph.TopologicalSorter
 	bootstrapGen      generate.BootstrapGenerator
@@ -70,6 +74,7 @@ func NewAppAnalyzeRunner(
 	provideRegistry *registry.ProviderRegistry,
 	packageLoader loader.PackageLoader,
 	packageTracker *registry.PackageTracker,
+	bootstrapCtx context.Context,
 	graphBuilder *graph.DependencyGraphBuilder,
 	sorter *graph.TopologicalSorter,
 	bootstrapGen generate.BootstrapGenerator,
@@ -82,6 +87,7 @@ func NewAppAnalyzeRunner(
 		provideRegistry:   provideRegistry,
 		packageLoader:     packageLoader,
 		packageTracker:    packageTracker,
+		bootstrapCtx:      bootstrapCtx,
 		graphBuilder:      graphBuilder,
 		sorter:            sorter,
 		bootstrapGen:      bootstrapGen,
@@ -91,8 +97,16 @@ func NewAppAnalyzeRunner(
 }
 
 func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
-	reporter := &passReporter{pass: pass}
+	return r.run(r.bootstrapCtx, pass)
+}
 
+func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) (interface{}, error) {
+	// Early context cancellation check
+	if err := ctx.Err(); err != nil {
+		return nil, nil
+	}
+
+	reporter := &passReporter{pass: pass}
 	// Phase 1: Detect App annotations
 	apps := r.appDetector.DetectAppAnnotations(pass)
 
@@ -140,7 +154,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 		return nil, fmt.Errorf("no files in pass")
 	}
 
-	allPkgPaths, err := r.packageLoader.LoadModulePackages(pass.Fset.File(pass.Files[0].Pos()).Name())
+	allPkgPaths, err := r.packageLoader.LoadModulePackageNames(pass.Fset.File(pass.Files[0].Pos()).Name())
 	if err != nil {
 		// Emit warning diagnostic (non-critical)
 		// The registry may be incomplete, but we proceed with what we have
@@ -149,9 +163,10 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 
 	// Wait for all packages with timeout
 	if len(allPkgPaths) > 0 {
-		ctx := context.Background()
-
 		if err := r.packageTracker.WaitForAllPackagesWithContext(ctx, allPkgPaths); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return nil, nil
+			}
 			// Emit timeout warning diagnostic but continue
 			// The registry may be incomplete, but we proceed with what we have
 			r.diagnosticEmitter.EmitPackageWaitWarning(reporter, apps[0].Pos, err.Error())

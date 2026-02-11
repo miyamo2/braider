@@ -9,8 +9,11 @@ braider is a `go vet` analyzer that resolves dependency injection (DI) bindings 
 ## Overview
 
 - Compile-time DI validation with actionable diagnostics
-- Constructor generation for structs annotated with `annotation.Inject`
-- Provider registration via `annotation.Provide`
+- Constructor generation for structs annotated with `annotation.Injectable[T]`
+- Provider registration via `annotation.Provide[T](fn)`
+- Interface-typed dependencies via `inject.Typed[I]` and `provide.Typed[I]`
+- Named dependencies via `inject.Named[N]` and `provide.Named[N]`
+- Custom constructors via `inject.WithoutConstructor`
 - Bootstrap wiring generated from a dependency graph in topological order
 - Works with `go vet -fix` for one-shot application of suggested fixes
 
@@ -39,10 +42,60 @@ go vet -vettool=$(which braider) -fix ./...
 
 ### Annotations
 
-- `annotation.Inject` — marks structs that need constructor generation and will be exposed from the bootstrap dependency struct.
-- `annotation.Provide` — marks structs as providers used as local variables inside the bootstrap IIFE.
-- `annotation.ProvideFunc(fn)` — registers a factory function (useful for interfaces or external packages).
+- `annotation.Injectable[inject.Default]` — marks structs that need constructor generation and will be exposed from the bootstrap dependency struct.
+- `annotation.Provide[provide.Default](fn)` — registers provider functions used as local variables inside the bootstrap IIFE.
 - `annotation.App(main)` — marks the entry point where bootstrap code is generated.
+
+### Options
+
+`Injectable[T]` and `Provide[T]` accept option interfaces to customize registration:
+
+| Option | Injectable | Provide | Description |
+|--------|-----------|---------|-------------|
+| `Default` | `inject.Default` | `provide.Default` | Default registration. Constructor returns `*StructType`. |
+| `Typed[I]` | `inject.Typed[I]` | `provide.Typed[I]` | Register as interface type `I` instead of the concrete type. |
+| `Named[N]` | `inject.Named[N]` | `provide.Named[N]` | Register with name `N.Name()`. `N` must implement `namer.Namer` and return a string literal. |
+| `WithoutConstructor` | `inject.WithoutConstructor` | N/A | Skip constructor generation. You must provide a manual `New<Type>` function. |
+
+**Mixed options** are supported by embedding multiple option interfaces in a single anonymous interface:
+
+```go
+type MixedService struct {
+    annotation.Injectable[interface {
+        inject.Typed[Repository]
+        inject.Named[ServiceName]
+    }]
+}
+```
+
+**Custom Namer types** must return a hardcoded string literal from `Name()`:
+
+```go
+type PrimaryDBName struct{}
+
+func (PrimaryDBName) Name() string { return "primaryDB" }
+```
+
+### Migration
+
+Replace the legacy `annotation.Inject` struct with `annotation.Injectable[inject.Default]`:
+
+```diff
+ type MyService struct {
+-    annotation.Inject
++    annotation.Injectable[inject.Default]
+     repo Repository
+ }
+```
+
+Replace the legacy `annotation.Provide` struct with `annotation.Provide[provide.Default](fn)`:
+
+```diff
+-var _ = annotation.ProvideFunc(NewRepository)
++var _ = annotation.Provide[provide.Default](NewRepository)
+```
+
+The generic annotation interfaces provide compile-time option validation and support for advanced DI scenarios such as interface-typed registration, named dependencies, and custom constructors. See [Options](#options) for details.
 
 ## Example
 
@@ -53,22 +106,24 @@ import (
     "time"
 
     "github.com/miyamo2/braider/pkg/annotation"
+    "github.com/miyamo2/braider/pkg/annotation/inject"
+    "github.com/miyamo2/braider/pkg/annotation/provide"
 )
 
 type Clock interface {
     Now() time.Time
 }
 
-type realClock struct{
-	annotaion.Provide
-}
+type realClock struct{}
 
 func (realClock) Now() time.Time { return time.Now() }
 
-func NewClock() Clock { return realClock{} }
+var _ = annotation.Provide[provide.Typed[Clock]](NewClock)
+
+func NewClock() *realClock { return &realClock{} }
 
 type Service struct {
-    annotation.Inject
+    annotation.Injectable[inject.Default]
     Clock Clock
 }
 
@@ -86,24 +141,26 @@ import (
     "time"
 
     "github.com/miyamo2/braider/pkg/annotation"
+    "github.com/miyamo2/braider/pkg/annotation/inject"
+    "github.com/miyamo2/braider/pkg/annotation/provide"
 )
 
 type Clock interface {
     Now() time.Time
 }
 
-type realClock struct{
-	annotaion.Provide
-}
+type realClock struct{}
 
 func (r realClock) Now() time.Time {
 	return time.Now()
 }
 
-func NewClock() Clock { return realClock{} }
+var _ = annotation.Provide[provide.Typed[Clock]](NewClock)
+
+func NewClock() *realClock { return &realClock{} }
 
 type Service struct {
-    annotation.Inject
+    annotation.Injectable[inject.Default]
     Clock Clock
 }
 
@@ -132,6 +189,14 @@ var dependencies = func() struct {
     }
 }
 ```
+
+### Examples
+
+- [Typed inject](examples/typed-inject) -- register a struct as an interface type with `inject.Typed[I]`
+- [Named inject](examples/named-inject) -- register multiple instances with different names via `inject.Named[N]`
+- [Without constructor](examples/without-constructor) -- skip constructor generation with `inject.WithoutConstructor`
+- [Mixed options](examples/mixed-options) -- combine `Typed[I]` and `Named[N]` in a single annotation
+- [Provide typed](examples/provide-typed) -- register a provider function as an interface type with `provide.Typed[I]`
 
 ## Contributing
 

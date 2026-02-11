@@ -5,8 +5,12 @@
 package registry
 
 import (
+	"fmt"
+	"go/types"
 	"sort"
 	"sync"
+
+	"github.com/miyamo2/braider/internal/detect"
 )
 
 // ProviderInfo contains information about a Provide struct.
@@ -30,6 +34,14 @@ type ProviderInfo struct {
 	// or already exists on disk (false). Typically false for Provide structs as they require
 	// existing constructors, but included for consistency with InjectorInfo.
 	IsPending bool
+
+	// NEW: Option-derived fields for annotation refinement feature
+	// RegisteredType is the type to use for registration - interface type for Typed[I], return type otherwise
+	RegisteredType types.Type
+	// Name is the provider name from Named[N] option, empty if unnamed
+	Name string
+	// OptionMetadata contains parsed option configuration from type parameters
+	OptionMetadata detect.OptionMetadata
 }
 
 func (i *ProviderInfo) GetTypeName() string {
@@ -40,27 +52,44 @@ func (i *ProviderInfo) GetDependencies() []string {
 	return i.Dependencies
 }
 
+func (i *ProviderInfo) GetName() string {
+	return i.Name
+}
+
 // ProviderRegistry stores all discovered provider structs globally.
 // Thread-safe for potential parallel analyzer execution.
 // Uses RWMutex to allow concurrent reads for improved performance.
 type ProviderRegistry struct {
 	mu        sync.RWMutex
-	providers map[string]*ProviderInfo
+	providers map[string]map[string]*ProviderInfo
 }
 
 // NewProviderRegistry creates a new empty registry.
 func NewProviderRegistry() *ProviderRegistry {
 	return &ProviderRegistry{
-		providers: make(map[string]*ProviderInfo),
+		providers: make(map[string]map[string]*ProviderInfo),
 	}
 }
 
 // Register adds a provider struct to the registry.
-// If a provider with the same TypeName already exists, it will be overwritten.
-func (r *ProviderRegistry) Register(info *ProviderInfo) {
+// Returns an error if a duplicate (TypeName, Name) pair is detected with a non-empty name.
+// If a provider with the same TypeName already exists and names don't conflict, it will be overwritten.
+func (r *ProviderRegistry) Register(info *ProviderInfo) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.providers[info.TypeName] = info
+	if r.providers[info.TypeName] == nil {
+		r.providers[info.TypeName] = make(map[string]*ProviderInfo)
+	}
+	if existing, ok := r.providers[info.TypeName][info.Name]; ok {
+		if existing.Name != "" && existing.Name == info.Name {
+			return fmt.Errorf(
+				"duplicate named dependency: type %s with name %q already registered from %s",
+				info.TypeName, info.Name, existing.PackagePath,
+			)
+		}
+	}
+	r.providers[info.TypeName][info.Name] = info
+	return nil
 }
 
 // GetAll returns all registered provider structs.
@@ -70,15 +99,24 @@ func (r *ProviderRegistry) GetAll() []*ProviderInfo {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	result := make([]*ProviderInfo, 0, len(r.providers))
-	for _, info := range r.providers {
-		result = append(result, info)
+	size := 0
+	for _, inner := range r.providers {
+		size += len(inner)
+	}
+	result := make([]*ProviderInfo, 0, size)
+	for _, inner := range r.providers {
+		for _, info := range inner {
+			result = append(result, info)
+		}
 	}
 
-	// Sort alphabetically by TypeName for deterministic output
+	// Sort alphabetically by TypeName, then by Name for deterministic output
 	sort.Slice(
 		result, func(i, j int) bool {
-			return result[i].TypeName < result[j].TypeName
+			if result[i].TypeName != result[j].TypeName {
+				return result[i].TypeName < result[j].TypeName
+			}
+			return result[i].Name < result[j].Name
 		},
 	)
 
@@ -90,5 +128,23 @@ func (r *ProviderRegistry) GetAll() []*ProviderInfo {
 func (r *ProviderRegistry) Get(typeName string) *ProviderInfo {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return r.providers[typeName]
+	inner, ok := r.providers[typeName]
+	if !ok {
+		return nil
+	}
+	return inner[""]
+}
+
+// GetByName retrieves a named provider by fully qualified type name and name.
+// Returns (info, true) if found with matching name, (nil, false) otherwise.
+// This supports named dependency lookup for Provider[provide.Named[N]] annotations.
+func (r *ProviderRegistry) GetByName(typeName, name string) (*ProviderInfo, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	inner, ok := r.providers[typeName]
+	if !ok {
+		return nil, false
+	}
+	info, exists := inner[name]
+	return info, exists
 }

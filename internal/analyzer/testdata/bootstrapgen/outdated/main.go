@@ -1,6 +1,9 @@
 package main
 
-import "github.com/miyamo2/braider/pkg/annotation"
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"outdated/service"
+)
 
 var _ = annotation.App(main) // want "bootstrap code is outdated"
 
@@ -10,28 +13,12 @@ func main() {
 
 // braider:hash:old12345
 var dependency = func() struct {
-	userService UserService
+	userService *service.UserService
 } {
-	userService := NewUserService()
+	userService := service.NewUserService()
 	return struct {
-		userService UserService
+		userService *service.UserService
 	}{
 		userService: userService,
 	}
 }()
-
-type UserService struct {
-	annotation.Inject
-}
-
-func NewUserService() UserService {
-	return UserService{}
-}
-
-type OrderService struct {
-	annotation.Inject
-}
-
-func NewOrderService() OrderService {
-	return OrderService{}
-}

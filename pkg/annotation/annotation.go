@@ -5,53 +5,78 @@
 // to generate constructors, wiring code, and main function bootstrapping.
 package annotation
 
-// Inject marks a struct as a dependency injection target.
-//
-// When a struct is annotated with Inject, braider generates a constructor and
-// the required wiring code to resolve and provide its dependencies.
-// Inject-annotated structs become fields in the dependency struct returned
-// by the bootstrap IIFE.
-type Inject struct{}
+import (
+	"github.com/miyamo2/braider/pkg/annotation/inject"
+	"github.com/miyamo2/braider/pkg/annotation/provide"
+)
 
-// Provide marks a struct as a dependency provider.
+// Injectable marks a struct as a dependency to be injected.
 //
-// When a struct is annotated with Provide, braider registers it in the
-// provider registry and generates a local variable in the bootstrap IIFE.
-// Unlike Inject-annotated structs which become fields in the dependency
-// struct, Provide-annotated structs are only available as local variables
-// within the bootstrap function and are not exposed externally.
-type Provide struct{}
-
-// ProvideFunc marks a function as a dependency provider.
-//
-// When a function is annotated with ProvideFunc, braider registers it in the
-// provider registry and generates a local variable in the bootstrap IIFE.
-// The function is expected to return an instance of the provided dependency.
+// The option type parameter controls registration and constructor behavior.
+// Common options include:
+//   - inject.Default: default registration, constructor returns *StructType
+//   - inject.Typed[I]: register the dependency as interface type I
+//   - inject.Named[N]: register the dependency with name N.Name()
+//   - inject.WithoutConstructor: skip constructor generation (provide New<Type>)
 //
 // Example:
 //
-//	package repository
-//
-//	import "github.com/miyamo2/braider/pkg/annotation"
-//
-//	var _ MyRepository = (*myRepository)(nil)
-//
-//	type MyRepository interface {
-//	    GetData(id string) (string, error)
+//	type Service struct {
+//		annotation.Injectable[inject.Default]
+//		repo Repository
 //	}
 //
-//	type myRepository struct{}
-//
-//	func (r *myRepository) GetData(id string) (string, error) { ... }
-//
-//	var _ = annotation.ProvideFunc(NewMyRepository)
-//
-//	func NewMyRepository() *MyRepository {
-//	    return &myRepository{}
+//	type RepositoryImpl struct {
+//		annotation.Injectable[inject.Typed[Repository]]
 //	}
-func ProvideFunc(providerFunc any) struct{} {
+//
+// Mixed options can be composed with embedded option interfaces:
+//
+//	type SpecialService struct {
+//		annotation.Injectable[interface {
+//			inject.Typed[Repository]
+//			inject.Named[ServiceName]
+//		}]
+//	}
+type Injectable[T inject.Option] interface {
+	isInjectable()
+	option() T
+}
+
+// Provider is a marker interface returned by Provide[T].
+//
+// Use Provide[T] with a blank identifier to register provider functions.
+//
+//	var _ = annotation.Provide[provide.Default](NewRepository)
+type Provider[T provide.Option] interface {
+	isProvider()
+	option() T
+}
+
+type provider[T provide.Option] struct{}
+
+func (p provider[T]) isProvider() {}
+
+func (p provider[T]) option() T {
+	var zero T
+	return zero
+}
+
+// Provide marks a function as a dependency provider.
+//
+// The option type parameter controls registration behavior.
+//   - provide.Default: register the function's return type
+//   - provide.Typed[I]: register the function as interface type I
+//   - provide.Named[N]: register the function with name N.Name()
+//
+// Example:
+//
+//	var _ = annotation.Provide[provide.Default](NewRepository)
+//	var _ = annotation.Provide[provide.Typed[Repository]](NewRepository)
+//	var _ = annotation.Provide[provide.Named[PrimaryRepoName]](NewRepository)
+func Provide[T provide.Option](providerFunc any) Provider[T] {
 	_ = providerFunc
-	return struct{}{}
+	return provider[T]{}
 }
 
 // App marks a struct as the top-level dependency injection target.
@@ -63,7 +88,30 @@ func ProvideFunc(providerFunc any) struct{} {
 //
 //	package main
 //
-//	import "github.com/miyamo2/braider/pkg/annotation"
+//	import (
+//		"time"
+//
+//		"github.com/miyamo2/braider/pkg/annotation"
+//		"github.com/miyamo2/braider/pkg/annotation/inject"
+//		"github.com/miyamo2/braider/pkg/annotation/provide"
+//	)
+//
+//	type Clock interface {
+//		Now() time.Time
+//	}
+//
+//	type realClock struct{}
+//
+//	func (realClock) Now() time.Time { return time.Now() }
+//
+//	var _ = annotation.Provide[provide.Typed[Clock]](NewClock)
+//
+//	func NewClock() *realClock { return &realClock{} }
+//
+//	type Service struct {
+//		annotation.Injectable[inject.Default]
+//		Clock Clock
+//	}
 //
 //	var _ = annotation.App(main)
 //
@@ -73,7 +121,30 @@ func ProvideFunc(providerFunc any) struct{} {
 //
 //	package main
 //
-//	import "github.com/miyamo2/braider/pkg/annotation"
+//	import (
+//		"time"
+//
+//		"github.com/miyamo2/braider/pkg/annotation"
+//		"github.com/miyamo2/braider/pkg/annotation/inject"
+//		"github.com/miyamo2/braider/pkg/annotation/provide"
+//	)
+//
+//	type Clock interface {
+//		Now() time.Time
+//	}
+//
+//	type realClock struct{}
+//
+//	func (realClock) Now() time.Time { return time.Now() }
+//
+//	var _ = annotation.Provide[provide.Typed[Clock]](NewClock)
+//
+//	func NewClock() *realClock { return &realClock{} }
+//
+//	type Service struct {
+//		annotation.Injectable[inject.Default]
+//		Clock Clock
+//	}
 //
 //	var _ = annotation.App(main)
 //
@@ -82,21 +153,14 @@ func ProvideFunc(providerFunc any) struct{} {
 //	}
 //
 //	var dependency = func() struct {
-//		myRepository MyRepository
-//		myService    MyService
-//		myHandler    MyHandler
+//		Service Service
 //	} {
-//		myRepository := NewMyRepository()
-//		myService := NewMyService(myRepository)
-//		myHandler := NewMyHandler(myService)
+//		clock := NewClock()
+//		service := NewService(clock)
 //		return struct {
-//			myRepository MyRepository
-//			myService    MyService
-//			myHandler    MyHandler
-//		} {
-//			myRepository: myRepository,
-//			myService:    myService,
-//			myHandler:    myHandler,
+//			Service Service
+//		}{
+//			Service: service,
 //		}
 //	}
 func App(_ func()) struct{} {

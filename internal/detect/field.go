@@ -21,7 +21,7 @@ type FieldInfo struct {
 // FieldAnalyzer analyzes struct fields for constructor generation.
 type FieldAnalyzer interface {
 	// AnalyzeFields extracts injectable fields from a struct.
-	// Excludes the embedded annotation.Inject field from results.
+	// Excludes the embedded annotation.Injectable field from results.
 	AnalyzeFields(pass *analysis.Pass, st *ast.StructType, injectField *ast.Field) []FieldInfo
 
 	// HasInjectableFields returns true if the struct has fields requiring injection.

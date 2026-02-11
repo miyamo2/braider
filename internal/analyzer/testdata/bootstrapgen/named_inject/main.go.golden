@@ -1,0 +1,28 @@
+package main
+
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"named_inject/service"
+)
+
+var _ = annotation.App(main) // want "bootstrap code is missing"
+
+func main() {
+	_ = dependency
+}
+
+// braider:hash:43fcf607076e4e65
+var dependency = func() struct {
+	primaryDB   *service.PrimaryDB
+	secondaryDB *service.SecondaryDB
+} {
+	primaryDB := service.NewPrimaryDB()
+	secondaryDB := service.NewSecondaryDB()
+	return struct {
+		primaryDB   *service.PrimaryDB
+		secondaryDB *service.SecondaryDB
+	}{
+		primaryDB:   primaryDB,
+		secondaryDB: secondaryDB,
+	}
+}()

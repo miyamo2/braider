@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
 	"regexp"
 	"strings"
 
@@ -82,7 +83,7 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 	// Collect imports
 	currentPackage := pass.Pkg.Path()
 	currentPkgName := pass.Pkg.Name()
-	imports := CollectImports(g, currentPackage, currentPkgName, existingAliases)
+	imports, aliasMap := CollectImports(g, currentPackage, currentPkgName, existingAliases)
 
 	// Build struct fields and initialization code
 	// Note: If all nodes are Provide (IsField=false), structFields will be empty
@@ -109,7 +110,11 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 			continue
 		}
 
-		fieldName := DeriveFieldName(typeName)
+		// Use custom name if provided (Named[N] option), otherwise derive from type name
+		fieldName := node.Name
+		if fieldName == "" {
+			fieldName = DeriveFieldName(typeName)
+		}
 		fieldNames[typeName] = fieldName
 
 		// Determine qualifier (alias takes precedence)
@@ -119,23 +124,42 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		}
 
 		// Add struct field with qualified type name
+		// Use RegisteredType if available (for Typed[I] option), otherwise use concrete type
 		var qualifiedType string
-		// For main packages, also check PackagePath to distinguish multiple entry points
-		if node.PackageName == "main" && currentPkgName == "main" {
-			// Both are main - check if same entry point
-			if node.PackagePath != currentPackage {
-				// Different main packages - this shouldn't happen in same analysis,
-				// but if it does, use unqualified (they're in different binaries)
-				qualifiedType = node.LocalName
+		if node.RegisteredType != nil {
+			// Use RegisteredType for interface-typed dependencies
+			qualifiedType = types.TypeString(node.RegisteredType, func(p *types.Package) string {
+				if p == nil {
+					return ""
+				}
+				if p.Path() == currentPackage {
+					return "" // Same package, no qualifier
+				}
+				// Look up alias for the RegisteredType's package from the alias map
+				if alias, ok := aliasMap[p.Path()]; ok && alias != "" {
+					return alias
+				}
+				return p.Name()
+			})
+		} else {
+			// Use concrete type (default behavior)
+			// For main packages, also check PackagePath to distinguish multiple entry points
+			if node.PackageName == "main" && currentPkgName == "main" {
+				// Both are main - check if same entry point
+				if node.PackagePath != currentPackage {
+					// Different main packages - this shouldn't happen in same analysis,
+					// but if it does, use unqualified (they're in different binaries)
+					qualifiedType = node.LocalName
+				} else {
+					qualifiedType = node.LocalName
+				}
+			} else if node.PackageName != currentPkgName {
+				// Different package - use alias if available, otherwise package name
+				qualifiedType = qualifier + "." + node.LocalName
 			} else {
+				// Same package - no qualification
 				qualifiedType = node.LocalName
 			}
-		} else if node.PackageName != currentPkgName {
-			// Different package - use alias if available, otherwise package name
-			qualifiedType = qualifier + "." + node.LocalName
-		} else {
-			// Same package - no qualification
-			qualifiedType = node.LocalName
 		}
 		structFields = append(structFields, fmt.Sprintf("\t%s %s", fieldName, qualifiedType))
 		returnFields = append(returnFields, fmt.Sprintf("\t\t%s: %s,", fieldName, fieldName))
@@ -165,12 +189,17 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		}
 
 		// Determine variable name
+		// Use custom name if provided (Named[N] option), otherwise derive from type name
 		varName := ""
 		if node.IsField {
 			varName = fieldNames[typeName]
 		} else {
 			// Provide types use local variables
-			varName = DeriveFieldName(typeName)
+			// Use custom name if provided, otherwise derive
+			varName = node.Name
+			if varName == "" {
+				varName = DeriveFieldName(typeName)
+			}
 		}
 
 		// Build constructor call with dependencies
@@ -181,11 +210,17 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 				continue
 			}
 
+			// Resolve dependency variable name
+			// Use custom name if provided, otherwise derive
 			depVarName := ""
 			if depNode.IsField {
 				depVarName = fieldNames[depTypeName]
 			} else {
-				depVarName = DeriveFieldName(depTypeName)
+				// For Provide types, use custom name if provided
+				depVarName = depNode.Name
+				if depVarName == "" {
+					depVarName = DeriveFieldName(depTypeName)
+				}
 			}
 			args = append(args, depVarName)
 		}

@@ -24,7 +24,7 @@ func TestStructDetector_DetectCandidates(t *testing.T) {
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type MyService struct {
-	annotation.Inject
+	annotation.Injectable
 	repo Repository
 }
 
@@ -41,12 +41,12 @@ type Repository interface{}
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type ServiceA struct {
-	annotation.Inject
+	annotation.Injectable
 	repo Repository
 }
 
 type ServiceB struct {
-	annotation.Inject
+	annotation.Injectable
 	logger Logger
 }
 
@@ -64,7 +64,7 @@ type Logger interface{}
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type ServiceA struct {
-	annotation.Inject
+	annotation.Injectable
 	repo Repository
 }
 
@@ -100,7 +100,7 @@ type Repository interface{}
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type MyService struct {
-	annotation.Inject
+	annotation.Injectable
 	repo Repository
 }
 
@@ -115,25 +115,27 @@ type Repository interface {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pass, _ := mockPass(t, tt.src, tt.pkgs)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				pass, _ := mockPass(t, tt.src, tt.pkgs)
 
-			detector := detect.NewStructDetector(detect.NewInjectDetector())
-			candidates := detector.DetectCandidates(pass)
+				detector := detect.NewStructDetector(detect.NewInjectDetector())
+				candidates := detector.DetectCandidates(pass)
 
-			if len(candidates) != tt.expectedCount {
-				t.Errorf("DetectCandidates() returned %d candidates, want %d", len(candidates), tt.expectedCount)
-			}
-
-			for i, name := range tt.expectedNames {
-				if i >= len(candidates) {
-					break
+				if len(candidates) != tt.expectedCount {
+					t.Errorf("DetectCandidates() returned %d candidates, want %d", len(candidates), tt.expectedCount)
 				}
-				if candidates[i].TypeSpec.Name.Name != name {
-					t.Errorf("candidate[%d].Name = %s, want %s", i, candidates[i].TypeSpec.Name.Name, name)
+
+				for i, name := range tt.expectedNames {
+					if i >= len(candidates) {
+						break
+					}
+					if candidates[i].TypeSpec.Name.Name != name {
+						t.Errorf("candidate[%d].Name = %s, want %s", i, candidates[i].TypeSpec.Name.Name, name)
+					}
 				}
-			}
-		})
+			},
+		)
 	}
 }
 
@@ -154,7 +156,7 @@ func TestStructDetector_FindExistingConstructor(t *testing.T) {
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type MyService struct {
-	annotation.Inject
+	annotation.Injectable
 	repo Repository
 }
 
@@ -175,7 +177,7 @@ type Repository interface{}
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type MyService struct {
-	annotation.Inject
+	annotation.Injectable
 	repo Repository
 }
 
@@ -192,7 +194,7 @@ type Repository interface{}
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type MyService struct {
-	annotation.Inject
+	annotation.Injectable
 	repo Repository
 }
 
@@ -213,7 +215,7 @@ type Repository interface{}
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type MyService struct {
-	annotation.Inject
+	annotation.Injectable
 	repo Repository
 }
 
@@ -236,7 +238,7 @@ type Repository interface{}
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type MyService struct {
-	annotation.Inject
+	annotation.Injectable
 	repo Repository
 }
 
@@ -253,19 +255,21 @@ type Repository interface{}
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pass, _ := mockPass(t, tt.src, tt.pkgs)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				pass, _ := mockPass(t, tt.src, tt.pkgs)
 
-			detector := detect.NewStructDetector(detect.NewInjectDetector())
-			fn := detector.FindExistingConstructor(pass, tt.structName)
+				detector := detect.NewStructDetector(detect.NewInjectDetector())
+				fn := detector.FindExistingConstructor(pass, tt.structName)
 
-			if tt.expectFound && fn == nil {
-				t.Error("FindExistingConstructor() = nil, want non-nil")
-			}
-			if !tt.expectFound && fn != nil {
-				t.Errorf("FindExistingConstructor() = %v, want nil", fn.Name.Name)
-			}
-		})
+				if tt.expectFound && fn == nil {
+					t.Error("FindExistingConstructor() = nil, want non-nil")
+				}
+				if !tt.expectFound && fn != nil {
+					t.Errorf("FindExistingConstructor() = %v, want nil", fn.Name.Name)
+				}
+			},
+		)
 	}
 }
 
@@ -277,7 +281,7 @@ func TestStructDetector_CandidateHasExistingConstructor(t *testing.T) {
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type ServiceA struct {
-	annotation.Inject
+	annotation.Injectable
 	repo Repository
 }
 
@@ -286,7 +290,7 @@ func NewServiceA(repo Repository) *ServiceA {
 }
 
 type ServiceB struct {
-	annotation.Inject
+	annotation.Injectable
 	logger Logger
 }
 
@@ -423,19 +427,21 @@ type Repository interface{}
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pass, _ := mockPassWithoutTypesInfo(t, tt.src)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				pass, _ := mockPassWithoutTypesInfo(t, tt.src)
 
-			detector := detect.NewStructDetector(detect.NewInjectDetector())
-			fn := detector.FindExistingConstructor(pass, tt.structName)
+				detector := detect.NewStructDetector(detect.NewInjectDetector())
+				fn := detector.FindExistingConstructor(pass, tt.structName)
 
-			if tt.expectFound && fn == nil {
-				t.Error("FindExistingConstructor() = nil, want non-nil")
-			}
-			if !tt.expectFound && fn != nil {
-				t.Errorf("FindExistingConstructor() = %v, want nil", fn.Name.Name)
-			}
-		})
+				if tt.expectFound && fn == nil {
+					t.Error("FindExistingConstructor() = nil, want non-nil")
+				}
+				if !tt.expectFound && fn != nil {
+					t.Errorf("FindExistingConstructor() = %v, want nil", fn.Name.Name)
+				}
+			},
+		)
 	}
 }
 
@@ -456,7 +462,7 @@ func TestStructDetector_DetectCandidates_WithInspector(t *testing.T) {
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type MyService struct {
-	annotation.Inject
+	annotation.Injectable
 	repo Repository
 }
 
@@ -473,11 +479,11 @@ type Repository interface{}
 import "github.com/miyamo2/braider/pkg/annotation"
 
 type ServiceA struct {
-	annotation.Inject
+	annotation.Injectable
 }
 
 type ServiceB struct {
-	annotation.Inject
+	annotation.Injectable
 }
 `,
 			pkgs:          map[string]*types.Package{detect.AnnotationPath: annotationPkg},
@@ -487,24 +493,30 @@ type ServiceB struct {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pass, _ := mockPassWithInspector(t, tt.src, tt.pkgs)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				pass, _ := mockPassWithInspector(t, tt.src, tt.pkgs)
 
-			detector := detect.NewStructDetector(detect.NewInjectDetector())
-			candidates := detector.DetectCandidates(pass)
+				detector := detect.NewStructDetector(detect.NewInjectDetector())
+				candidates := detector.DetectCandidates(pass)
 
-			if len(candidates) != tt.expectedCount {
-				t.Errorf("DetectCandidates() with Inspector returned %d candidates, want %d", len(candidates), tt.expectedCount)
-			}
-
-			for i, name := range tt.expectedNames {
-				if i >= len(candidates) {
-					break
+				if len(candidates) != tt.expectedCount {
+					t.Errorf(
+						"DetectCandidates() with Inspector returned %d candidates, want %d",
+						len(candidates),
+						tt.expectedCount,
+					)
 				}
-				if candidates[i].TypeSpec.Name.Name != name {
-					t.Errorf("candidate[%d].Name = %s, want %s", i, candidates[i].TypeSpec.Name.Name, name)
+
+				for i, name := range tt.expectedNames {
+					if i >= len(candidates) {
+						break
+					}
+					if candidates[i].TypeSpec.Name.Name != name {
+						t.Errorf("candidate[%d].Name = %s, want %s", i, candidates[i].TypeSpec.Name.Name, name)
+					}
 				}
-			}
-		})
+			},
+		)
 	}
 }

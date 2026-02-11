@@ -29,27 +29,27 @@ This project is inspired by [google/wire](https://github.com/google/wire), which
 braider uses two specialized analyzers that work together:
 
 1. **DependencyAnalyzer** (`braider_dependency`):
-   - Scans all packages for `annotation.Inject` and `annotation.Provide` structs
-   - Generates constructors for Inject structs via SuggestedFix
+   - Scans all packages for `annotation.Injectable` structs and `annotation.Provide[T](fn)` calls
+   - Generates constructors for Injectable structs via SuggestedFix
    - Registers providers and injectors to global registries
-   - Validates constructor existence for Provide structs
+   - Validates provider function signatures for Provide calls
 
 2. **AppAnalyzer** (`braider_app`):
    - Detects `annotation.App(main)` annotations
    - Validates App annotation usage (single annotation, main function reference)
    - Generates bootstrap code using IIFE pattern
-   - Creates dependency struct with all Inject structs as fields
+   - Creates dependency struct with all Injectable structs as fields
 
 ### Dependency Injection Flow
 
 ```go
 // User code with annotations
 type MyRepository struct {
-    annotation.Inject
+    annotation.Injectable[inject.Default]
 }
 
 type MyService struct {
-    annotation.Inject
+    annotation.Injectable[inject.Default]
     repo MyRepository
 }
 
@@ -65,15 +65,14 @@ Analyzer generates:
 ### Core Components
 
 #### Registries (shared state across analyzers)
-- **ProviderRegistry**: Tracks Provide-annotated structs and their dependencies
+- **ProviderRegistry**: Tracks Provide-annotated provider functions and their dependencies
 - **InjectorRegistry**: Tracks Inject-annotated structs and their dependencies
 - **PackageTracker**: Monitors which packages have been scanned
 
 #### Detectors (pattern recognition)
 - **AppDetector**: Detects and validates `annotation.App(main)` annotations
-- **ProvideDetector**: Detects `annotation.Provide` fields in structs
-- **InjectDetector**: Detects `annotation.Inject` fields in structs
-- **ProvideStructDetector**: Combines struct + Provide field detection
+- **ProvideCallDetector**: Detects `var _ = annotation.Provide[T](fn)` package-level calls
+- **InjectDetector**: Detects `annotation.Injectable` fields in structs
 - **StructDetector**: Combines struct + Inject field detection
 - **FieldAnalyzer**: Extracts injectable fields from structs (excluding annotation fields)
 - **ConstructorAnalyzer**: Analyzes existing constructors and extracts dependencies
@@ -95,8 +94,8 @@ Analyzer generates:
 
 The DI system uses three marker types:
 
-1. **`annotation.Inject`**: Marks structs as DI targets (become fields in dependency struct)
-2. **`annotation.Provide`**: Marks structs as DI providers (local variables only)
+1. **`annotation.Injectable[T]`**: Marks structs as DI targets (become fields in dependency struct)
+2. **`annotation.Provide[T](fn)`**: Registers provider functions as DI sources (`var _ = annotation.Provide[provide.Default](NewRepo)`)
 3. **`annotation.App(main)`**: Triggers bootstrap code generation in main function
 
 ## Development Guidelines

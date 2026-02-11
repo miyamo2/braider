@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"context"
 	"testing"
 
 	"github.com/miyamo2/braider/internal/detect"
@@ -16,12 +17,13 @@ func setupDependencyAnalyzerDeps() (
 	*registry.ProviderRegistry,
 	*registry.InjectorRegistry,
 	*registry.PackageTracker,
-	detect.ProvideDetector,
-	detect.ProvideStructDetector,
+	context.CancelCauseFunc,
+	detect.ProvideCallDetector,
 	detect.InjectDetector,
 	detect.StructDetector,
 	detect.FieldAnalyzer,
 	detect.ConstructorAnalyzer,
+	detect.OptionExtractor,
 	generate.ConstructorGenerator,
 	report.SuggestedFixBuilder,
 	report.DiagnosticEmitter,
@@ -29,22 +31,25 @@ func setupDependencyAnalyzerDeps() (
 	providerRegistry := registry.NewProviderRegistry()
 	injectorRegistry := registry.NewInjectorRegistry()
 	packageTracker := registry.NewPackageTracker()
+	_, cancel := context.WithCancelCause(context.Background())
 
-	provideDetector := detect.NewProvideDetector()
 	injectDetector := detect.NewInjectDetector()
 	fieldAnalyzer := detect.NewFieldAnalyzer()
 	constructorAnalyzer := detect.NewConstructorAnalyzer()
 
-	provideStructDetector := detect.NewProvideStructDetector(provideDetector)
+	provideCallDetector := detect.NewProvideCallDetector()
 	structDetector := detect.NewStructDetector(injectDetector)
+
+	// Use nil option extractor for tests that don't need it
+	var optionExtractor detect.OptionExtractor
 
 	constructorGenerator := generate.NewConstructorGenerator()
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 
-	return providerRegistry, injectorRegistry, packageTracker,
-		provideDetector, provideStructDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer,
+	return providerRegistry, injectorRegistry, packageTracker, cancel,
+		provideCallDetector, injectDetector, structDetector,
+		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter
 }
 
@@ -53,34 +58,35 @@ func createDependencyAnalyzer(
 	providerRegistry *registry.ProviderRegistry,
 	injectorRegistry *registry.InjectorRegistry,
 	packageTracker *registry.PackageTracker,
-	provideDetector detect.ProvideDetector,
-	provideStructDetector detect.ProvideStructDetector,
+	bootstrapCancel context.CancelCauseFunc,
+	provideCallDetector detect.ProvideCallDetector,
 	injectDetector detect.InjectDetector,
 	structDetector detect.StructDetector,
 	fieldAnalyzer detect.FieldAnalyzer,
 	constructorAnalyzer detect.ConstructorAnalyzer,
+	optionExtractor detect.OptionExtractor,
 	constructorGenerator generate.ConstructorGenerator,
 	suggestedFixBuilder report.SuggestedFixBuilder,
 	diagnosticEmitter report.DiagnosticEmitter,
 ) *analysis.Analyzer {
 	return DependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker,
-		provideDetector, provideStructDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer,
+		providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
+		provideCallDetector, injectDetector, structDetector,
+		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
 	)
 }
 
 func TestDependencyAnalyzer(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker,
-		provideDetector, provideStructDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer,
+	providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
+		provideCallDetector, injectDetector, structDetector,
+		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter := setupDependencyAnalyzerDeps()
 
 	analyzer := createDependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker,
-		provideDetector, provideStructDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer,
+		providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
+		provideCallDetector, injectDetector, structDetector,
+		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
 	)
 
@@ -105,15 +111,15 @@ func TestDependencyAnalyzer(t *testing.T) {
 }
 
 func TestDependencyAnalyzer_SuggestedFixes(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker,
-		provideDetector, provideStructDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer,
+	providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
+		provideCallDetector, injectDetector, structDetector,
+		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter := setupDependencyAnalyzerDeps()
 
 	analyzer := createDependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker,
-		provideDetector, provideStructDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer,
+		providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
+		provideCallDetector, injectDetector, structDetector,
+		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
 	)
 
@@ -123,15 +129,15 @@ func TestDependencyAnalyzer_SuggestedFixes(t *testing.T) {
 }
 
 func TestDependencyAnalyzer_MissingProvideConstructor(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker,
-		provideDetector, provideStructDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer,
+	providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
+		provideCallDetector, injectDetector, structDetector,
+		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter := setupDependencyAnalyzerDeps()
 
 	analyzer := createDependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker,
-		provideDetector, provideStructDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer,
+		providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
+		provideCallDetector, injectDetector, structDetector,
+		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
 	)
 
@@ -145,15 +151,15 @@ func TestDependencyAnalyzer_MissingProvideConstructor(t *testing.T) {
 }
 
 func TestDependencyAnalyzer_CrossPackage(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker,
-		provideDetector, provideStructDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer,
+	providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
+		provideCallDetector, injectDetector, structDetector,
+		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter := setupDependencyAnalyzerDeps()
 
 	analyzer := createDependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker,
-		provideDetector, provideStructDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer,
+		providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
+		provideCallDetector, injectDetector, structDetector,
+		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
 	)
 
@@ -179,15 +185,15 @@ func TestDependencyAnalyzer_CrossPackage(t *testing.T) {
 }
 
 func TestDependencyAnalyzer_InterfaceImplementation(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker,
-		provideDetector, provideStructDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer,
+	providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
+		provideCallDetector, injectDetector, structDetector,
+		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter := setupDependencyAnalyzerDeps()
 
 	analyzer := createDependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker,
-		provideDetector, provideStructDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer,
+		providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
+		provideCallDetector, injectDetector, structDetector,
+		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
 	)
 

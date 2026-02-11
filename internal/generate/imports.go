@@ -2,6 +2,7 @@ package generate
 
 import (
 	"go/ast"
+	"go/types"
 	"regexp"
 	"sort"
 	"strconv"
@@ -31,14 +32,15 @@ var goReservedKeywords = map[string]bool{
 }
 
 // CollectImports extracts unique package paths from the dependency graph.
-// It excludes the current package and returns a sorted list of import info with aliases.
+// It excludes the current package and returns a sorted list of import info with aliases,
+// along with an alias map (pkgPath -> alias) for use by qualifier functions.
 func CollectImports(
 	g *graph.Graph,
 	currentPackage, currentPkgName string,
 	existingAliases map[string]string,
-) []ImportInfo {
+) ([]ImportInfo, map[string]string) {
 	if g == nil {
-		return []ImportInfo{}
+		return []ImportInfo{}, make(map[string]string)
 	}
 
 	importSet := make(map[string]bool)
@@ -59,6 +61,15 @@ func CollectImports(
 			}
 		} else if node.PackageName != currentPkgName {
 			importSet[pkgPath] = true
+		}
+
+		// Also include packages referenced by RegisteredType (for Typed[I] option)
+		if node.RegisteredType != nil {
+			for _, regPkgPath := range extractPackagePaths(node.RegisteredType) {
+				if regPkgPath != "" && regPkgPath != currentPackage {
+					importSet[regPkgPath] = true
+				}
+			}
 		}
 	}
 
@@ -88,7 +99,38 @@ func CollectImports(
 		return imports[i].Path < imports[j].Path
 	})
 
-	return imports
+	return imports, aliasMap
+}
+
+// extractPackagePaths extracts all unique package paths from a types.Type.
+// This handles named types, pointer types, and interface types with embedded types.
+func extractPackagePaths(t types.Type) []string {
+	var paths []string
+	seen := make(map[string]bool)
+
+	var visit func(types.Type)
+	visit = func(t types.Type) {
+		switch typ := t.(type) {
+		case *types.Named:
+			if obj := typ.Obj(); obj != nil {
+				if pkg := obj.Pkg(); pkg != nil {
+					p := pkg.Path()
+					if !seen[p] {
+						seen[p] = true
+						paths = append(paths, p)
+					}
+				}
+			}
+		case *types.Pointer:
+			visit(typ.Elem())
+		case *types.Interface:
+			for i := 0; i < typ.NumEmbeddeds(); i++ {
+				visit(typ.EmbeddedType(i))
+			}
+		}
+	}
+	visit(t)
+	return paths
 }
 
 // detectExistingAliases scans the target file for user-defined import aliases.
@@ -115,6 +157,28 @@ func detectExistingAliases(file *ast.File) map[string]string {
 	return aliasMap
 }
 
+// extractPackageName extracts the package name from a types.Type for a given package path.
+// It unwraps pointer types to find the underlying named type.
+func extractPackageName(t types.Type, targetPath string) string {
+	switch typ := t.(type) {
+	case *types.Named:
+		if obj := typ.Obj(); obj != nil {
+			if pkg := obj.Pkg(); pkg != nil && pkg.Path() == targetPath {
+				return pkg.Name()
+			}
+		}
+	case *types.Pointer:
+		return extractPackageName(typ.Elem(), targetPath)
+	case *types.Interface:
+		for i := 0; i < typ.NumEmbeddeds(); i++ {
+			if name := extractPackageName(typ.EmbeddedType(i), targetPath); name != "" {
+				return name
+			}
+		}
+	}
+	return ""
+}
+
 // detectPackageCollisions identifies packages with duplicate names.
 // Returns map[packagePath]packageName for packages involved in collisions.
 func detectPackageCollisions(g *graph.Graph) map[string]string {
@@ -125,14 +189,30 @@ func detectPackageCollisions(g *graph.Graph) map[string]string {
 	nameToPathsMap := make(map[string][]string)
 	pathToNameMap := make(map[string]string)
 
-	// Build mappings
-	for _, node := range g.Nodes {
-		if node.PackagePath == "" || node.PackageName == "" {
-			continue
+	// addPackage registers a package path under its name, avoiding duplicates.
+	addPackage := func(pkgName, pkgPath string) {
+		if pkgName == "" || pkgPath == "" {
+			return
 		}
-		pkgName := node.PackageName
-		nameToPathsMap[pkgName] = append(nameToPathsMap[pkgName], node.PackagePath)
-		pathToNameMap[node.PackagePath] = pkgName
+		// Check for duplicate path in this name's list
+		if existingName, exists := pathToNameMap[pkgPath]; exists && existingName == pkgName {
+			return
+		}
+		nameToPathsMap[pkgName] = append(nameToPathsMap[pkgName], pkgPath)
+		pathToNameMap[pkgPath] = pkgName
+	}
+
+	// Build mappings from node packages
+	for _, node := range g.Nodes {
+		addPackage(node.PackageName, node.PackagePath)
+
+		// Also include packages from RegisteredType (for Typed[I] interface types)
+		if node.RegisteredType != nil {
+			for _, regPkgPath := range extractPackagePaths(node.RegisteredType) {
+				pkgName := extractPackageName(node.RegisteredType, regPkgPath)
+				addPackage(pkgName, regPkgPath)
+			}
+		}
 	}
 
 	// Extract only colliding packages (2+ paths with same name)
