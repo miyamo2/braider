@@ -3,8 +3,8 @@
 ## Architecture
 
 braider implements a **multi-analyzer architecture** using `multichecker.Main()` with two coordinated analyzers:
-- **DependencyAnalyzer**: Detects and registers `Provide` and `Inject` structs, generates constructors
-- **AppAnalyzer**: Detects `App` annotations and generates bootstrap IIFE code
+- **DependencyAnalyzer**: Detects `annotation.Injectable[T]` structs and `annotation.Provide[T](fn)` calls, generates constructors, registers to global registries
+- **AppAnalyzer**: Detects `annotation.App(main)` and generates bootstrap IIFE code
 
 Each analyzer implements the `analysis.Analyzer` interface, performs static analysis on Go AST, and proposes code fixes via `SuggestedFix`. Analyzers share state through global registries for cross-package dependency resolution.
 
@@ -70,8 +70,8 @@ Code generation is implemented via `analysis.SuggestedFix` rather than separate 
 
 ### Component-Based Architecture
 The analyzer uses composable components (detectors, generators, reporters) instantiated in `main.go` and passed to analyzer constructors. Each component has a single responsibility and is testable in isolation. Components are organized by concern:
-- **Detectors** (`internal/detect/`): Pattern matching (inject, provide, app, struct, field, constructor)
-- **Generators** (`internal/generate/`): Code generation (constructors, bootstrap IIFE), utilities (imports, formatting, naming, keyword checking, hash markers for idempotency)
+- **Detectors** (`internal/detect/`): Pattern matching (inject, provide call, app, struct, field, constructor, option extraction, namer validation)
+- **Generators** (`internal/generate/`): Code generation (constructors, bootstrap IIFE), utilities (imports, formatting, naming, keyword checking, hash markers for idempotency, AST utilities)
 - **Reporters** (`internal/report/`): Diagnostic and suggested fix building
 - **Registries** (`internal/registry/`): Global state for cross-package dependency tracking
 - **Graph** (`internal/graph/`): Dependency graph construction, interface resolution, topological sorting
@@ -99,3 +99,4 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 _Document standards and patterns, not every dependency_
 
 _Updated: 2026-02-02 - Added loader component, expanded generator utilities to include naming and keyword checking_
+_Updated: 2026-02-11 - Sync: Corrected annotation names to current API; added OptionExtractor, NamerValidator to detect components; added AST utilities to generate components_
