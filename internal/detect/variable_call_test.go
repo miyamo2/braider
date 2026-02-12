@@ -517,6 +517,26 @@ var _ = annotation.Variable(getVal())
 			expectedErrors:   1,
 			expectedExprDesc: "function call",
 		},
+		{
+			name: "non-package selector (struct field access)",
+			src: `package test
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+type Config struct {
+	Value int
+}
+
+var cfg = Config{Value: 42}
+
+var _ = annotation.Variable(cfg.Value)
+`,
+			pkgs: map[string]*types.Package{
+				detect.AnnotationPath: annotationPkg,
+			},
+			expectedErrors:   1,
+			expectedExprDesc: "non-package selector",
+		},
 	}
 
 	for _, tt := range tests {

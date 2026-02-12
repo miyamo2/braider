@@ -222,9 +222,23 @@ func (d *variableCallDetector) extractCandidate(pass *analysis.Pass, callExpr *a
 
 	// Only simple identifiers and package-qualified identifiers are supported.
 	// Complex expressions (function calls, composite literals, etc.) are out of scope.
-	switch argExpr.(type) {
-	case *ast.Ident, *ast.SelectorExpr:
-		// OK
+	switch arg := argExpr.(type) {
+	case *ast.Ident:
+		// OK - simple identifier (e.g., myVar)
+	case *ast.SelectorExpr:
+		// Validate that X resolves to a package name (e.g., os.Stdout),
+		// not a non-package selector (e.g., myStruct.Field).
+		ident, ok := arg.X.(*ast.Ident)
+		if !ok {
+			return nil, &VariableDetectionError{Pos: callExpr.Pos(), ExprDescription: "non-package selector"}
+		}
+		obj, exists := pass.TypesInfo.Uses[ident]
+		if !exists {
+			return nil, &VariableDetectionError{Pos: callExpr.Pos(), ExprDescription: "non-package selector"}
+		}
+		if _, ok := obj.(*types.PkgName); !ok {
+			return nil, &VariableDetectionError{Pos: callExpr.Pos(), ExprDescription: "non-package selector"}
+		}
 	default:
 		return nil, &VariableDetectionError{Pos: callExpr.Pos(), ExprDescription: describeExprType(argExpr)}
 	}
