@@ -128,6 +128,12 @@ func (v *namerValidatorImpl) findMethodDecl(
 			err,
 		)
 	}
+	if pkg == nil {
+		return nil, fmt.Errorf(
+			"cannot validate external Namer in package %s: package loader returned nil. Define Namer in same package as annotation",
+			method.Pkg().Path(),
+		)
+	}
 
 	// Extract the expected type name from namerType for receiver matching.
 	// Unwrap pointer if present.

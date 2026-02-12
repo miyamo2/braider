@@ -661,6 +661,102 @@ func TestVariableRegistry_ThreadSafety(t *testing.T) {
 	}
 }
 
+func TestVariableRegistry_GetNamesByType(t *testing.T) {
+	t.Run("returns nil for non-existent type", func(t *testing.T) {
+		r := NewVariableRegistry()
+
+		got := r.GetNamesByType("nonexistent.Type")
+		if got != nil {
+			t.Errorf("GetNamesByType(nonexistent) = %v, want nil", got)
+		}
+	})
+
+	t.Run("returns nil when only unnamed variable exists", func(t *testing.T) {
+		r := NewVariableRegistry()
+
+		r.Register(&VariableInfo{TypeName: "os.File", Name: "", ExpressionText: "os.Stdout", Dependencies: []string{}})
+
+		got := r.GetNamesByType("os.File")
+		if got != nil {
+			t.Errorf("GetNamesByType(unnamed only) = %v, want nil", got)
+		}
+	})
+
+	t.Run("returns sorted names for named variables", func(t *testing.T) {
+		r := NewVariableRegistry()
+
+		r.Register(&VariableInfo{TypeName: "os.File", Name: "beta", ExpressionText: "os.Stderr", Dependencies: []string{}})
+		r.Register(&VariableInfo{TypeName: "os.File", Name: "alpha", ExpressionText: "os.Stdout", Dependencies: []string{}})
+
+		got := r.GetNamesByType("os.File")
+		if len(got) != 2 {
+			t.Fatalf("len(GetNamesByType) = %d, want 2", len(got))
+		}
+		if got[0] != "alpha" || got[1] != "beta" {
+			t.Errorf("GetNamesByType = %v, want [\"alpha\", \"beta\"]", got)
+		}
+	})
+
+	t.Run("excludes empty name from results", func(t *testing.T) {
+		r := NewVariableRegistry()
+
+		r.Register(&VariableInfo{TypeName: "os.File", Name: "", ExpressionText: "os.Stdin", Dependencies: []string{}})
+		r.Register(&VariableInfo{TypeName: "os.File", Name: "output", ExpressionText: "os.Stdout", Dependencies: []string{}})
+
+		got := r.GetNamesByType("os.File")
+		if len(got) != 1 {
+			t.Fatalf("len(GetNamesByType) = %d, want 1", len(got))
+		}
+		if got[0] != "output" {
+			t.Errorf("GetNamesByType = %v, want [\"output\"]", got)
+		}
+	})
+}
+
+func TestVariableRegistry_ThreadSafety_GetByName(t *testing.T) {
+	r := NewVariableRegistry()
+
+	const numGoroutines = 50
+	const numOperations = 100
+
+	// Pre-register some named variables
+	for i := range 26 {
+		name := string(rune('a' + i))
+		r.Register(&VariableInfo{
+			TypeName:       "example.com/pkg.Type",
+			Name:           name,
+			ExpressionText: "expr" + name,
+			Dependencies:   []string{},
+		})
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines * 2)
+
+	// Concurrent GetByName reads
+	for range numGoroutines {
+		go func() {
+			defer wg.Done()
+			for j := range numOperations {
+				name := string(rune('a' + j%26))
+				_, _ = r.GetByName("example.com/pkg.Type", name)
+			}
+		}()
+	}
+
+	// Concurrent GetNamesByType reads
+	for range numGoroutines {
+		go func() {
+			defer wg.Done()
+			for range numOperations {
+				_ = r.GetNamesByType("example.com/pkg.Type")
+			}
+		}()
+	}
+
+	wg.Wait()
+}
+
 func TestGlobalVariableRegistry(t *testing.T) {
 	r := NewVariableRegistry()
 

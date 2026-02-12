@@ -300,6 +300,46 @@ func TestOptionExtractor_ExtractVariableOptions_Mixed(t *testing.T) {
 	}
 }
 
+func TestOptionExtractor_ExtractVariableOptions_TypedNonInterface(t *testing.T) {
+	pkg, pass := LoadTestPackage(t, "option_extractor/variable_typed_non_interface")
+	callExpr, argType := FindVariableCall(t, pkg)
+
+	mockValidator := &MockNamerValidator{}
+	extractor := NewOptionExtractor(mockValidator)
+
+	_, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
+
+	if err == nil {
+		t.Error("Expected error for Variable Typed[I] with non-interface type, got nil")
+		return
+	}
+
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "Typed[I] requires an interface type") {
+		t.Errorf("Expected error to contain 'Typed[I] requires an interface type', got: %v", err)
+	}
+}
+
+func TestOptionExtractor_ExtractVariableOptions_InterfaceImplValidationError(t *testing.T) {
+	pkg, pass := LoadTestPackage(t, "option_extractor/variable_interface_validation_error")
+	callExpr, argType := FindVariableCall(t, pkg)
+
+	mockValidator := &MockNamerValidator{}
+	extractor := NewOptionExtractor(mockValidator)
+
+	_, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
+
+	if err == nil {
+		t.Error("Expected error for Variable interface implementation mismatch, got nil")
+		return
+	}
+
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "does not implement interface") {
+		t.Errorf("Expected error to contain 'does not implement interface', got: %v", err)
+	}
+}
+
 func TestOptionExtractor_ExtractInjectOptions_InterfaceImplValidationError(t *testing.T) {
 	pkg, pass := LoadTestPackage(t, "option_extractor/interface_validation_error")
 	injectableExpr, _, structName := FindInjectableField(t, pkg)
