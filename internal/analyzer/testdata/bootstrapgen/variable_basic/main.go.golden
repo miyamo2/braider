@@ -14,7 +14,7 @@ func main() {
 // braider:hash:121a804f81cc777c
 var dependency = func() struct {
 } {
-	file := os.Stdout
+	_ = os.Stdout
 	return struct {
 	}{}
 }()

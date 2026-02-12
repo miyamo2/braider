@@ -445,9 +445,9 @@ func TestBootstrapGenerator_GenerateBootstrap_VariableExpressionAssignment(t *te
 				if bootstrap == nil {
 					t.Fatal("bootstrap is nil")
 				}
-				// Should contain expression assignment, not a constructor call
-				if !strings.Contains(bootstrap.DependencyVar, "file := os.Stdout") {
-					t.Errorf("missing expression assignment, got: %s", bootstrap.DependencyVar)
+				// Variable not depended upon by any other node -> blank assignment
+				if !strings.Contains(bootstrap.DependencyVar, "_ = os.Stdout") {
+					t.Errorf("missing blank expression assignment, got: %s", bootstrap.DependencyVar)
 				}
 				// Should NOT contain any constructor call for this node
 				if strings.Contains(bootstrap.DependencyVar, "NewFile") {
@@ -483,8 +483,9 @@ func TestBootstrapGenerator_GenerateBootstrap_VariableExpressionAssignment(t *te
 				if bootstrap == nil {
 					t.Fatal("bootstrap is nil")
 				}
-				if !strings.Contains(bootstrap.DependencyVar, "file := os.Stdout") {
-					t.Errorf("missing expression assignment, got: %s", bootstrap.DependencyVar)
+				// Variable not depended upon -> blank assignment
+				if !strings.Contains(bootstrap.DependencyVar, "_ = os.Stdout") {
+					t.Errorf("missing blank expression assignment, got: %s", bootstrap.DependencyVar)
 				}
 			},
 		},
@@ -516,8 +517,9 @@ func TestBootstrapGenerator_GenerateBootstrap_VariableExpressionAssignment(t *te
 				if bootstrap == nil {
 					t.Fatal("bootstrap is nil")
 				}
-				if !strings.Contains(bootstrap.DependencyVar, "stdoutWriter := os.Stdout") {
-					t.Errorf("missing named expression assignment, got: %s", bootstrap.DependencyVar)
+				// Variable not depended upon -> blank assignment (name is irrelevant)
+				if !strings.Contains(bootstrap.DependencyVar, "_ = os.Stdout") {
+					t.Errorf("missing blank expression assignment, got: %s", bootstrap.DependencyVar)
 				}
 			},
 		},
@@ -548,10 +550,9 @@ func TestBootstrapGenerator_GenerateBootstrap_VariableExpressionAssignment(t *te
 				if bootstrap == nil {
 					t.Fatal("bootstrap is nil")
 				}
-				// Should prepend package qualifier for unqualified expression from another package
-				// Variable name is derived from type name (Config -> config), not expression text
-				if !strings.Contains(bootstrap.DependencyVar, "config := config.DefaultConfig") {
-					t.Errorf("missing qualified expression assignment, got: %s", bootstrap.DependencyVar)
+				// Variable not depended upon -> blank assignment with qualified expression
+				if !strings.Contains(bootstrap.DependencyVar, "_ = config.DefaultConfig") {
+					t.Errorf("missing blank qualified expression assignment, got: %s", bootstrap.DependencyVar)
 				}
 			},
 		},
@@ -582,9 +583,8 @@ func TestBootstrapGenerator_GenerateBootstrap_VariableExpressionAssignment(t *te
 				if bootstrap == nil {
 					t.Fatal("bootstrap is nil")
 				}
-				// Same package - should NOT add qualifier
-				// Variable name derived from type name: Config -> config
-				if !strings.Contains(bootstrap.DependencyVar, "config := DefaultConfig") {
+				// Variable not depended upon -> blank assignment, same package stays unqualified
+				if !strings.Contains(bootstrap.DependencyVar, "_ = DefaultConfig") {
 					t.Errorf("should not qualify same-package expression, got: %s", bootstrap.DependencyVar)
 				}
 			},
@@ -617,9 +617,8 @@ func TestBootstrapGenerator_GenerateBootstrap_VariableExpressionAssignment(t *te
 				if bootstrap == nil {
 					t.Fatal("bootstrap is nil")
 				}
-				// Should use alias "cfg" instead of package name "config"
-				// Variable name derived from type name: Config -> config
-				if !strings.Contains(bootstrap.DependencyVar, "config := cfg.DefaultConfig") {
+				// Variable not depended upon -> blank assignment with alias qualifier
+				if !strings.Contains(bootstrap.DependencyVar, "_ = cfg.DefaultConfig") {
 					t.Errorf("should use package alias as qualifier, got: %s", bootstrap.DependencyVar)
 				}
 			},

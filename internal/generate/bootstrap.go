@@ -170,6 +170,16 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		structFields = []string{} // Explicitly empty for clarity
 	}
 
+	// Build a set of node keys that are depended upon by other nodes.
+	// Used to determine whether a Variable node needs a named assignment (depended upon)
+	// or a blank assignment (not depended upon).
+	dependedUpon := make(map[string]struct{})
+	for _, node := range g.Nodes {
+		for _, dep := range node.Dependencies {
+			dependedUpon[dep] = struct{}{}
+		}
+	}
+
 	// Phase 2: Generate initialization code for ALL types (both Inject and Provide)
 	// Even though Provide structs are not included in the returned dependency struct,
 	// they must still be initialized because Inject structs may depend on them.
@@ -212,7 +222,13 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 				}
 				expressionText = qualifier + "." + expressionText
 			}
-			inits = append(inits, fmt.Sprintf("\t%s := %s", varName, expressionText))
+			// If no other node depends on this Variable, use blank assignment (_ =)
+			// to avoid "declared and not used" errors. Otherwise, use named assignment.
+			if _, ok := dependedUpon[typeName]; ok {
+				inits = append(inits, fmt.Sprintf("\t%s := %s", varName, expressionText))
+			} else {
+				inits = append(inits, fmt.Sprintf("\t_ = %s", expressionText))
+			}
 			continue
 		}
 
