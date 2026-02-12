@@ -267,7 +267,11 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 
 	// Phase 2.5: Detect and register Variable annotations
 	if r.variableCallDetector != nil && r.variableRegistry != nil {
-		variables := r.variableCallDetector.DetectVariables(pass)
+		variables, detectionErrors := r.variableCallDetector.DetectVariables(pass)
+		for _, detErr := range detectionErrors {
+			r.diagnosticEmitter.EmitUnsupportedVariableExpression(reporter, detErr.Pos, detErr.Error())
+			r.bootstrapCancel(&detErr)
+		}
 		for _, variable := range variables {
 			// Extract option metadata
 			var metadata detect.OptionMetadata

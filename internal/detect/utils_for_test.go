@@ -135,7 +135,10 @@ func FindVariableCall(t *testing.T, pkg *packages.Package) (*ast.CallExpr, types
 		Pkg:       pkg.Types,
 	}
 
-	candidates := detector.DetectVariables(pass)
+	candidates, errs := detector.DetectVariables(pass)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected detection errors in FindVariableCall: %v", errs)
+	}
 	if len(candidates) == 0 {
 		t.Fatal("No Variable call found in package")
 	}

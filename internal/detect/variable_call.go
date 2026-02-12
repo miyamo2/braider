@@ -2,8 +2,10 @@ package detect
 
 import (
 	"bytes"
+	"fmt"
 	"go/ast"
 	"go/format"
+	"go/token"
 	"go/types"
 
 	"golang.org/x/tools/go/analysis"
@@ -36,10 +38,44 @@ type VariableCandidate struct {
 	Implements []string
 }
 
+// VariableDetectionError represents an error detected during Variable call processing.
+type VariableDetectionError struct {
+	Pos             token.Pos
+	ExprDescription string
+}
+
+func (e VariableDetectionError) Error() string {
+	return fmt.Sprintf(
+		"unsupported Variable argument: %s is not supported; only simple identifiers (myVar) and package-qualified identifiers (os.Stdout) are allowed",
+		e.ExprDescription,
+	)
+}
+
+func describeExprType(expr ast.Expr) string {
+	switch expr.(type) {
+	case *ast.BasicLit:
+		return "literal value"
+	case *ast.CompositeLit:
+		return "composite literal"
+	case *ast.CallExpr:
+		return "function call"
+	case *ast.UnaryExpr:
+		return "unary expression"
+	case *ast.BinaryExpr:
+		return "binary expression"
+	case *ast.FuncLit:
+		return "function literal"
+	case *ast.StarExpr:
+		return "pointer dereference"
+	default:
+		return fmt.Sprintf("expression type %T", expr)
+	}
+}
+
 // VariableCallDetector identifies annotation.Variable[T](value) call expressions.
 type VariableCallDetector interface {
 	// DetectVariables returns all annotation.Variable[T](value) calls in the package.
-	DetectVariables(pass *analysis.Pass) []VariableCandidate
+	DetectVariables(pass *analysis.Pass) ([]VariableCandidate, []VariableDetectionError)
 }
 
 // variableCallDetector is the default implementation of VariableCallDetector.
@@ -51,8 +87,9 @@ func NewVariableCallDetector() VariableCallDetector {
 }
 
 // DetectVariables returns all annotation.Variable[T](value) calls in the package.
-func (d *variableCallDetector) DetectVariables(pass *analysis.Pass) []VariableCandidate {
+func (d *variableCallDetector) DetectVariables(pass *analysis.Pass) ([]VariableCandidate, []VariableDetectionError) {
 	var candidates []VariableCandidate
+	var errors []VariableDetectionError
 
 	// Use inspector if available, otherwise iterate files manually
 	var insp *inspector.Inspector
@@ -70,26 +107,26 @@ func (d *variableCallDetector) DetectVariables(pass *analysis.Pass) []VariableCa
 		insp.Preorder(
 			nodeFilter, func(n ast.Node) {
 				genDecl := n.(*ast.GenDecl)
-				candidates = d.processGenDecl(pass, genDecl, candidates)
+				candidates, errors = d.processGenDecl(pass, genDecl, candidates, errors)
 			},
 		)
 	} else {
 		for _, file := range pass.Files {
 			for _, decl := range file.Decls {
 				if genDecl, ok := decl.(*ast.GenDecl); ok {
-					candidates = d.processGenDecl(pass, genDecl, candidates)
+					candidates, errors = d.processGenDecl(pass, genDecl, candidates, errors)
 				}
 			}
 		}
 	}
 
-	return candidates
+	return candidates, errors
 }
 
 // processGenDecl processes a GenDecl and looks for var _ = annotation.Variable[T](value) patterns.
 func (d *variableCallDetector) processGenDecl(
-	pass *analysis.Pass, genDecl *ast.GenDecl, candidates []VariableCandidate,
-) []VariableCandidate {
+	pass *analysis.Pass, genDecl *ast.GenDecl, candidates []VariableCandidate, errors []VariableDetectionError,
+) ([]VariableCandidate, []VariableDetectionError) {
 	for _, spec := range genDecl.Specs {
 		valueSpec, ok := spec.(*ast.ValueSpec)
 		if !ok {
@@ -106,13 +143,16 @@ func (d *variableCallDetector) processGenDecl(
 				continue
 			}
 
-			candidate := d.extractCandidate(pass, callExpr)
+			candidate, detErr := d.extractCandidate(pass, callExpr)
+			if detErr != nil {
+				errors = append(errors, *detErr)
+			}
 			if candidate != nil {
 				candidates = append(candidates, *candidate)
 			}
 		}
 	}
-	return candidates
+	return candidates, errors
 }
 
 // isVariableCall checks if a call expression is annotation.Variable[T](value).
@@ -173,9 +213,9 @@ func (d *variableCallDetector) isVariableCall(pass *analysis.Pass, callExpr *ast
 }
 
 // extractCandidate extracts a VariableCandidate from a validated Variable[T](value) call.
-func (d *variableCallDetector) extractCandidate(pass *analysis.Pass, callExpr *ast.CallExpr) *VariableCandidate {
+func (d *variableCallDetector) extractCandidate(pass *analysis.Pass, callExpr *ast.CallExpr) (*VariableCandidate, *VariableDetectionError) {
 	if len(callExpr.Args) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	argExpr := callExpr.Args[0]
@@ -186,13 +226,13 @@ func (d *variableCallDetector) extractCandidate(pass *analysis.Pass, callExpr *a
 	case *ast.Ident, *ast.SelectorExpr:
 		// OK
 	default:
-		return nil
+		return nil, &VariableDetectionError{Pos: callExpr.Pos(), ExprDescription: describeExprType(argExpr)}
 	}
 
 	// Get the type of the argument expression
 	argType := pass.TypesInfo.TypeOf(argExpr)
 	if argType == nil {
-		return nil
+		return nil, nil
 	}
 
 	// Extract the fully qualified type name
@@ -224,7 +264,7 @@ func (d *variableCallDetector) extractCandidate(pass *analysis.Pass, callExpr *a
 		ExpressionPkgs: expressionPkgs,
 		IsQualified:    isQualified,
 		Implements:     implements,
-	}
+	}, nil
 }
 
 // extractTypeName extracts the fully qualified type name from a type.

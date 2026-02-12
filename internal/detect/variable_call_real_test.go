@@ -8,7 +8,10 @@ func TestVariableCallDetector_DetectVariables_WithRealPackage(t *testing.T) {
 	_, pass := LoadTestPackage(t, "variable_call")
 
 	detector := NewVariableCallDetector()
-	candidates := detector.DetectVariables(pass)
+	candidates, errs := detector.DetectVariables(pass)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected detection errors: %v", errs)
+	}
 
 	if len(candidates) != 2 {
 		t.Fatalf("expected 2 candidates from real package, got %d", len(candidates))

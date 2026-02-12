@@ -3,6 +3,7 @@ package detect_test
 import (
 	"go/token"
 	"go/types"
+	"strings"
 	"testing"
 
 	"github.com/miyamo2/braider/internal/detect"
@@ -193,7 +194,7 @@ var _ = annotation.Provide(NewRepo)
 			pass, _ := mockPass(t, tt.src, tt.pkgs)
 
 			detector := detect.NewVariableCallDetector()
-			candidates := detector.DetectVariables(pass)
+			candidates, _ := detector.DetectVariables(pass)
 
 			if len(candidates) != tt.expectedCount {
 				t.Errorf("DetectVariables() returned %d candidates, want %d", len(candidates), tt.expectedCount)
@@ -233,7 +234,10 @@ var _ = annotation.Variable(os.Stdout)
 	pass, _ := mockPass(t, src, pkgs)
 
 	detector := detect.NewVariableCallDetector()
-	candidates := detector.DetectVariables(pass)
+	candidates, errs := detector.DetectVariables(pass)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
 
 	if len(candidates) != 1 {
 		t.Fatalf("expected 1 candidate, got %d", len(candidates))
@@ -337,7 +341,7 @@ var _ = annotation.Variable(os.Stderr)
 			pass, _ := mockPassWithInspector(t, tt.src, tt.pkgs)
 
 			detector := detect.NewVariableCallDetector()
-			candidates := detector.DetectVariables(pass)
+			candidates, _ := detector.DetectVariables(pass)
 
 			if len(candidates) != tt.expectedCount {
 				t.Errorf("DetectVariables() with Inspector returned %d candidates, want %d", len(candidates), tt.expectedCount)
@@ -365,7 +369,10 @@ var _ = annotation.Variable(defaultConfig)
 	pass, _ := mockPass(t, src, pkgs)
 
 	detector := detect.NewVariableCallDetector()
-	candidates := detector.DetectVariables(pass)
+	candidates, errs := detector.DetectVariables(pass)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
 
 	if len(candidates) != 1 {
 		t.Fatalf("expected 1 candidate, got %d", len(candidates))
@@ -399,10 +406,87 @@ var _ = annotation.Variable()
 	pass, _ := mockPass(t, src, pkgs)
 
 	detector := detect.NewVariableCallDetector()
-	candidates := detector.DetectVariables(pass)
+	candidates, errs := detector.DetectVariables(pass)
 
 	// No arguments -> no candidate
 	if len(candidates) != 0 {
 		t.Errorf("expected 0 candidates for Variable() with no args, got %d", len(candidates))
+	}
+	if len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestVariableCallDetector_DetectVariables_UnsupportedExpression(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithVariable()
+
+	tests := []struct {
+		name             string
+		src              string
+		pkgs             map[string]*types.Package
+		expectedErrors   int
+		expectedExprDesc string
+	}{
+		{
+			name: "basic literal (int)",
+			src: `package test
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+var _ = annotation.Variable(42)
+`,
+			pkgs: map[string]*types.Package{
+				detect.AnnotationPath: annotationPkg,
+			},
+			expectedErrors:   1,
+			expectedExprDesc: "literal value",
+		},
+		{
+			name: "function call",
+			src: `package test
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+func getVal() int { return 42 }
+
+var _ = annotation.Variable(getVal())
+`,
+			pkgs: map[string]*types.Package{
+				detect.AnnotationPath: annotationPkg,
+			},
+			expectedErrors:   1,
+			expectedExprDesc: "function call",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass, _ := mockPass(t, tt.src, tt.pkgs)
+
+			detector := detect.NewVariableCallDetector()
+			candidates, errs := detector.DetectVariables(pass)
+
+			if len(candidates) != 0 {
+				t.Errorf("expected 0 candidates, got %d", len(candidates))
+			}
+
+			if len(errs) != tt.expectedErrors {
+				t.Fatalf("expected %d errors, got %d", tt.expectedErrors, len(errs))
+			}
+
+			if tt.expectedErrors > 0 {
+				if errs[0].ExprDescription != tt.expectedExprDesc {
+					t.Errorf("error ExprDescription = %q, want %q", errs[0].ExprDescription, tt.expectedExprDesc)
+				}
+				// Verify error message format
+				errMsg := errs[0].Error()
+				if !strings.Contains(errMsg, "unsupported Variable argument") {
+					t.Errorf("error message should contain 'unsupported Variable argument', got %q", errMsg)
+				}
+				if !strings.Contains(errMsg, tt.expectedExprDesc) {
+					t.Errorf("error message should contain %q, got %q", tt.expectedExprDesc, errMsg)
+				}
+			}
+		})
 	}
 }

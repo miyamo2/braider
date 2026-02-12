@@ -640,3 +640,30 @@ func TestDiagnosticEmitter_EmitGraphBuildError(t *testing.T) {
 		})
 	}
 }
+
+func TestDiagnosticEmitter_EmitUnsupportedVariableExpression(t *testing.T) {
+	emitter := report.NewDiagnosticEmitter()
+	reporter := &mockReporter{}
+	pos := token.Pos(500)
+	reason := "unsupported Variable argument: literal value is not supported; only simple identifiers (myVar) and package-qualified identifiers (os.Stdout) are allowed"
+
+	emitter.EmitUnsupportedVariableExpression(reporter, pos, reason)
+
+	if len(reporter.diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+	}
+
+	d := reporter.diagnostics[0]
+
+	if d.Pos != pos {
+		t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+	}
+
+	if d.Message != reason {
+		t.Errorf("diagnostic.Message = %q, want %q", d.Message, reason)
+	}
+
+	if len(d.SuggestedFixes) != 0 {
+		t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
+	}
+}

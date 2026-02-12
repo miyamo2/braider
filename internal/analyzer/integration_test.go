@@ -545,17 +545,17 @@ func TestIntegration_ErrorVariableNameMismatch(t *testing.T) {
 }
 
 // TestIntegration_ErrorVariableUnresolvableExpression tests that Variable annotations
-// with unsupported expression types are handled gracefully.
+// with unsupported expression types emit diagnostic errors and cancel bootstrap generation.
 // Using a primitive literal (42) as the Variable argument: the argument is *ast.BasicLit,
-// not *ast.Ident or *ast.SelectorExpr, so the detector silently skips it.
-// Since no Variable candidate is registered, the App annotation reports missing bootstrap code.
+// not *ast.Ident or *ast.SelectorExpr, so the detector emits a diagnostic error.
+// Since the bootstrap context is cancelled, the App annotation does not emit any diagnostic.
 func TestIntegration_ErrorVariableUnresolvableExpression(t *testing.T) {
 	depAnalyzer, appAnalyzer := setupIntegrationDeps()
 	testdir := "testdata/bootstrapgen/error_variable_unresolvable"
 
-	// Phase 1: DependencyAnalyzer scans the config package (Variable with primitive literal)
+	// Phase 1: DependencyAnalyzer detects unsupported Variable argument and emits error
 	analysistest.Run(t, testdir, depAnalyzer, "error_variable_unresolvable/config")
 
-	// Phase 2: AppAnalyzer fails to generate valid bootstrap code and emits diagnostic error
+	// Phase 2: AppAnalyzer skips bootstrap due to cancelled context (no diagnostic expected)
 	analysistest.Run(t, testdir, appAnalyzer, ".")
 }
