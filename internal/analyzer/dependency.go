@@ -293,8 +293,14 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 				registeredType = variable.ArgumentType
 			}
 
-			// Extract package name and local name from argument type
-			pkgName := extractPackageNameFromType(pass, variable.ArgumentType)
+			// For *ast.Ident (unqualified), use pass.Pkg.Name() since the
+			// variable is declared in the current package.
+			var pkgName string
+			if !variable.IsQualified {
+				pkgName = pass.Pkg.Name()
+			} else {
+				pkgName = extractPackageNameFromType(pass, variable.ArgumentType)
+			}
 			localName := extractLocalNameFromTypeName(variable.TypeName)
 
 			// Convert ExpressionPkgs map to sorted parallel slices for deterministic output

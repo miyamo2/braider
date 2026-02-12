@@ -252,8 +252,15 @@ func (d *variableCallDetector) extractCandidate(pass *analysis.Pass, callExpr *a
 	// Extract the fully qualified type name
 	typeName := d.extractTypeName(argType)
 
-	// Extract the package path from the argument type
-	packagePath := d.extractPackagePath(pass, argType)
+	// For *ast.Ident (local variable), the variable is declared in the current
+	// package regardless of the variable's type origin, so use pass.Pkg.
+	// For *ast.SelectorExpr (e.g., os.Stdout), derive from the argument type.
+	var packagePath string
+	if _, isIdent := argExpr.(*ast.Ident); isIdent {
+		packagePath = pass.Pkg.Path()
+	} else {
+		packagePath = d.extractPackagePath(pass, argType)
+	}
 
 	// Format the expression text, normalizing package qualifiers to declared names.
 	// This ensures consistency with collectExpressionPkgs which uses pkg.Name().
