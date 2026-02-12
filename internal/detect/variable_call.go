@@ -241,8 +241,9 @@ func (d *variableCallDetector) extractCandidate(pass *analysis.Pass, callExpr *a
 	// Extract the package path from the argument type
 	packagePath := d.extractPackagePath(pass, argType)
 
-	// Format the expression text using go/format.Node()
-	expressionText := d.formatExpression(pass, argExpr)
+	// Format the expression text, normalizing package qualifiers to declared names.
+	// This ensures consistency with collectExpressionPkgs which uses pkg.Name().
+	expressionText := d.formatExpressionNormalized(pass, argExpr)
 
 	// Determine if expression is already package-qualified
 	isQualified := d.isQualifiedExpr(argExpr)
@@ -308,6 +309,23 @@ func (d *variableCallDetector) formatExpression(pass *analysis.Pass, expr ast.Ex
 		return ""
 	}
 	return buf.String()
+}
+
+// formatExpressionNormalized formats an AST expression, normalizing package qualifiers
+// to use the declared package name instead of user-defined aliases.
+// For example, `import myos "os"` with `myos.Stdout` produces "os.Stdout".
+// This ensures ExpressionText is consistent with collectExpressionPkgs (which uses pkg.Name()).
+func (d *variableCallDetector) formatExpressionNormalized(pass *analysis.Pass, expr ast.Expr) string {
+	if selExpr, ok := expr.(*ast.SelectorExpr); ok {
+		if ident, ok := selExpr.X.(*ast.Ident); ok {
+			if obj, exists := pass.TypesInfo.Uses[ident]; exists {
+				if pkgName, ok := obj.(*types.PkgName); ok {
+					return pkgName.Imported().Name() + "." + selExpr.Sel.Name
+				}
+			}
+		}
+	}
+	return d.formatExpression(pass, expr) // fallback for *ast.Ident
 }
 
 // isQualifiedExpr checks if the expression is already package-qualified (SelectorExpr at top level).

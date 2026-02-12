@@ -1055,17 +1055,79 @@ func TestExtractHashFromComments(t *testing.T) {
 
 				isCurrent := bg.CheckBootstrapCurrent(pass, existing, g)
 
-				if tt.want == "" {
+				switch tt.want {
+				case "":
 					// Should not be current if no hash found
 					if isCurrent {
 						t.Error("CheckBootstrapCurrent() should return false when no hash comment")
 					}
-				} else if tt.want == expectedHash {
+				case expectedHash:
 					// If extracted hash matches computed hash
 					if !isCurrent {
 						t.Error("CheckBootstrapCurrent() should return true for matching hash")
 					}
 				}
+			}
+		})
+	}
+}
+
+func TestRewriteExpressionAliases(t *testing.T) {
+	tests := []struct {
+		name           string
+		expressionText string
+		exprPkgs       []string
+		exprPkgNames   []string
+		aliasMap       map[string]string
+		want           string
+	}{
+		{
+			name:           "no alias needed",
+			expressionText: "os.Stdout",
+			exprPkgs:       []string{"os"},
+			exprPkgNames:   []string{"os"},
+			aliasMap:       map[string]string{},
+			want:           "os.Stdout",
+		},
+		{
+			name:           "alias rewrite",
+			expressionText: "os.Stdout",
+			exprPkgs:       []string{"os"},
+			exprPkgNames:   []string{"os"},
+			aliasMap:       map[string]string{"os": "os2"},
+			want:           "os2.Stdout",
+		},
+		{
+			name:           "empty alias skipped",
+			expressionText: "os.Stdout",
+			exprPkgs:       []string{"os"},
+			exprPkgNames:   []string{"os"},
+			aliasMap:       map[string]string{"os": ""},
+			want:           "os.Stdout",
+		},
+		{
+			name:           "no matching pkg in aliasMap",
+			expressionText: "config.DefaultConfig",
+			exprPkgs:       []string{"example.com/config"},
+			exprPkgNames:   []string{"config"},
+			aliasMap:       map[string]string{"os": "os2"},
+			want:           "config.DefaultConfig",
+		},
+		{
+			name:           "exprPkgNames shorter than exprPkgs",
+			expressionText: "os.Stdout",
+			exprPkgs:       []string{"os", "extra"},
+			exprPkgNames:   []string{"os"},
+			aliasMap:       map[string]string{"os": "os2", "extra": "extra2"},
+			want:           "os2.Stdout",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := rewriteExpressionAliases(tt.expressionText, tt.exprPkgs, tt.exprPkgNames, tt.aliasMap)
+			if got != tt.want {
+				t.Errorf("rewriteExpressionAliases() = %q, want %q", got, tt.want)
 			}
 		})
 	}

@@ -1,0 +1,22 @@
+package main
+
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	v1config "variable_pkg_collision/v1/config"
+	v2config "variable_pkg_collision/v2/config"
+)
+
+var _ = annotation.App(main) // want "bootstrap code is missing"
+
+func main() {
+	_ = dependency
+}
+
+// braider:hash:499e573aab61ddca
+var dependency = func() struct {
+} {
+	_ = v1config.DefaultAlpha
+	_ = v2config.DefaultBeta
+	return struct {
+	}{}
+}()

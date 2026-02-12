@@ -221,6 +221,12 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 					qualifier = node.PackageName
 				}
 				expressionText = qualifier + "." + expressionText
+			} else if node.IsQualified {
+				// Rewrite package qualifiers using collision aliases.
+				// ExpressionText is normalized to declared package names (e.g., "os.Stdout"),
+				// but when a collision alias is generated (e.g., "os2"), we must rewrite
+				// the qualifier in ExpressionText to match.
+				expressionText = rewriteExpressionAliases(expressionText, node.ExpressionPkgs, node.ExpressionPkgNames, aliasMap)
 			}
 			// If no other node depends on this Variable, use blank assignment (_ =)
 			// to avoid "declared and not used" errors. Otherwise, use named assignment.
@@ -367,6 +373,33 @@ func (bg *bootstrapGenerator) CheckBootstrapCurrent(
 	currentHash := ComputeGraphHash(g)
 
 	return existingHash == currentHash
+}
+
+// rewriteExpressionAliases replaces declared package name prefixes in expressionText
+// with their collision aliases from aliasMap. This is needed when a package name collision
+// causes an alias to be generated (e.g., "os" -> "os2"), but ExpressionText still uses
+// the declared name (e.g., "os.Stdout" must become "os2.Stdout").
+func rewriteExpressionAliases(
+	expressionText string,
+	exprPkgs []string,
+	exprPkgNames []string,
+	aliasMap map[string]string,
+) string {
+	for i, pkgPath := range exprPkgs {
+		if i >= len(exprPkgNames) {
+			break
+		}
+		alias, exists := aliasMap[pkgPath]
+		if !exists || alias == "" {
+			continue
+		}
+		declaredName := exprPkgNames[i]
+		prefix := declaredName + "."
+		if strings.HasPrefix(expressionText, prefix) {
+			expressionText = alias + "." + expressionText[len(prefix):]
+		}
+	}
+	return expressionText
 }
 
 // extractHashFromComments extracts the hash marker from comment group.

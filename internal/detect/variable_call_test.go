@@ -417,6 +417,66 @@ var _ = annotation.Variable()
 	}
 }
 
+func TestVariableCallDetector_DetectVariables_AliasedImportNormalization(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithVariable()
+
+	osPkg := types.NewPackage("os", "os")
+	fileStruct := types.NewStruct(nil, nil)
+	fileNamed := types.NewNamed(
+		types.NewTypeName(token.NoPos, osPkg, "File", nil),
+		fileStruct,
+		nil,
+	)
+	osPkg.Scope().Insert(fileNamed.Obj())
+	stdoutVar := types.NewVar(token.NoPos, osPkg, "Stdout", types.NewPointer(fileNamed))
+	osPkg.Scope().Insert(stdoutVar)
+	osPkg.MarkComplete()
+
+	src := `package test
+
+import (
+	myos "os"
+	"github.com/miyamo2/braider/pkg/annotation"
+)
+
+var _ = annotation.Variable(myos.Stdout)
+`
+	pkgs := map[string]*types.Package{
+		detect.AnnotationPath: annotationPkg,
+		"os":                  osPkg,
+	}
+	pass, _ := mockPass(t, src, pkgs)
+
+	detector := detect.NewVariableCallDetector()
+	candidates, errs := detector.DetectVariables(pass)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+
+	if len(candidates) != 1 {
+		t.Fatalf("expected 1 candidate, got %d", len(candidates))
+	}
+
+	c := candidates[0]
+
+	// ExpressionText should be normalized to declared package name "os", not alias "myos"
+	if c.ExpressionText != "os.Stdout" {
+		t.Errorf("ExpressionText = %q, want %q (should normalize alias to declared name)", c.ExpressionText, "os.Stdout")
+	}
+
+	// ExpressionPkgs should use declared name "os", not alias "myos"
+	if name, ok := c.ExpressionPkgs["os"]; !ok {
+		t.Error("ExpressionPkgs should contain key \"os\"")
+	} else if name != "os" {
+		t.Errorf("ExpressionPkgs[\"os\"] = %q, want %q", name, "os")
+	}
+
+	// IsQualified should be true (SelectorExpr)
+	if !c.IsQualified {
+		t.Error("IsQualified should be true for package-qualified expression")
+	}
+}
+
 func TestVariableCallDetector_DetectVariables_UnsupportedExpression(t *testing.T) {
 	annotationPkg := createAnnotationPackageWithVariable()
 

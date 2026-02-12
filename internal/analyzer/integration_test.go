@@ -544,6 +544,28 @@ func TestIntegration_ErrorVariableNameMismatch(t *testing.T) {
 	analysistest.Run(t, testdir, appAnalyzer, ".")
 }
 
+// TestIntegration_VariableAliasImport tests Variable with aliased import normalization (Bug #7):
+// import myos "os" + annotation.Variable[variable.Default](myos.Stdout) -> ExpressionText = "os.Stdout".
+// Bootstrap should use the declared package name "os", not the user alias "myos".
+func TestIntegration_VariableAliasImport(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/variable_alias_import"
+	analysistest.Run(t, testdir, depAnalyzer, "variable_alias_import/config")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_VariablePkgCollision tests Variable with package name collision (Bug #8):
+// Two packages named "config" (v1/config and v2/config) both referenced by Variable expressions.
+// Collision aliases (v1config, v2config) must be reflected in ExpressionText rewriting.
+func TestIntegration_VariablePkgCollision(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/variable_pkg_collision"
+	analysistest.Run(t, testdir, depAnalyzer, "variable_pkg_collision/v1/config")
+	analysistest.Run(t, testdir, depAnalyzer, "variable_pkg_collision/v2/config")
+	analysistest.Run(t, testdir, depAnalyzer, "variable_pkg_collision/reg")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
 // TestIntegration_ErrorVariableUnresolvableExpression tests that Variable annotations
 // with unsupported expression types emit diagnostic errors and cancel bootstrap generation.
 // Using a primitive literal (42) as the Variable argument: the argument is *ast.BasicLit,
