@@ -180,6 +180,15 @@ func (d *variableCallDetector) extractCandidate(pass *analysis.Pass, callExpr *a
 
 	argExpr := callExpr.Args[0]
 
+	// Only simple identifiers and package-qualified identifiers are supported.
+	// Complex expressions (function calls, composite literals, etc.) are out of scope.
+	switch argExpr.(type) {
+	case *ast.Ident, *ast.SelectorExpr:
+		// OK
+	default:
+		return nil
+	}
+
 	// Get the type of the argument expression
 	argType := pass.TypesInfo.TypeOf(argExpr)
 	if argType == nil {
@@ -298,80 +307,5 @@ func (d *variableCallDetector) collectExpressionPkgs(pass *analysis.Pass, expr a
 
 // detectImplementedInterfacesFromType detects interfaces implemented by the given type.
 func (d *variableCallDetector) detectImplementedInterfacesFromType(pass *analysis.Pass, argType types.Type) []string {
-	// Dereference pointer to get the underlying named type
-	baseType := argType
-	if ptr, ok := baseType.(*types.Pointer); ok {
-		baseType = ptr.Elem()
-	}
-
-	namedType, ok := baseType.(*types.Named)
-	if !ok {
-		return nil
-	}
-
-	var interfaces []string
-
-	if pass.TypesInfo == nil {
-		return interfaces
-	}
-
-	ptrType := types.NewPointer(namedType)
-
-	// Iterate through all imported packages and check interfaces
-	for _, pkg := range pass.Pkg.Imports() {
-		scope := pkg.Scope()
-		for _, name := range scope.Names() {
-			scopeObj := scope.Lookup(name)
-			if scopeObj == nil {
-				continue
-			}
-
-			if _, ok := scopeObj.(*types.TypeName); !ok {
-				continue
-			}
-
-			named, ok := scopeObj.Type().(*types.Named)
-			if !ok {
-				continue
-			}
-
-			iface, ok := named.Underlying().(*types.Interface)
-			if !ok {
-				continue
-			}
-
-			if types.Implements(ptrType, iface) || types.Implements(namedType, iface) {
-				interfaces = append(interfaces, pkg.Path()+"."+name)
-			}
-		}
-	}
-
-	// Also check interfaces in current package
-	scope := pass.Pkg.Scope()
-	for _, name := range scope.Names() {
-		scopeObj := scope.Lookup(name)
-		if scopeObj == nil {
-			continue
-		}
-
-		if _, ok := scopeObj.(*types.TypeName); !ok {
-			continue
-		}
-
-		named, ok := scopeObj.Type().(*types.Named)
-		if !ok {
-			continue
-		}
-
-		iface, ok := named.Underlying().(*types.Interface)
-		if !ok {
-			continue
-		}
-
-		if types.Implements(ptrType, iface) || types.Implements(namedType, iface) {
-			interfaces = append(interfaces, pass.Pkg.Path()+"."+name)
-		}
-	}
-
-	return interfaces
+	return findImplementedInterfacesFromType(pass, argType)
 }

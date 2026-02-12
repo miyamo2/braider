@@ -545,11 +545,10 @@ func TestIntegration_ErrorVariableNameMismatch(t *testing.T) {
 }
 
 // TestIntegration_ErrorVariableUnresolvableExpression tests that Variable annotations
-// with argument types that don't resolve to named package types are handled gracefully.
-// Using a primitive literal (42) as the Variable argument: the type resolves to
-// *types.Basic "int" (not a named package type). The bootstrap code generation fails
-// because the expression text gets invalid package qualification, and the analyzer
-// emits a diagnostic error without crashing.
+// with unsupported expression types are handled gracefully.
+// Using a primitive literal (42) as the Variable argument: the argument is *ast.BasicLit,
+// not *ast.Ident or *ast.SelectorExpr, so the detector silently skips it.
+// Since no Variable candidate is registered, the App annotation reports missing bootstrap code.
 func TestIntegration_ErrorVariableUnresolvableExpression(t *testing.T) {
 	depAnalyzer, appAnalyzer := setupIntegrationDeps()
 	testdir := "testdata/bootstrapgen/error_variable_unresolvable"

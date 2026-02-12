@@ -1,6 +1,9 @@
 package variable
 
-import "github.com/miyamo2/braider/internal/annotation"
+import (
+	"github.com/miyamo2/braider/internal/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/namer"
+)
 
 // Option configures annotation.Variable behavior.
 type Option interface {
@@ -41,7 +44,7 @@ type Typed[T any] interface {
 //	func (stdoutName) Name() string { return "stdout" }
 //
 //	var _ = annotation.Variable[variable.Named[stdoutName]](os.Stdout)
-type Named[T any] interface {
+type Named[T namer.Namer] interface {
 	Option
 	annotation.VariableNamed
 	nameParam() T

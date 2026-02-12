@@ -9,7 +9,7 @@ import (
 	"github.com/miyamo2/braider/internal/annotation"
 	"github.com/miyamo2/braider/pkg/annotation/inject"
 	"github.com/miyamo2/braider/pkg/annotation/provide"
-	"github.com/miyamo2/braider/pkg/annotation/variable"
+	variableopt "github.com/miyamo2/braider/pkg/annotation/variable"
 )
 
 // Injectable marks a struct as a dependency to be injected.
@@ -163,7 +163,7 @@ func App(_ func()) annotation.App {
 	return app{}
 }
 
-type _variable[T variable.Option] struct {
+type _variable[T variableopt.Option] struct {
 	annotation.Variable
 }
 
@@ -182,7 +182,7 @@ func (v _variable[T]) option() T {
 // Example:
 //
 //	var _ = annotation.Variable[variable.Default](os.Stdout)
-func Variable[T variable.Option](variable any) _variable[T] {
+func Variable[T variableopt.Option](variable any) _variable[T] {
 	_ = variable
 	return _variable[T]{}
 }
