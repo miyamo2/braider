@@ -500,7 +500,7 @@ func TestIntegration_ErrorVariableDuplicateName(t *testing.T) {
 
 	// First registration succeeds
 	err := variableReg.Register(&registry.VariableInfo{
-		TypeName:       "*os.File",
+		TypeName:       "os.File",
 		PackagePath:    "os",
 		PackageName:    "os",
 		LocalName:      "File",
@@ -514,7 +514,7 @@ func TestIntegration_ErrorVariableDuplicateName(t *testing.T) {
 
 	// Duplicate registration returns error
 	err = variableReg.Register(&registry.VariableInfo{
-		TypeName:       "*os.File",
+		TypeName:       "os.File",
 		PackagePath:    "another",
 		PackageName:    "another",
 		LocalName:      "File",
