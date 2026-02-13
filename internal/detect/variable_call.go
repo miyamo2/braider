@@ -1,0 +1,390 @@
+package detect
+
+import (
+	"bytes"
+	"fmt"
+	"go/ast"
+	"go/format"
+	"go/token"
+	"go/types"
+
+	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/analysis/passes/inspect"
+	"golang.org/x/tools/go/ast/inspector"
+)
+
+// VariableTypeName is the type name for the Variable annotation.
+const VariableTypeName = "Variable"
+
+// VariableCandidate represents a detected Variable annotation call.
+type VariableCandidate struct {
+	// CallExpr is the annotation.Variable[T](value) call expression
+	CallExpr *ast.CallExpr
+	// ArgumentExpr is the value argument expression (e.g., os.Stdout)
+	ArgumentExpr ast.Expr
+	// ArgumentType is the resolved type of the argument expression
+	ArgumentType types.Type
+	// TypeName is the fully qualified type name (e.g., "os.File")
+	TypeName string
+	// PackagePath is the import path of the argument type's package
+	PackagePath string
+	// ExpressionText is the formatted source text of the argument expression
+	ExpressionText string
+	// ExpressionPkgs contains package paths referenced by the expression (path -> name)
+	ExpressionPkgs map[string]string
+	// IsQualified indicates whether the expression is already package-qualified (SelectorExpr)
+	IsQualified bool
+	// Implements contains interface types the argument type implements
+	Implements []string
+}
+
+// VariableDetectionError represents an error detected during Variable call processing.
+type VariableDetectionError struct {
+	Pos             token.Pos
+	ExprDescription string
+}
+
+func (e VariableDetectionError) Error() string {
+	return fmt.Sprintf(
+		"unsupported Variable argument: %s is not supported; only simple identifiers (myVar) and package-qualified identifiers (os.Stdout) are allowed",
+		e.ExprDescription,
+	)
+}
+
+func describeExprType(expr ast.Expr) string {
+	switch expr.(type) {
+	case *ast.BasicLit:
+		return "literal value"
+	case *ast.CompositeLit:
+		return "composite literal"
+	case *ast.CallExpr:
+		return "function call"
+	case *ast.UnaryExpr:
+		return "unary expression"
+	case *ast.BinaryExpr:
+		return "binary expression"
+	case *ast.FuncLit:
+		return "function literal"
+	case *ast.StarExpr:
+		return "pointer dereference"
+	default:
+		return fmt.Sprintf("expression type %T", expr)
+	}
+}
+
+// VariableCallDetector identifies annotation.Variable[T](value) call expressions.
+type VariableCallDetector interface {
+	// DetectVariables returns all annotation.Variable[T](value) calls in the package.
+	DetectVariables(pass *analysis.Pass) ([]VariableCandidate, []VariableDetectionError)
+}
+
+// variableCallDetector is the default implementation of VariableCallDetector.
+type variableCallDetector struct{}
+
+// NewVariableCallDetector creates a new VariableCallDetector instance.
+func NewVariableCallDetector() VariableCallDetector {
+	return &variableCallDetector{}
+}
+
+// DetectVariables returns all annotation.Variable[T](value) calls in the package.
+func (d *variableCallDetector) DetectVariables(pass *analysis.Pass) ([]VariableCandidate, []VariableDetectionError) {
+	var candidates []VariableCandidate
+	var errors []VariableDetectionError
+
+	// Use inspector if available, otherwise iterate files manually
+	var insp *inspector.Inspector
+	if pass.ResultOf != nil {
+		if result, ok := pass.ResultOf[inspect.Analyzer]; ok {
+			insp = result.(*inspector.Inspector)
+		}
+	}
+
+	if insp != nil {
+		nodeFilter := []ast.Node{
+			(*ast.GenDecl)(nil),
+		}
+
+		insp.Preorder(
+			nodeFilter, func(n ast.Node) {
+				genDecl := n.(*ast.GenDecl)
+				candidates, errors = d.processGenDecl(pass, genDecl, candidates, errors)
+			},
+		)
+	} else {
+		for _, file := range pass.Files {
+			for _, decl := range file.Decls {
+				if genDecl, ok := decl.(*ast.GenDecl); ok {
+					candidates, errors = d.processGenDecl(pass, genDecl, candidates, errors)
+				}
+			}
+		}
+	}
+
+	return candidates, errors
+}
+
+// processGenDecl processes a GenDecl and looks for var _ = annotation.Variable[T](value) patterns.
+func (d *variableCallDetector) processGenDecl(
+	pass *analysis.Pass, genDecl *ast.GenDecl, candidates []VariableCandidate, errors []VariableDetectionError,
+) ([]VariableCandidate, []VariableDetectionError) {
+	for _, spec := range genDecl.Specs {
+		valueSpec, ok := spec.(*ast.ValueSpec)
+		if !ok {
+			continue
+		}
+
+		for _, value := range valueSpec.Values {
+			callExpr, ok := value.(*ast.CallExpr)
+			if !ok {
+				continue
+			}
+
+			if !d.isVariableCall(pass, callExpr) {
+				continue
+			}
+
+			candidate, detErr := d.extractCandidate(pass, callExpr)
+			if detErr != nil {
+				errors = append(errors, *detErr)
+			}
+			if candidate != nil {
+				candidates = append(candidates, *candidate)
+			}
+		}
+	}
+	return candidates, errors
+}
+
+// isVariableCall checks if a call expression is annotation.Variable[T](value).
+func (d *variableCallDetector) isVariableCall(pass *analysis.Pass, callExpr *ast.CallExpr) bool {
+	// The function part is annotation.Variable[T] which is an IndexExpr wrapping a SelectorExpr
+	// Pattern: *ast.IndexExpr { X: *ast.SelectorExpr { Sel: "Variable" } }
+	var selExpr *ast.SelectorExpr
+
+	switch fun := callExpr.Fun.(type) {
+	case *ast.IndexExpr:
+		// annotation.Variable[T](value) - single type parameter
+		sel, ok := fun.X.(*ast.SelectorExpr)
+		if !ok {
+			return false
+		}
+		selExpr = sel
+	case *ast.IndexListExpr:
+		// annotation.Variable[T1, T2, ...](value) - multiple type parameters (future-proof)
+		sel, ok := fun.X.(*ast.SelectorExpr)
+		if !ok {
+			return false
+		}
+		selExpr = sel
+	case *ast.SelectorExpr:
+		// annotation.Variable(value) - no type parameter (non-generic)
+		selExpr = fun
+	default:
+		return false
+	}
+
+	// Check selector name is "Variable"
+	if selExpr.Sel.Name != VariableTypeName {
+		return false
+	}
+
+	// Check the call's return type is from the annotation package
+	typ := pass.TypesInfo.TypeOf(callExpr)
+	if typ == nil {
+		return false
+	}
+
+	named, ok := typ.(*types.Named)
+	if !ok {
+		return false
+	}
+
+	obj := named.Obj()
+	if obj == nil {
+		return false
+	}
+
+	pkg := obj.Pkg()
+	if pkg == nil {
+		return false
+	}
+
+	return pkg.Path() == AnnotationPath
+}
+
+// extractCandidate extracts a VariableCandidate from a validated Variable[T](value) call.
+func (d *variableCallDetector) extractCandidate(pass *analysis.Pass, callExpr *ast.CallExpr) (*VariableCandidate, *VariableDetectionError) {
+	if len(callExpr.Args) == 0 {
+		return nil, nil
+	}
+
+	argExpr := callExpr.Args[0]
+
+	// Only simple identifiers and package-qualified identifiers are supported.
+	// Complex expressions (function calls, composite literals, etc.) are out of scope.
+	switch arg := argExpr.(type) {
+	case *ast.Ident:
+		// OK - simple identifier (e.g., myVar)
+	case *ast.SelectorExpr:
+		// Validate that X resolves to a package name (e.g., os.Stdout),
+		// not a non-package selector (e.g., myStruct.Field).
+		ident, ok := arg.X.(*ast.Ident)
+		if !ok {
+			return nil, &VariableDetectionError{Pos: callExpr.Pos(), ExprDescription: "non-package selector"}
+		}
+		obj, exists := pass.TypesInfo.Uses[ident]
+		if !exists {
+			return nil, &VariableDetectionError{Pos: callExpr.Pos(), ExprDescription: "non-package selector"}
+		}
+		if _, ok := obj.(*types.PkgName); !ok {
+			return nil, &VariableDetectionError{Pos: callExpr.Pos(), ExprDescription: "non-package selector"}
+		}
+	default:
+		return nil, &VariableDetectionError{Pos: callExpr.Pos(), ExprDescription: describeExprType(argExpr)}
+	}
+
+	// Get the type of the argument expression
+	argType := pass.TypesInfo.TypeOf(argExpr)
+	if argType == nil {
+		return nil, nil
+	}
+
+	// Extract the fully qualified type name
+	typeName := d.extractTypeName(argType)
+
+	// For *ast.Ident (local variable), the variable is declared in the current
+	// package regardless of the variable's type origin, so use pass.Pkg.
+	// For *ast.SelectorExpr (e.g., os.Stdout), derive from the argument type.
+	var packagePath string
+	if _, isIdent := argExpr.(*ast.Ident); isIdent {
+		packagePath = pass.Pkg.Path()
+	} else {
+		packagePath = d.extractPackagePath(pass, argType)
+	}
+
+	// Format the expression text, normalizing package qualifiers to declared names.
+	// This ensures consistency with collectExpressionPkgs which uses pkg.Name().
+	expressionText := d.formatExpressionNormalized(pass, argExpr)
+
+	// Determine if expression is already package-qualified
+	isQualified := d.isQualifiedExpr(argExpr)
+
+	// Collect package paths referenced by the expression
+	expressionPkgs := d.collectExpressionPkgs(pass, argExpr)
+
+	// Detect implemented interfaces
+	var implements []string
+	implements = d.detectImplementedInterfacesFromType(pass, argType)
+
+	return &VariableCandidate{
+		CallExpr:       callExpr,
+		ArgumentExpr:   argExpr,
+		ArgumentType:   argType,
+		TypeName:       typeName,
+		PackagePath:    packagePath,
+		ExpressionText: expressionText,
+		ExpressionPkgs: expressionPkgs,
+		IsQualified:    isQualified,
+		Implements:     implements,
+	}, nil
+}
+
+// extractTypeName extracts the fully qualified type name from a type.
+func (d *variableCallDetector) extractTypeName(t types.Type) string {
+	// Dereference pointer type
+	if ptr, ok := t.(*types.Pointer); ok {
+		t = ptr.Elem()
+	}
+
+	if named, ok := t.(*types.Named); ok {
+		obj := named.Obj()
+		if pkg := obj.Pkg(); pkg != nil {
+			return pkg.Path() + "." + obj.Name()
+		}
+		return obj.Name()
+	}
+
+	return t.String()
+}
+
+// extractPackagePath extracts the package path from a type.
+func (d *variableCallDetector) extractPackagePath(pass *analysis.Pass, t types.Type) string {
+	// Dereference pointer type
+	if ptr, ok := t.(*types.Pointer); ok {
+		t = ptr.Elem()
+	}
+
+	if named, ok := t.(*types.Named); ok {
+		if pkg := named.Obj().Pkg(); pkg != nil {
+			return pkg.Path()
+		}
+	}
+
+	return pass.Pkg.Path()
+}
+
+// formatExpression formats an AST expression to canonical Go source text.
+func (d *variableCallDetector) formatExpression(pass *analysis.Pass, expr ast.Expr) string {
+	var buf bytes.Buffer
+	if err := format.Node(&buf, pass.Fset, expr); err != nil {
+		return ""
+	}
+	return buf.String()
+}
+
+// formatExpressionNormalized formats an AST expression, normalizing package qualifiers
+// to use the declared package name instead of user-defined aliases.
+// For example, `import myos "os"` with `myos.Stdout` produces "os.Stdout".
+// This ensures ExpressionText is consistent with collectExpressionPkgs (which uses pkg.Name()).
+func (d *variableCallDetector) formatExpressionNormalized(pass *analysis.Pass, expr ast.Expr) string {
+	if selExpr, ok := expr.(*ast.SelectorExpr); ok {
+		if ident, ok := selExpr.X.(*ast.Ident); ok {
+			if obj, exists := pass.TypesInfo.Uses[ident]; exists {
+				if pkgName, ok := obj.(*types.PkgName); ok {
+					return pkgName.Imported().Name() + "." + selExpr.Sel.Name
+				}
+			}
+		}
+	}
+	return d.formatExpression(pass, expr) // fallback for *ast.Ident
+}
+
+// isQualifiedExpr checks if the expression is already package-qualified (SelectorExpr at top level).
+func (d *variableCallDetector) isQualifiedExpr(expr ast.Expr) bool {
+	_, ok := expr.(*ast.SelectorExpr)
+	return ok
+}
+
+// collectExpressionPkgs collects all package paths referenced by the expression.
+// Returns a map of package path to package name.
+func (d *variableCallDetector) collectExpressionPkgs(pass *analysis.Pass, expr ast.Expr) map[string]string {
+	pkgs := make(map[string]string)
+
+	ast.Inspect(expr, func(n ast.Node) bool {
+		ident, ok := n.(*ast.Ident)
+		if !ok {
+			return true
+		}
+
+		// Check if this identifier refers to a package-level object
+		obj, exists := pass.TypesInfo.Uses[ident]
+		if !exists {
+			return true
+		}
+
+		// Check if the object is a package name (used as qualifier in selector expressions)
+		if pkgName, ok := obj.(*types.PkgName); ok {
+			pkg := pkgName.Imported()
+			pkgs[pkg.Path()] = pkg.Name()
+		}
+
+		return true
+	})
+
+	return pkgs
+}
+
+// detectImplementedInterfacesFromType detects interfaces implemented by the given type.
+func (d *variableCallDetector) detectImplementedInterfacesFromType(pass *analysis.Pass, argType types.Type) []string {
+	return findImplementedInterfacesFromType(pass, argType)
+}

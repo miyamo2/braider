@@ -39,21 +39,6 @@ func createAnnotationPackageWithProvide() *types.Package {
 	return annotationPkg
 }
 
-// createPackageWithInterface creates a fake package containing an interface with specified methods.
-func createPackageWithInterface(pkgPath, pkgName, ifaceName string, methods []*types.Func) *types.Package {
-	pkg := types.NewPackage(pkgPath, pkgName)
-	iface := types.NewInterfaceType(methods, nil)
-	iface.Complete()
-	ifaceNamed := types.NewNamed(
-		types.NewTypeName(token.NoPos, pkg, ifaceName, nil),
-		iface,
-		nil,
-	)
-	pkg.Scope().Insert(ifaceNamed.Obj())
-	pkg.MarkComplete()
-	return pkg
-}
-
 func TestProvideCallDetector_DetectProviders(t *testing.T) {
 	annotationPkg := createAnnotationPackageWithProvide()
 
@@ -187,16 +172,18 @@ var _ = annotation.Provide(NewRepo)
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pass, _ := mockPass(t, tt.src, tt.pkgs)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				pass, _ := mockPass(t, tt.src, tt.pkgs)
 
-			detector := detect.NewProvideCallDetector()
-			candidates := detector.DetectProviders(pass)
+				detector := detect.NewProvideCallDetector()
+				candidates := detector.DetectProviders(pass)
 
-			if len(candidates) != tt.expectedCount {
-				t.Errorf("DetectProviders() returned %d candidates, want %d", len(candidates), tt.expectedCount)
-			}
-		})
+				if len(candidates) != tt.expectedCount {
+					t.Errorf("DetectProviders() returned %d candidates, want %d", len(candidates), tt.expectedCount)
+				}
+			},
+		)
 	}
 }
 
@@ -245,16 +232,22 @@ var _ = annotation.Provide(NewService)
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pass, _ := mockPassWithInspector(t, tt.src, tt.pkgs)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				pass, _ := mockPassWithInspector(t, tt.src, tt.pkgs)
 
-			detector := detect.NewProvideCallDetector()
-			candidates := detector.DetectProviders(pass)
+				detector := detect.NewProvideCallDetector()
+				candidates := detector.DetectProviders(pass)
 
-			if len(candidates) != tt.expectedCount {
-				t.Errorf("DetectProviders() with Inspector returned %d candidates, want %d", len(candidates), tt.expectedCount)
-			}
-		})
+				if len(candidates) != tt.expectedCount {
+					t.Errorf(
+						"DetectProviders() with Inspector returned %d candidates, want %d",
+						len(candidates),
+						tt.expectedCount,
+					)
+				}
+			},
+		)
 	}
 }
 
@@ -322,8 +315,9 @@ var _ = annotation.Provide(NewRepo)
 func TestProvideCallDetector_DetectProviders_EdgeCases(t *testing.T) {
 	annotationPkg := createAnnotationPackageWithProvide()
 
-	t.Run("function returning pointer type", func(t *testing.T) {
-		src := `package test
+	t.Run(
+		"function returning pointer type", func(t *testing.T) {
+			src := `package test
 
 import "github.com/miyamo2/braider/pkg/annotation"
 
@@ -333,44 +327,46 @@ type MyRepo struct{}
 
 var _ = annotation.Provide(NewRepo)
 `
-		pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
-		pass, _ := mockPass(t, src, pkgs)
+			pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
+			pass, _ := mockPass(t, src, pkgs)
 
-		detector := detect.NewProvideCallDetector()
-		candidates := detector.DetectProviders(pass)
+			detector := detect.NewProvideCallDetector()
+			candidates := detector.DetectProviders(pass)
 
-		if len(candidates) != 1 {
-			t.Fatalf("expected 1 candidate, got %d", len(candidates))
-		}
+			if len(candidates) != 1 {
+				t.Fatalf("expected 1 candidate, got %d", len(candidates))
+			}
 
-		// ReturnTypeName should be base type name (not pointer)
-		if candidates[0].ReturnTypeName != "MyRepo" {
-			t.Errorf("ReturnTypeName = %q, want %q", candidates[0].ReturnTypeName, "MyRepo")
-		}
-	})
+			// ReturnTypeName should be base type name (not pointer)
+			if candidates[0].ReturnTypeName != "MyRepo" {
+				t.Errorf("ReturnTypeName = %q, want %q", candidates[0].ReturnTypeName, "MyRepo")
+			}
+		},
+	)
 
-	t.Run("selector expression function (pkg.NewRepo)", func(t *testing.T) {
-		// This tests extractFuncName with SelectorExpr path.
-		// We create a package with a function, then use pkg.Func as the Provide argument.
-		helperPkg := types.NewPackage("example.com/helper", "helper")
-		repoStruct := types.NewStruct(nil, nil)
-		repoNamed := types.NewNamed(
-			types.NewTypeName(token.NoPos, helperPkg, "Repo", nil),
-			repoStruct,
-			nil,
-		)
-		helperPkg.Scope().Insert(repoNamed.Obj())
-		newRepoSig := types.NewSignatureType(
-			nil, nil, nil,
-			nil,
-			types.NewTuple(types.NewVar(token.NoPos, nil, "", types.NewPointer(repoNamed))),
-			false,
-		)
-		newRepoFunc := types.NewFunc(token.NoPos, helperPkg, "NewRepo", newRepoSig)
-		helperPkg.Scope().Insert(newRepoFunc)
-		helperPkg.MarkComplete()
+	t.Run(
+		"selector expression function (pkg.NewRepo)", func(t *testing.T) {
+			// This tests extractFuncName with SelectorExpr path.
+			// We create a package with a function, then use pkg.Func as the Provide argument.
+			helperPkg := types.NewPackage("example.com/helper", "helper")
+			repoStruct := types.NewStruct(nil, nil)
+			repoNamed := types.NewNamed(
+				types.NewTypeName(token.NoPos, helperPkg, "Repo", nil),
+				repoStruct,
+				nil,
+			)
+			helperPkg.Scope().Insert(repoNamed.Obj())
+			newRepoSig := types.NewSignatureType(
+				nil, nil, nil,
+				nil,
+				types.NewTuple(types.NewVar(token.NoPos, nil, "", types.NewPointer(repoNamed))),
+				false,
+			)
+			newRepoFunc := types.NewFunc(token.NoPos, helperPkg, "NewRepo", newRepoSig)
+			helperPkg.Scope().Insert(newRepoFunc)
+			helperPkg.MarkComplete()
 
-		src := `package test
+			src := `package test
 
 import (
 	"github.com/miyamo2/braider/pkg/annotation"
@@ -379,55 +375,59 @@ import (
 
 var _ = annotation.Provide(helper.NewRepo)
 `
-		pkgs := map[string]*types.Package{
-			detect.AnnotationPath: annotationPkg,
-			"example.com/helper":  helperPkg,
-		}
-		pass, _ := mockPass(t, src, pkgs)
+			pkgs := map[string]*types.Package{
+				detect.AnnotationPath: annotationPkg,
+				"example.com/helper":  helperPkg,
+			}
+			pass, _ := mockPass(t, src, pkgs)
 
-		detector := detect.NewProvideCallDetector()
-		candidates := detector.DetectProviders(pass)
+			detector := detect.NewProvideCallDetector()
+			candidates := detector.DetectProviders(pass)
 
-		if len(candidates) != 1 {
-			t.Fatalf("expected 1 candidate, got %d", len(candidates))
-		}
+			if len(candidates) != 1 {
+				t.Fatalf("expected 1 candidate, got %d", len(candidates))
+			}
 
-		// SelectorExpr function name extraction should return the selector name
-		if candidates[0].ProviderFuncName != "NewRepo" {
-			t.Errorf("ProviderFuncName = %q, want %q", candidates[0].ProviderFuncName, "NewRepo")
-		}
+			// SelectorExpr function name extraction should return the selector name
+			if candidates[0].ProviderFuncName != "NewRepo" {
+				t.Errorf("ProviderFuncName = %q, want %q", candidates[0].ProviderFuncName, "NewRepo")
+			}
 
-		// PackagePath should be the return type's package, not the calling package
-		if candidates[0].PackagePath != "example.com/helper" {
-			t.Errorf("PackagePath = %q, want %q", candidates[0].PackagePath, "example.com/helper")
-		}
-	})
+			// PackagePath should be the return type's package, not the calling package
+			if candidates[0].PackagePath != "example.com/helper" {
+				t.Errorf("PackagePath = %q, want %q", candidates[0].PackagePath, "example.com/helper")
+			}
+		},
+	)
 
-	t.Run("no arguments in call", func(t *testing.T) {
-		// annotation.Provide() with no args - should not produce a candidate
-		// We simulate this through the call detection; since our fake Provide
-		// requires an argument, type-checking makes this fail at isProvideCall.
-		// So the result should be 0 candidates.
-		src := `package test
+	t.Run(
+		"no arguments in call", func(t *testing.T) {
+			// annotation.Provide() with no args - should not produce a candidate
+			// We simulate this through the call detection; since our fake Provide
+			// requires an argument, type-checking makes this fail at isProvideCall.
+			// So the result should be 0 candidates.
+			src := `package test
 
 import "github.com/miyamo2/braider/pkg/annotation"
 
 var _ = annotation.Provide()
 `
-		pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
-		pass, _ := mockPass(t, src, pkgs)
+			pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
+			pass, _ := mockPass(t, src, pkgs)
 
-		detector := detect.NewProvideCallDetector()
-		candidates := detector.DetectProviders(pass)
+			detector := detect.NewProvideCallDetector()
+			candidates := detector.DetectProviders(pass)
 
-		// With no arguments, the call might fail type-checking, resulting in 0 candidates
-		if len(candidates) != 0 {
-			t.Errorf("expected 0 candidates for Provide() with no args, got %d", len(candidates))
-		}
-	})
+			// With no arguments, the call might fail type-checking, resulting in 0 candidates
+			if len(candidates) != 0 {
+				t.Errorf("expected 0 candidates for Provide() with no args, got %d", len(candidates))
+			}
+		},
+	)
 
-	t.Run("argument is not a function", func(t *testing.T) {
-		src := `package test
+	t.Run(
+		"argument is not a function", func(t *testing.T) {
+			src := `package test
 
 import "github.com/miyamo2/braider/pkg/annotation"
 
@@ -435,17 +435,18 @@ var myVar = 42
 
 var _ = annotation.Provide(myVar)
 `
-		pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
-		pass, _ := mockPass(t, src, pkgs)
+			pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
+			pass, _ := mockPass(t, src, pkgs)
 
-		detector := detect.NewProvideCallDetector()
-		candidates := detector.DetectProviders(pass)
+			detector := detect.NewProvideCallDetector()
+			candidates := detector.DetectProviders(pass)
 
-		// Non-function argument: extractCandidate checks for *types.Signature, returns nil
-		if len(candidates) != 0 {
-			t.Errorf("expected 0 candidates for non-function argument, got %d", len(candidates))
-		}
-	})
+			// Non-function argument: extractCandidate checks for *types.Signature, returns nil
+			if len(candidates) != 0 {
+				t.Errorf("expected 0 candidates for non-function argument, got %d", len(candidates))
+			}
+		},
+	)
 }
 
 func TestProvideCallDetector_DetectImplementedInterfaces(t *testing.T) {
@@ -461,9 +462,11 @@ func TestProvideCallDetector_DetectImplementedInterfaces(t *testing.T) {
 			setupPkgs: func() (map[string]*types.Package, *types.Named) {
 				// Create interface package
 				ifacePkg := types.NewPackage("example.com/iface", "iface")
-				method := types.NewFunc(token.NoPos, ifacePkg, "DoWork", types.NewSignatureType(
-					nil, nil, nil, nil, nil, false,
-				))
+				method := types.NewFunc(
+					token.NoPos, ifacePkg, "DoWork", types.NewSignatureType(
+						nil, nil, nil, nil, nil, false,
+					),
+				)
 				iface := types.NewInterfaceType([]*types.Func{method}, nil)
 				iface.Complete()
 				ifaceNamed := types.NewNamed(
@@ -482,9 +485,11 @@ func TestProvideCallDetector_DetectImplementedInterfaces(t *testing.T) {
 					implStruct,
 					nil,
 				)
-				doWorkMethod := types.NewFunc(token.NoPos, testPkg, "DoWork", types.NewSignatureType(
-					types.NewVar(token.NoPos, testPkg, "", implNamed), nil, nil, nil, nil, false,
-				))
+				doWorkMethod := types.NewFunc(
+					token.NoPos, testPkg, "DoWork", types.NewSignatureType(
+						types.NewVar(token.NoPos, testPkg, "", implNamed), nil, nil, nil, nil, false,
+					),
+				)
 				implNamed.AddMethod(doWorkMethod)
 				testPkg.Scope().Insert(implNamed.Obj())
 
@@ -515,9 +520,11 @@ var _ iface.Worker = MyWorker{}
 				testPkg := types.NewPackage("test", "test")
 
 				// Create interface in current package
-				method := types.NewFunc(token.NoPos, testPkg, "Run", types.NewSignatureType(
-					nil, nil, nil, nil, nil, false,
-				))
+				method := types.NewFunc(
+					token.NoPos, testPkg, "Run", types.NewSignatureType(
+						nil, nil, nil, nil, nil, false,
+					),
+				)
 				iface := types.NewInterfaceType([]*types.Func{method}, nil)
 				iface.Complete()
 				ifaceNamed := types.NewNamed(
@@ -534,9 +541,11 @@ var _ iface.Worker = MyWorker{}
 					implStruct,
 					nil,
 				)
-				runMethod := types.NewFunc(token.NoPos, testPkg, "Run", types.NewSignatureType(
-					types.NewVar(token.NoPos, testPkg, "", implNamed), nil, nil, nil, nil, false,
-				))
+				runMethod := types.NewFunc(
+					token.NoPos, testPkg, "Run", types.NewSignatureType(
+						types.NewVar(token.NoPos, testPkg, "", implNamed), nil, nil, nil, nil, false,
+					),
+				)
 				implNamed.AddMethod(runMethod)
 				testPkg.Scope().Insert(implNamed.Obj())
 
@@ -561,9 +570,11 @@ func (MyRunner) Run() {}
 			name: "does not implement interface",
 			setupPkgs: func() (map[string]*types.Package, *types.Named) {
 				ifacePkg := types.NewPackage("example.com/iface", "iface")
-				method := types.NewFunc(token.NoPos, ifacePkg, "DoWork", types.NewSignatureType(
-					nil, nil, nil, nil, nil, false,
-				))
+				method := types.NewFunc(
+					token.NoPos, ifacePkg, "DoWork", types.NewSignatureType(
+						nil, nil, nil, nil, nil, false,
+					),
+				)
 				iface := types.NewInterfaceType([]*types.Func{method}, nil)
 				iface.Complete()
 				ifaceNamed := types.NewNamed(
@@ -621,9 +632,11 @@ var _ iface.Worker
 			name: "pointer receiver implements interface",
 			setupPkgs: func() (map[string]*types.Package, *types.Named) {
 				ifacePkg := types.NewPackage("example.com/iface", "iface")
-				method := types.NewFunc(token.NoPos, ifacePkg, "Process", types.NewSignatureType(
-					nil, nil, nil, nil, nil, false,
-				))
+				method := types.NewFunc(
+					token.NoPos, ifacePkg, "Process", types.NewSignatureType(
+						nil, nil, nil, nil, nil, false,
+					),
+				)
 				iface := types.NewInterfaceType([]*types.Func{method}, nil)
 				iface.Complete()
 				ifaceNamed := types.NewNamed(
@@ -643,9 +656,11 @@ var _ iface.Worker
 				)
 				// Method on *MyProcessor (pointer receiver)
 				ptrType := types.NewPointer(implNamed)
-				processMethod := types.NewFunc(token.NoPos, testPkg, "Process", types.NewSignatureType(
-					types.NewVar(token.NoPos, testPkg, "", ptrType), nil, nil, nil, nil, false,
-				))
+				processMethod := types.NewFunc(
+					token.NoPos, testPkg, "Process", types.NewSignatureType(
+						types.NewVar(token.NoPos, testPkg, "", ptrType), nil, nil, nil, nil, false,
+					),
+				)
 				implNamed.AddMethod(processMethod)
 				testPkg.Scope().Insert(implNamed.Obj())
 				testPkg.SetImports([]*types.Package{ifacePkg})
@@ -671,44 +686,51 @@ var _ iface.Processor = &MyProcessor{}
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			additionalPkgs, namedType := tt.setupPkgs()
+		t.Run(
+			tt.name, func(t *testing.T) {
+				additionalPkgs, namedType := tt.setupPkgs()
 
-			var pass *testProvidePass
-			if tt.name == "nil TypesInfo" {
-				pass = &testProvidePass{
-					pkg:       namedType.Obj().Pkg(),
-					typesInfo: nil,
-				}
-			} else {
-				mockP, _ := mockPass(t, tt.src, additionalPkgs)
-				pass = &testProvidePass{
-					pkg:       mockP.Pkg,
-					typesInfo: mockP.TypesInfo,
-				}
-			}
-
-			aPass := pass.toAnalysisPass()
-			detector := detect.NewProvideCallDetector()
-			ifaces := detector.DetectImplementedInterfaces(aPass, namedType)
-
-			if len(ifaces) != tt.expectedCount {
-				t.Errorf("DetectImplementedInterfaces() returned %d interfaces, want %d: %v", len(ifaces), tt.expectedCount, ifaces)
-			}
-
-			for _, expected := range tt.expectedIfaces {
-				found := false
-				for _, got := range ifaces {
-					if got == expected {
-						found = true
-						break
+				var pass *testProvidePass
+				if tt.name == "nil TypesInfo" {
+					pass = &testProvidePass{
+						pkg:       namedType.Obj().Pkg(),
+						typesInfo: nil,
+					}
+				} else {
+					mockP, _ := mockPass(t, tt.src, additionalPkgs)
+					pass = &testProvidePass{
+						pkg:       mockP.Pkg,
+						typesInfo: mockP.TypesInfo,
 					}
 				}
-				if !found {
-					t.Errorf("expected interface %q not found in %v", expected, ifaces)
+
+				aPass := pass.toAnalysisPass()
+				detector := detect.NewProvideCallDetector()
+				ifaces := detector.DetectImplementedInterfaces(aPass, namedType)
+
+				if len(ifaces) != tt.expectedCount {
+					t.Errorf(
+						"DetectImplementedInterfaces() returned %d interfaces, want %d: %v",
+						len(ifaces),
+						tt.expectedCount,
+						ifaces,
+					)
 				}
-			}
-		})
+
+				for _, expected := range tt.expectedIfaces {
+					found := false
+					for _, got := range ifaces {
+						if got == expected {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("expected interface %q not found in %v", expected, ifaces)
+					}
+				}
+			},
+		)
 	}
 }
 
@@ -729,9 +751,11 @@ func TestProvideCallDetector_DetectImplementedInterfaces_MultipleInterfaces(t *t
 	// Create two interface packages
 	ifacePkg := types.NewPackage("example.com/iface", "iface")
 
-	readerMethod := types.NewFunc(token.NoPos, ifacePkg, "Read", types.NewSignatureType(
-		nil, nil, nil, nil, nil, false,
-	))
+	readerMethod := types.NewFunc(
+		token.NoPos, ifacePkg, "Read", types.NewSignatureType(
+			nil, nil, nil, nil, nil, false,
+		),
+	)
 	readerIface := types.NewInterfaceType([]*types.Func{readerMethod}, nil)
 	readerIface.Complete()
 	readerNamed := types.NewNamed(
@@ -741,9 +765,11 @@ func TestProvideCallDetector_DetectImplementedInterfaces_MultipleInterfaces(t *t
 	)
 	ifacePkg.Scope().Insert(readerNamed.Obj())
 
-	writerMethod := types.NewFunc(token.NoPos, ifacePkg, "Write", types.NewSignatureType(
-		nil, nil, nil, nil, nil, false,
-	))
+	writerMethod := types.NewFunc(
+		token.NoPos, ifacePkg, "Write", types.NewSignatureType(
+			nil, nil, nil, nil, nil, false,
+		),
+	)
 	writerIface := types.NewInterfaceType([]*types.Func{writerMethod}, nil)
 	writerIface.Complete()
 	writerNamed := types.NewNamed(
@@ -762,12 +788,16 @@ func TestProvideCallDetector_DetectImplementedInterfaces_MultipleInterfaces(t *t
 		implStruct,
 		nil,
 	)
-	readMethod := types.NewFunc(token.NoPos, testPkg, "Read", types.NewSignatureType(
-		types.NewVar(token.NoPos, testPkg, "", implNamed), nil, nil, nil, nil, false,
-	))
-	writeMethod := types.NewFunc(token.NoPos, testPkg, "Write", types.NewSignatureType(
-		types.NewVar(token.NoPos, testPkg, "", implNamed), nil, nil, nil, nil, false,
-	))
+	readMethod := types.NewFunc(
+		token.NoPos, testPkg, "Read", types.NewSignatureType(
+			types.NewVar(token.NoPos, testPkg, "", implNamed), nil, nil, nil, nil, false,
+		),
+	)
+	writeMethod := types.NewFunc(
+		token.NoPos, testPkg, "Write", types.NewSignatureType(
+			types.NewVar(token.NoPos, testPkg, "", implNamed), nil, nil, nil, nil, false,
+		),
+	)
 	implNamed.AddMethod(readMethod)
 	implNamed.AddMethod(writeMethod)
 	testPkg.Scope().Insert(implNamed.Obj())
@@ -819,8 +849,9 @@ var _ iface.Writer = ReadWriter{}
 func TestProvideCallDetector_IsProvideCall_ASTPatterns(t *testing.T) {
 	annotationPkg := createAnnotationPackageWithProvide()
 
-	t.Run("SelectorExpr pattern (non-generic)", func(t *testing.T) {
-		src := `package test
+	t.Run(
+		"SelectorExpr pattern (non-generic)", func(t *testing.T) {
+			src := `package test
 
 import "github.com/miyamo2/braider/pkg/annotation"
 
@@ -830,49 +861,54 @@ type MyRepo struct{}
 
 var _ = annotation.Provide(NewRepo)
 `
-		pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
-		pass, _ := mockPass(t, src, pkgs)
+			pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
+			pass, _ := mockPass(t, src, pkgs)
 
-		detector := detect.NewProvideCallDetector()
-		candidates := detector.DetectProviders(pass)
+			detector := detect.NewProvideCallDetector()
+			candidates := detector.DetectProviders(pass)
 
-		if len(candidates) != 1 {
-			t.Errorf("SelectorExpr pattern: expected 1 candidate, got %d", len(candidates))
-		}
-	})
+			if len(candidates) != 1 {
+				t.Errorf("SelectorExpr pattern: expected 1 candidate, got %d", len(candidates))
+			}
+		},
+	)
 
-	t.Run("non-selector call", func(t *testing.T) {
-		src := `package test
+	t.Run(
+		"non-selector call", func(t *testing.T) {
+			src := `package test
 
 func someFunc() int { return 0 }
 
 var _ = someFunc()
 `
-		pass, _ := mockPass(t, src, nil)
+			pass, _ := mockPass(t, src, nil)
 
-		detector := detect.NewProvideCallDetector()
-		candidates := detector.DetectProviders(pass)
+			detector := detect.NewProvideCallDetector()
+			candidates := detector.DetectProviders(pass)
 
-		if len(candidates) != 0 {
-			t.Errorf("non-selector call: expected 0 candidates, got %d", len(candidates))
-		}
-	})
+			if len(candidates) != 0 {
+				t.Errorf("non-selector call: expected 0 candidates, got %d", len(candidates))
+			}
+		},
+	)
 
-	t.Run("spec not a ValueSpec", func(t *testing.T) {
-		// A GenDecl with TypeSpec (not ValueSpec) should be skipped
-		src := `package test
+	t.Run(
+		"spec not a ValueSpec", func(t *testing.T) {
+			// A GenDecl with TypeSpec (not ValueSpec) should be skipped
+			src := `package test
 
 type MyType int
 `
-		pass, _ := mockPass(t, src, nil)
+			pass, _ := mockPass(t, src, nil)
 
-		detector := detect.NewProvideCallDetector()
-		candidates := detector.DetectProviders(pass)
+			detector := detect.NewProvideCallDetector()
+			candidates := detector.DetectProviders(pass)
 
-		if len(candidates) != 0 {
-			t.Errorf("TypeSpec pattern: expected 0 candidates, got %d", len(candidates))
-		}
-	})
+			if len(candidates) != 0 {
+				t.Errorf("TypeSpec pattern: expected 0 candidates, got %d", len(candidates))
+			}
+		},
+	)
 }
 
 func TestProvideCallDetector_DetectProviders_FunctionReturningNonNamedType(t *testing.T) {

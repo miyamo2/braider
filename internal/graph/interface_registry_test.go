@@ -152,7 +152,7 @@ func (s *UserService) Run() {}
 			reg := NewInterfaceRegistry()
 
 			// Build registry
-			err := reg.Build(pass, tt.providers, tt.injectors)
+			err := reg.Build(pass, tt.providers, tt.injectors, nil)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Build() error = %v, wantErr %v", err, tt.wantErr)
@@ -277,6 +277,204 @@ func TestInterfaceRegistry_ErrorMessages(t *testing.T) {
 			t.Errorf("UnresolvedInterfaceError.Error() = %q, want %q", msg, want)
 		}
 		_ = fset // prevent unused variable error
+	})
+}
+
+// TestInterfaceRegistry_Build_WithVariables tests the Build method including Variable entries.
+func TestInterfaceRegistry_Build_WithVariables(t *testing.T) {
+	tests := []struct {
+		name           string
+		providers      []*registry.ProviderInfo
+		injectors      []*registry.InjectorInfo
+		variables      []*registry.VariableInfo
+		wantInterfaces map[string]string // interface type -> implementation type
+		wantErr        bool
+	}{
+		{
+			name:      "variable implements interface via Typed[I]",
+			providers: nil,
+			injectors: nil,
+			variables: []*registry.VariableInfo{
+				{
+					TypeName:       "os.File",
+					PackagePath:    "os",
+					PackageName:    "os",
+					LocalName:      "File",
+					ExpressionText: "os.Stdout",
+					Dependencies:   []string{},
+					Implements:     []string{"io.Writer"},
+				},
+			},
+			wantInterfaces: map[string]string{
+				"io.Writer": "os.File",
+			},
+			wantErr: false,
+		},
+		{
+			name: "variable and provider implement different interfaces",
+			providers: []*registry.ProviderInfo{
+				{
+					TypeName:    "example.com/repo.UserRepository",
+					PackagePath: "example.com/repo",
+					LocalName:   "UserRepository",
+					Implements:  []string{"example.com/domain.IUserRepository"},
+				},
+			},
+			injectors: nil,
+			variables: []*registry.VariableInfo{
+				{
+					TypeName:       "os.File",
+					PackagePath:    "os",
+					PackageName:    "os",
+					LocalName:      "File",
+					ExpressionText: "os.Stdout",
+					Dependencies:   []string{},
+					Implements:     []string{"io.Writer"},
+				},
+			},
+			wantInterfaces: map[string]string{
+				"example.com/domain.IUserRepository": "example.com/repo.UserRepository",
+				"io.Writer":                          "os.File",
+			},
+			wantErr: false,
+		},
+		{
+			name:      "variable with no interface implementations",
+			providers: nil,
+			injectors: nil,
+			variables: []*registry.VariableInfo{
+				{
+					TypeName:       "os.File",
+					PackagePath:    "os",
+					PackageName:    "os",
+					LocalName:      "File",
+					ExpressionText: "os.Stdout",
+					Dependencies:   []string{},
+					Implements:     []string{},
+				},
+			},
+			wantInterfaces: map[string]string{},
+			wantErr:        false,
+		},
+		{
+			name:      "variable with multiple interface implementations",
+			providers: nil,
+			injectors: nil,
+			variables: []*registry.VariableInfo{
+				{
+					TypeName:       "os.File",
+					PackagePath:    "os",
+					PackageName:    "os",
+					LocalName:      "File",
+					ExpressionText: "os.Stdout",
+					Dependencies:   []string{},
+					Implements:     []string{"io.Writer", "io.ReadCloser"},
+				},
+			},
+			wantInterfaces: map[string]string{
+				"io.Writer":     "os.File",
+				"io.ReadCloser": "os.File",
+			},
+			wantErr: false,
+		},
+		{
+			name:      "nil variables parameter works",
+			providers: nil,
+			injectors: nil,
+			variables: nil,
+			wantInterfaces: map[string]string{},
+			wantErr:        false,
+		},
+		{
+			name: "variable and injector implement same interface causes ambiguity",
+			providers: nil,
+			injectors: []*registry.InjectorInfo{
+				{
+					TypeName:    "example.com/service.MyWriter",
+					PackagePath: "example.com/service",
+					LocalName:   "MyWriter",
+					Implements:  []string{"io.Writer"},
+				},
+			},
+			variables: []*registry.VariableInfo{
+				{
+					TypeName:       "os.File",
+					PackagePath:    "os",
+					PackageName:    "os",
+					LocalName:      "File",
+					ExpressionText: "os.Stdout",
+					Dependencies:   []string{},
+					Implements:     []string{"io.Writer"},
+				},
+			},
+			// Both implement io.Writer - should result in ambiguous error on Resolve
+			wantInterfaces: map[string]string{}, // We won't check resolve here
+			wantErr:        false,                // Build itself doesn't error
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			src := `package test`
+			pass := createMockPass(t, src)
+
+			reg := NewInterfaceRegistry()
+			err := reg.Build(pass, tt.providers, tt.injectors, tt.variables)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Build() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			for iface, want := range tt.wantInterfaces {
+				got, err := reg.Resolve(iface)
+				if err != nil {
+					t.Errorf("Resolve(%s) error = %v", iface, err)
+					continue
+				}
+				if got != want {
+					t.Errorf("Resolve(%s) = %s, want %s", iface, got, want)
+				}
+			}
+		})
+	}
+
+	t.Run("ambiguous resolution when variable and injector implement same interface", func(t *testing.T) {
+		src := `package test`
+		pass := createMockPass(t, src)
+
+		injectors := []*registry.InjectorInfo{
+			{
+				TypeName:    "example.com/service.MyWriter",
+				PackagePath: "example.com/service",
+				LocalName:   "MyWriter",
+				Implements:  []string{"io.Writer"},
+			},
+		}
+		variables := []*registry.VariableInfo{
+			{
+				TypeName:       "os.File",
+				PackagePath:    "os",
+				PackageName:    "os",
+				LocalName:      "File",
+				ExpressionText: "os.Stdout",
+				Dependencies:   []string{},
+				Implements:     []string{"io.Writer"},
+			},
+		}
+
+		reg := NewInterfaceRegistry()
+		if err := reg.Build(pass, nil, injectors, variables); err != nil {
+			t.Fatalf("Build() error = %v", err)
+		}
+
+		_, err := reg.Resolve("io.Writer")
+		if err == nil {
+			t.Fatal("Resolve() should return error for ambiguous implementation")
+		}
+		if _, ok := err.(*AmbiguousImplementationError); !ok {
+			t.Errorf("Resolve() error type = %T, want *AmbiguousImplementationError", err)
+		}
 	})
 }
 

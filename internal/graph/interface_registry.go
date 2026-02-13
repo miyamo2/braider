@@ -32,13 +32,14 @@ func (r *InterfaceRegistry) Clear() {
 	}
 }
 
-// Build constructs the registry from all registered providers and injectors.
-// It uses the Implements field from ProviderInfo and InjectorInfo which is
+// Build constructs the registry from all registered providers, injectors, and variables.
+// It uses the Implements field from ProviderInfo, InjectorInfo, and VariableInfo which is
 // populated by DependencyAnalyzer using go/types.Implements().
 func (r *InterfaceRegistry) Build(
 	pass *analysis.Pass,
 	providers []*registry.ProviderInfo,
 	injectors []*registry.InjectorInfo,
+	variables []*registry.VariableInfo,
 ) error {
 	// Process providers
 	for _, provider := range providers {
@@ -51,6 +52,13 @@ func (r *InterfaceRegistry) Build(
 	for _, injector := range injectors {
 		for _, iface := range injector.Implements {
 			r.interfaces[iface] = append(r.interfaces[iface], injector.TypeName)
+		}
+	}
+
+	// Process variables (required for Typed[I] resolution)
+	for _, variable := range variables {
+		for _, iface := range variable.Implements {
+			r.interfaces[iface] = append(r.interfaces[iface], variable.TypeName)
 		}
 	}
 

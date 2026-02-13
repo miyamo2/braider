@@ -23,7 +23,7 @@ import (
 // setupIntegrationDeps creates shared registries and real components for integration tests.
 // Returns both DependencyAnalyzer and AppAnalyzer configured with the same shared state.
 func setupIntegrationDeps() (*analysis.Analyzer, *analysis.Analyzer) {
-	depAnalyzer, appAnalyzer, _, _ := buildIntegrationDeps()
+	depAnalyzer, appAnalyzer, _, _, _ := buildIntegrationDeps()
 	return depAnalyzer, appAnalyzer
 }
 
@@ -31,6 +31,7 @@ func setupIntegrationDeps() (*analysis.Analyzer, *analysis.Analyzer) {
 func buildIntegrationDeps() (
 	*analysis.Analyzer, *analysis.Analyzer,
 	*registry.InjectorRegistry, *registry.ProviderRegistry,
+	*registry.VariableRegistry,
 ) {
 	// Shared registries
 	providerReg := registry.NewProviderRegistry()
@@ -63,11 +64,16 @@ func buildIntegrationDeps() (
 	// App detection
 	appDetector := detect.NewAppDetector()
 
+	// Variable components
+	variableCallDetector := detect.NewVariableCallDetector()
+	variableReg := registry.NewVariableRegistry()
+
 	depAnalyzer := DependencyAnalyzer(
 		providerReg, injectorReg, packageTracker, bootstrapCancel,
 		provideCallDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
+		variableCallDetector, variableReg,
 	)
 
 	appAnalyzer := AppAnalyzer(
@@ -75,9 +81,10 @@ func buildIntegrationDeps() (
 		packageTracker, ctx,
 		graphBuilder, sorter, bootstrapGenerator,
 		suggestedFixBuilder, diagnosticEmitter,
+		variableReg,
 	)
 
-	return depAnalyzer, appAnalyzer, injectorReg, providerReg
+	return depAnalyzer, appAnalyzer, injectorReg, providerReg, variableReg
 }
 
 func TestIntegration_BasicSinglePackage(t *testing.T) {
@@ -336,7 +343,7 @@ func TestIntegration_ErrorProvideTyped(t *testing.T) {
 // Uses programmatic registry access since analysistest cannot naturally test duplicate registration
 // (each analysistest.Run creates a fresh analysis pass for the same source).
 func TestIntegration_ErrorDuplicateName(t *testing.T) {
-	depAnalyzer, _, injectorReg, _ := buildIntegrationDeps()
+	depAnalyzer, _, injectorReg, _, _ := buildIntegrationDeps()
 	testdir := "testdata/bootstrapgen/error_duplicate_name"
 
 	// First scan: registers Named service via analysistest (succeeds without duplicate)
@@ -375,4 +382,202 @@ func TestIntegration_ErrorDuplicateName(t *testing.T) {
 	if !strings.Contains(err.Error(), "duplicate named dependency") {
 		t.Fatalf("expected error containing \"duplicate named dependency\", got: %s", err.Error())
 	}
+}
+
+// --- Group F: Variable Annotation Integration Tests ---
+
+// TestIntegration_VariableBasic tests Variable[variable.Default] flow:
+// pre-existing value registered under its declared type -> bootstrap assigns as local variable.
+func TestIntegration_VariableBasic(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/variable_basic"
+	analysistest.Run(t, testdir, depAnalyzer, "variable_basic/config")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_VariableTyped tests Variable[variable.Typed[I]] flow:
+// pre-existing value registered as interface type -> bootstrap assigns as local variable.
+func TestIntegration_VariableTyped(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/variable_typed"
+	analysistest.Run(t, testdir, depAnalyzer, "variable_typed/domain")
+	analysistest.Run(t, testdir, depAnalyzer, "variable_typed/config")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_VariableNamed tests Variable[variable.Named[N]] flow:
+// pre-existing value registered with custom name -> bootstrap uses named variable.
+func TestIntegration_VariableNamed(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/variable_named"
+	analysistest.Run(t, testdir, depAnalyzer, "variable_named/config")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_VariableMixed tests Variable + Provide + Injectable coexisting:
+// Variable (os.Stdout as Writer) + Injectable UserService (depends on Writer) -> topological order.
+func TestIntegration_VariableMixed(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/variable_mixed"
+	analysistest.Run(t, testdir, depAnalyzer, "variable_mixed/domain")
+	analysistest.Run(t, testdir, depAnalyzer, "variable_mixed/config")
+	analysistest.Run(t, testdir, depAnalyzer, "variable_mixed/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_VariableTypedNamed tests Variable with mixed options via anonymous interface:
+// Variable[interface{ variable.Typed[I]; variable.Named[N] }] -> typed + named registration.
+func TestIntegration_VariableTypedNamed(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/variable_typed_named"
+	analysistest.Run(t, testdir, depAnalyzer, "variable_typed_named/domain")
+	analysistest.Run(t, testdir, depAnalyzer, "variable_typed_named/config")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_VariableCrossPackage tests Variable in non-main package:
+// Variable in config package + Injectable in service package -> cross-package resolution.
+func TestIntegration_VariableCrossPackage(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/variable_cross_package"
+	analysistest.Run(t, testdir, depAnalyzer, "variable_cross_package/config")
+	analysistest.Run(t, testdir, depAnalyzer, "variable_cross_package/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_VariableIdempotent tests Variable bootstrap idempotency:
+// pre-existing bootstrap with correct hash -> no regeneration, no diagnostics.
+func TestIntegration_VariableIdempotent(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/variable_idempotent"
+	analysistest.Run(t, testdir, depAnalyzer, ".")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_VariableOutdated tests Variable bootstrap update detection:
+// pre-existing bootstrap with wrong hash -> "bootstrap code is outdated" diagnostic + regeneration.
+func TestIntegration_VariableOutdated(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/variable_outdated"
+	analysistest.Run(t, testdir, depAnalyzer, "variable_outdated/config")
+	analysistest.Run(t, testdir, depAnalyzer, "variable_outdated/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_ErrorVariableTyped tests Variable[variable.Typed[I]] constraint violation:
+// argument type does not implement typed interface -> fatal validation error -> AppAnalyzer skipped.
+func TestIntegration_ErrorVariableTyped(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/error_variable_typed"
+
+	// Phase 1: DependencyAnalyzer scans domain (interface), then config (Variable call triggers error)
+	analysistest.Run(t, testdir, depAnalyzer, "error_variable_typed/domain")
+	analysistest.Run(t, testdir, depAnalyzer, "error_variable_typed/config")
+
+	// Phase 2: AppAnalyzer skips due to cancelled validation context (no diagnostics expected)
+	analysistest.Run(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_ErrorVariableNamer tests Variable[variable.Named[N]] with non-literal Name() return:
+// Namer returns variable instead of string literal -> fatal validation error -> AppAnalyzer skipped.
+func TestIntegration_ErrorVariableNamer(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/error_variable_namer"
+
+	// Phase 1: DependencyAnalyzer scans config first (Namer type), then main (Variable call triggers error)
+	analysistest.Run(t, testdir, depAnalyzer, "error_variable_namer/config")
+	analysistest.Run(t, testdir, depAnalyzer, ".")
+
+	// Phase 2: AppAnalyzer skips due to cancelled validation context (no diagnostics expected)
+	analysistest.Run(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_ErrorVariableDuplicateName tests duplicate (TypeName, Name) detection for Variables:
+// Same named Variable registered twice -> non-fatal warning emitted.
+// Uses programmatic registry access since analysistest cannot naturally test duplicate registration.
+func TestIntegration_ErrorVariableDuplicateName(t *testing.T) {
+	variableReg := registry.NewVariableRegistry()
+
+	// First registration succeeds
+	err := variableReg.Register(&registry.VariableInfo{
+		TypeName:       "os.File",
+		PackagePath:    "os",
+		PackageName:    "os",
+		LocalName:      "File",
+		ExpressionText: "os.Stdout",
+		Dependencies:   []string{},
+		Name:           "stdout",
+	})
+	if err != nil {
+		t.Fatalf("First registration should succeed, got: %v", err)
+	}
+
+	// Duplicate registration returns error
+	err = variableReg.Register(&registry.VariableInfo{
+		TypeName:       "os.File",
+		PackagePath:    "another",
+		PackageName:    "another",
+		LocalName:      "File",
+		ExpressionText: "another.Stdout",
+		Dependencies:   []string{},
+		Name:           "stdout",
+	})
+	if err == nil {
+		t.Fatal("Duplicate registration should return error")
+	}
+	if !strings.Contains(err.Error(), "duplicate named dependency") {
+		t.Fatalf("Error should mention 'duplicate named dependency', got: %v", err)
+	}
+}
+
+// TestIntegration_ErrorVariableNameMismatch tests unresolvable dependency with named Variable hint:
+// Injectable depends on *os.File (unnamed) but only os.File#stdout exists -> hint emitted.
+func TestIntegration_ErrorVariableNameMismatch(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/error_variable_name_mismatch"
+
+	// Phase 1: DependencyAnalyzer scans config (Variable) and service (Injectable)
+	analysistest.Run(t, testdir, depAnalyzer, "error_variable_name_mismatch/config")
+	analysistest.Run(t, testdir, depAnalyzer, "error_variable_name_mismatch/service")
+
+	// Phase 2: AppAnalyzer fails to resolve *os.File (unnamed) and emits hint about os.File#stdout
+	analysistest.Run(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_VariableAliasImport tests Variable with aliased import normalization (Bug #7):
+// import myos "os" + annotation.Variable[variable.Default](myos.Stdout) -> ExpressionText = "os.Stdout".
+// Bootstrap should use the declared package name "os", not the user alias "myos".
+func TestIntegration_VariableAliasImport(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/variable_alias_import"
+	analysistest.Run(t, testdir, depAnalyzer, "variable_alias_import/config")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_VariablePkgCollision tests Variable with package name collision (Bug #8):
+// Two packages named "config" (v1/config and v2/config) both referenced by Variable expressions.
+// Collision aliases (v1config, v2config) must be reflected in ExpressionText rewriting.
+func TestIntegration_VariablePkgCollision(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/variable_pkg_collision"
+	analysistest.Run(t, testdir, depAnalyzer, "variable_pkg_collision/v1/config")
+	analysistest.Run(t, testdir, depAnalyzer, "variable_pkg_collision/v2/config")
+	analysistest.Run(t, testdir, depAnalyzer, "variable_pkg_collision/reg")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_ErrorVariableUnresolvableExpression tests that Variable annotations
+// with unsupported expression types emit diagnostic errors and cancel bootstrap generation.
+// Using a primitive literal (42) as the Variable argument: the argument is *ast.BasicLit,
+// not *ast.Ident or *ast.SelectorExpr, so the detector emits a diagnostic error.
+// Since the bootstrap context is cancelled, the App annotation does not emit any diagnostic.
+func TestIntegration_ErrorVariableUnresolvableExpression(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/error_variable_unresolvable"
+
+	// Phase 1: DependencyAnalyzer detects unsupported Variable argument and emits error
+	analysistest.Run(t, testdir, depAnalyzer, "error_variable_unresolvable/config")
+
+	// Phase 2: AppAnalyzer skips bootstrap due to cancelled context (no diagnostic expected)
+	analysistest.Run(t, testdir, appAnalyzer, ".")
 }

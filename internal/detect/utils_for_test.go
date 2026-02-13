@@ -122,6 +122,30 @@ func FindInjectableField(t *testing.T, pkg *packages.Package) (ast.Expr, *ast.St
 	return injectableExpr, structType, structName
 }
 
+// FindVariableCall finds the first annotation.Variable[T](value) call expression in the package
+// and returns the call expression and the argument type.
+func FindVariableCall(t *testing.T, pkg *packages.Package) (*ast.CallExpr, types.Type) {
+	t.Helper()
+
+	detector := NewVariableCallDetector()
+	pass := &analysis.Pass{
+		Fset:      pkg.Fset,
+		Files:     pkg.Syntax,
+		TypesInfo: pkg.TypesInfo,
+		Pkg:       pkg.Types,
+	}
+
+	candidates, errs := detector.DetectVariables(pass)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected detection errors in FindVariableCall: %v", errs)
+	}
+	if len(candidates) == 0 {
+		t.Fatal("No Variable call found in package")
+	}
+
+	return candidates[0].CallExpr, candidates[0].ArgumentType
+}
+
 // MockNamerValidator is a mock implementation of NamerValidator for testing.
 type MockNamerValidator struct {
 	ExtractNameFn func(pass *analysis.Pass, namerType types.Type) (string, error)

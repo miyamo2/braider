@@ -264,85 +264,10 @@ func (d *provideCallDetector) extractReturnTypeName(t types.Type) string {
 
 // detectImplementedInterfacesFromType detects interfaces implemented by the given type.
 func (d *provideCallDetector) detectImplementedInterfacesFromType(pass *analysis.Pass, returnType types.Type) []string {
-	// Dereference pointer to get the underlying named type
-	baseType := returnType
-	if ptr, ok := baseType.(*types.Pointer); ok {
-		baseType = ptr.Elem()
-	}
-
-	namedType, ok := baseType.(*types.Named)
-	if !ok {
-		return nil
-	}
-
-	return d.DetectImplementedInterfaces(pass, namedType)
+	return findImplementedInterfacesFromType(pass, returnType)
 }
 
 // DetectImplementedInterfaces returns interface types the given named type implements.
 func (d *provideCallDetector) DetectImplementedInterfaces(pass *analysis.Pass, namedType *types.Named) []string {
-	var interfaces []string
-
-	if pass.TypesInfo == nil {
-		return interfaces
-	}
-
-	ptrType := types.NewPointer(namedType)
-
-	// Iterate through all imported packages and check interfaces
-	for _, pkg := range pass.Pkg.Imports() {
-		scope := pkg.Scope()
-		for _, name := range scope.Names() {
-			scopeObj := scope.Lookup(name)
-			if scopeObj == nil {
-				continue
-			}
-
-			if _, ok := scopeObj.(*types.TypeName); !ok {
-				continue
-			}
-
-			named, ok := scopeObj.Type().(*types.Named)
-			if !ok {
-				continue
-			}
-
-			iface, ok := named.Underlying().(*types.Interface)
-			if !ok {
-				continue
-			}
-
-			if types.Implements(ptrType, iface) || types.Implements(namedType, iface) {
-				interfaces = append(interfaces, pkg.Path()+"."+name)
-			}
-		}
-	}
-
-	// Also check interfaces in current package
-	scope := pass.Pkg.Scope()
-	for _, name := range scope.Names() {
-		scopeObj := scope.Lookup(name)
-		if scopeObj == nil {
-			continue
-		}
-
-		if _, ok := scopeObj.(*types.TypeName); !ok {
-			continue
-		}
-
-		named, ok := scopeObj.Type().(*types.Named)
-		if !ok {
-			continue
-		}
-
-		iface, ok := named.Underlying().(*types.Interface)
-		if !ok {
-			continue
-		}
-
-		if types.Implements(ptrType, iface) || types.Implements(namedType, iface) {
-			interfaces = append(interfaces, pass.Pkg.Path()+"."+name)
-		}
-	}
-
-	return interfaces
+	return findImplementedInterfaces(pass, namedType)
 }

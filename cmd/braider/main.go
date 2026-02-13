@@ -45,6 +45,10 @@ func main() {
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 
+	// Step 4.5: Variable components
+	variableCallDetector := detect.NewVariableCallDetector()
+	variableRegistry := registry.NewVariableRegistry()
+
 	// Step 7: Instantiate analyzers
 	dependencyAnalyzer := analyzer.DependencyAnalyzer(
 		providerRegistry,
@@ -60,6 +64,8 @@ func main() {
 		constructorGenerator,
 		suggestedFixBuilder,
 		diagnosticEmitter,
+		variableCallDetector,
+		variableRegistry,
 	)
 
 	appAnalyzer := analyzer.AppAnalyzer(
@@ -74,6 +80,7 @@ func main() {
 		bootstrapGenerator,
 		suggestedFixBuilder,
 		diagnosticEmitter,
+		variableRegistry,
 	)
 
 	// Step 7: Pass to multichecker

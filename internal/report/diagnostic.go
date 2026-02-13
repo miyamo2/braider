@@ -67,6 +67,9 @@ type DiagnosticEmitter interface {
 
 	// EmitOptionValidationError reports a fatal option validation error (constraint violation, interface mismatch, non-literal Namer).
 	EmitOptionValidationError(reporter Reporter, pos token.Pos, reason string)
+
+	// EmitUnsupportedVariableExpression reports an unsupported Variable argument expression error.
+	EmitUnsupportedVariableExpression(reporter Reporter, pos token.Pos, reason string)
 }
 
 // diagnosticEmitter is the default implementation of DiagnosticEmitter.
@@ -231,4 +234,12 @@ func (e *diagnosticEmitter) EmitOptionValidationError(reporter Reporter, pos tok
 			Message: fmt.Sprintf("option validation error: %s", reason),
 		},
 	)
+}
+
+// EmitUnsupportedVariableExpression reports an unsupported Variable argument expression error.
+func (e *diagnosticEmitter) EmitUnsupportedVariableExpression(reporter Reporter, pos token.Pos, reason string) {
+	reporter.Report(analysis.Diagnostic{
+		Pos:     pos,
+		Message: reason,
+	})
 }

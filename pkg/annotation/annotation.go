@@ -9,6 +9,7 @@ import (
 	"github.com/miyamo2/braider/internal/annotation"
 	"github.com/miyamo2/braider/pkg/annotation/inject"
 	"github.com/miyamo2/braider/pkg/annotation/provide"
+	variableopt "github.com/miyamo2/braider/pkg/annotation/variable"
 )
 
 // Injectable marks a struct as a dependency to be injected.
@@ -160,4 +161,28 @@ type app struct {
 //	}
 func App(_ func()) annotation.App {
 	return app{}
+}
+
+type _variable[T variableopt.Option] struct {
+	annotation.Variable
+}
+
+func (v _variable[T]) option() T {
+	var zero T
+	return zero
+}
+
+// Variable marks a variable as a dependency to be provided.
+//
+// The option type parameter controls registration behavior.
+//   - variable.Default: register the variable under its declared type
+//   - variable.Typed[I]: register the variable as type I
+//   - variable.Named[N]: register the variable with name N.Name()
+//
+// Example:
+//
+//	var _ = annotation.Variable[variable.Default](os.Stdout)
+func Variable[T variableopt.Option](variable any) _variable[T] {
+	_ = variable
+	return _variable[T]{}
 }

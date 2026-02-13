@@ -43,6 +43,10 @@ type Node struct {
 	IsField         bool        // True for Inject structs (dependency struct fields), false for Provide structs (local variables only)
 	RegisteredType  types.Type  // Interface type for Typed[I], concrete type otherwise (nil = use concrete type)
 	Name            string      // Dependency name from Named[N], empty if unnamed
+	ExpressionText     string   // Formatted expression source text for Variable nodes (empty for Provider/Injector nodes)
+	ExpressionPkgs     []string // Package paths referenced by expression (for Variable nodes; nil for others)
+	ExpressionPkgNames []string // Package names parallel to ExpressionPkgs (for collision detection; nil for others)
+	IsQualified        bool     // Whether expression is already package-qualified (for Variable nodes; false for others)
 }
 
 // UnresolvableTypeError represents a dependency type that cannot be resolved.
@@ -89,6 +93,7 @@ func (b *DependencyGraphBuilder) BuildGraph(
 	pass *analysis.Pass,
 	providers []*registry.ProviderInfo,
 	injectors []*registry.InjectorInfo,
+	variables []*registry.VariableInfo,
 ) (*Graph, error) {
 	// Initialize graph
 	graph := &Graph{
@@ -99,7 +104,7 @@ func (b *DependencyGraphBuilder) BuildGraph(
 	// Build interface registry for dependency resolution
 	// Clear existing registry for reuse (avoid repeated allocations)
 	b.interfaceRegistry.Clear()
-	if err := b.interfaceRegistry.Build(pass, providers, injectors); err != nil {
+	if err := b.interfaceRegistry.Build(pass, providers, injectors, variables); err != nil {
 		return nil, err
 	}
 
@@ -117,6 +122,28 @@ func (b *DependencyGraphBuilder) BuildGraph(
 			IsField:         false, // Providers are local variables in IIFE
 			RegisteredType:  provider.RegisteredType,
 			Name:            provider.Name,
+		}
+		graph.Nodes[nodeKey] = node
+	}
+
+	// Add variable nodes (IsField = false, no constructor, expression-based)
+	for _, variable := range variables {
+		nodeKey := makeNodeKey(variable.TypeName, variable.Name)
+		node := &Node{
+			TypeName:        variable.TypeName,
+			PackagePath:     variable.PackagePath,
+			PackageName:     variable.PackageName,
+			LocalName:       variable.LocalName,
+			ConstructorName: "",         // No constructor for Variables
+			Dependencies:    []string{},
+			InDegree:        0,
+			IsField:         false,      // Variables are local vars in IIFE
+			RegisteredType:  variable.RegisteredType,
+			Name:            variable.Name,
+			ExpressionText:     variable.ExpressionText,
+			ExpressionPkgs:     variable.ExpressionPkgs,
+			ExpressionPkgNames: variable.ExpressionPkgNames,
+			IsQualified:        variable.IsQualified,
 		}
 		graph.Nodes[nodeKey] = node
 	}
@@ -143,6 +170,9 @@ func (b *DependencyGraphBuilder) BuildGraph(
 	if err := b.buildEdgesFromProviders(graph, providers); err != nil {
 		return nil, err
 	}
+	if err := b.buildEdgesFromVariables(graph, variables); err != nil {
+		return nil, err
+	}
 	if err := b.buildEdgesFromInjectors(graph, injectors); err != nil {
 		return nil, err
 	}
@@ -156,6 +186,15 @@ func (b *DependencyGraphBuilder) buildEdgesFromProviders(
 	providers []*registry.ProviderInfo,
 ) error {
 	return buildEdges(graph, providers, b)
+}
+
+// buildEdgesFromVariables builds edges from variable dependencies.
+// Since Variables have no dependencies, this creates empty edge entries.
+func (b *DependencyGraphBuilder) buildEdgesFromVariables(
+	graph *Graph,
+	variables []*registry.VariableInfo,
+) error {
+	return buildEdges(graph, variables, b)
 }
 
 // buildEdgesFromInjectors builds edges from injector dependencies.

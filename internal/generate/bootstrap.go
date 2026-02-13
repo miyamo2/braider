@@ -170,6 +170,16 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		structFields = []string{} // Explicitly empty for clarity
 	}
 
+	// Build a set of node keys that are depended upon by other nodes.
+	// Used to determine whether a Variable node needs a named assignment (depended upon)
+	// or a blank assignment (not depended upon).
+	dependedUpon := make(map[string]struct{})
+	for _, node := range g.Nodes {
+		for _, dep := range node.Dependencies {
+			dependedUpon[dep] = struct{}{}
+		}
+	}
+
 	// Phase 2: Generate initialization code for ALL types (both Inject and Provide)
 	// Even though Provide structs are not included in the returned dependency struct,
 	// they must still be initialized because Inject structs may depend on them.
@@ -184,9 +194,6 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		if node == nil {
 			continue
 		}
-		if len(node.ConstructorName) == 0 {
-			return nil, fmt.Errorf("injectable struct %s requires a constructor", typeName)
-		}
 
 		// Determine variable name
 		// Use custom name if provided (Named[N] option), otherwise derive from type name
@@ -194,12 +201,46 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		if node.IsField {
 			varName = fieldNames[typeName]
 		} else {
-			// Provide types use local variables
+			// Provide/Variable types use local variables
 			// Use custom name if provided, otherwise derive
 			varName = node.Name
 			if varName == "" {
 				varName = DeriveFieldName(typeName)
 			}
+		}
+
+		// Variable node: emit expression assignment
+		// MUST be checked BEFORE ConstructorName validation to avoid
+		// triggering "requires a constructor" error for Variable nodes.
+		if node.ExpressionText != "" {
+			expressionText := node.ExpressionText
+			if !node.IsQualified && node.PackagePath != currentPackage {
+				// Local reference from another package — add package qualifier
+				qualifier := node.PackageAlias
+				if qualifier == "" {
+					qualifier = node.PackageName
+				}
+				expressionText = qualifier + "." + expressionText
+			} else if node.IsQualified {
+				// Rewrite package qualifiers using collision aliases.
+				// ExpressionText is normalized to declared package names (e.g., "os.Stdout"),
+				// but when a collision alias is generated (e.g., "os2"), we must rewrite
+				// the qualifier in ExpressionText to match.
+				expressionText = rewriteExpressionAliases(expressionText, node.ExpressionPkgs, node.ExpressionPkgNames, aliasMap)
+			}
+			// If no other node depends on this Variable, use blank assignment (_ =)
+			// to avoid "declared and not used" errors. Otherwise, use named assignment.
+			if _, ok := dependedUpon[typeName]; ok {
+				inits = append(inits, fmt.Sprintf("\t%s := %s", varName, expressionText))
+			} else {
+				inits = append(inits, fmt.Sprintf("\t_ = %s", expressionText))
+			}
+			continue
+		}
+
+		// Provider/Injector node: constructor call (existing logic)
+		if len(node.ConstructorName) == 0 {
+			return nil, fmt.Errorf("injectable struct %s requires a constructor", typeName)
 		}
 
 		// Build constructor call with dependencies
@@ -332,6 +373,33 @@ func (bg *bootstrapGenerator) CheckBootstrapCurrent(
 	currentHash := ComputeGraphHash(g)
 
 	return existingHash == currentHash
+}
+
+// rewriteExpressionAliases replaces declared package name prefixes in expressionText
+// with their collision aliases from aliasMap. This is needed when a package name collision
+// causes an alias to be generated (e.g., "os" -> "os2"), but ExpressionText still uses
+// the declared name (e.g., "os.Stdout" must become "os2.Stdout").
+func rewriteExpressionAliases(
+	expressionText string,
+	exprPkgs []string,
+	exprPkgNames []string,
+	aliasMap map[string]string,
+) string {
+	for i, pkgPath := range exprPkgs {
+		if i >= len(exprPkgNames) {
+			break
+		}
+		alias, exists := aliasMap[pkgPath]
+		if !exists || alias == "" {
+			continue
+		}
+		declaredName := exprPkgNames[i]
+		prefix := declaredName + "."
+		if strings.HasPrefix(expressionText, prefix) {
+			expressionText = alias + "." + expressionText[len(prefix):]
+		}
+	}
+	return expressionText
 }
 
 // extractHashFromComments extracts the hash marker from comment group.

@@ -196,6 +196,62 @@ func TestCollectImports(t *testing.T) {
 			want:           []ImportInfo{}, // Same main package
 		},
 		{
+			name: "variable expression packages included in imports",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"os.File": {
+						TypeName:       "os.File",
+						PackagePath:    "os",
+						PackageName:    "os",
+						ExpressionPkgs: []string{"os"},
+						IsQualified:    true,
+					},
+				},
+				Edges: make(map[string][]string),
+			},
+			currentPackage: "main",
+			currentPkgName: "main",
+			want:           []ImportInfo{{Path: "os", Alias: ""}},
+		},
+		{
+			name: "variable expression packages from different package than node",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"example.com/types.Config": {
+						TypeName:       "example.com/types.Config",
+						PackagePath:    "example.com/types",
+						PackageName:    "types",
+						ExpressionPkgs: []string{"example.com/config"},
+						IsQualified:    false,
+					},
+				},
+				Edges: make(map[string][]string),
+			},
+			currentPackage: "main",
+			currentPkgName: "main",
+			want: []ImportInfo{
+				{Path: "example.com/config", Alias: ""},
+				{Path: "example.com/types", Alias: ""},
+			},
+		},
+		{
+			name: "variable expression packages excludes current package",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"main.Config": {
+						TypeName:       "main.Config",
+						PackagePath:    "main",
+						PackageName:    "main",
+						ExpressionPkgs: []string{"main"},
+					},
+				},
+				Edges: make(map[string][]string),
+			},
+			currentPackage: "main",
+			currentPkgName: "main",
+			want:           []ImportInfo{},
+		},
+		{
 			name: "RegisteredType package collision with node package",
 			graph: &graph.Graph{
 				Nodes: map[string]*graph.Node{
@@ -400,6 +456,28 @@ func TestDetectPackageCollisions(t *testing.T) {
 			want: map[string]string{
 				"example.com/other/domain": "domain",
 				"example.com/typed/domain": "domain",
+			},
+		},
+		{
+			name: "collision via ExpressionPkgs",
+			g: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"example.com/other/config.Config": {
+						PackagePath: "example.com/other/config",
+						PackageName: "config",
+					},
+					"os.File": {
+						PackagePath:        "os",
+						PackageName:        "os",
+						ExpressionText:     "config.DefaultStdout",
+						ExpressionPkgs:     []string{"example.com/myapp/config"},
+						ExpressionPkgNames: []string{"config"},
+					},
+				},
+			},
+			want: map[string]string{
+				"example.com/other/config": "config",
+				"example.com/myapp/config": "config",
 			},
 		},
 		{
