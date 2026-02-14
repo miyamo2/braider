@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"context"
+	"go/ast"
 	"go/types"
 	"sort"
 	"strings"
@@ -124,7 +125,7 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 		// Emit diagnostics for invalid struct tags (braider:"")
 		for _, field := range fields {
 			if field.InvalidTag {
-				r.diagnosticEmitter.EmitInvalidStructTagError(reporter, candidate.TypeSpec.Pos(), field.Name)
+				r.diagnosticEmitter.EmitInvalidStructTagError(reporter, field.Pos, field.Name)
 			}
 		}
 
@@ -157,8 +158,21 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 			// Extract actual dependencies from existing constructor
 			actualDeps := r.constructorAnalyzer.ExtractDependencies(pass, candidate.ExistingConstructor)
 
-			// If dependencies match, skip (constructor is up-to-date)
-			if dependenciesMatch(expectedDeps, actualDeps) {
+			// Build expected parameter names (derived from struct tags / field names)
+			var expectedNames []string
+			for _, field := range filteredFields {
+				if namedDep, ok := dependencyNames[field.Name]; ok {
+					expectedNames = append(expectedNames, namedDep)
+				} else {
+					expectedNames = append(expectedNames, generate.DeriveParamName(field.Name))
+				}
+			}
+
+			// Extract actual parameter names from existing constructor
+			actualNames := extractParameterNames(candidate.ExistingConstructor)
+
+			// If both types and parameter names match, skip (constructor is up-to-date)
+			if dependenciesMatch(expectedDeps, actualDeps) && parameterNamesMatch(expectedNames, actualNames) {
 				continue
 			}
 		}
@@ -424,12 +438,12 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 				fTypeStr := f.Type.String()
 				if f.Excluded && ctorDepSet[fTypeStr] {
 					r.diagnosticEmitter.EmitStructTagConflictError(
-						reporter, injector.TypeSpec.Pos(), f.Name,
+						reporter, f.Pos, f.Name,
 						"field is excluded via braider:\"-\" but matches constructor parameter type",
 					)
 				} else if f.NamedDependency != "" && !ctorDepSet[fTypeStr] {
 					r.diagnosticEmitter.EmitStructTagConflictError(
-						reporter, injector.TypeSpec.Pos(), f.Name,
+						reporter, f.Pos, f.Name,
 						"field has braider:\""+f.NamedDependency+"\" but does not match any constructor parameter type",
 					)
 				}
@@ -502,6 +516,38 @@ func getConstructorName(injector detect.ConstructorCandidate) string {
 		return injector.ExistingConstructor.Name.Name
 	}
 	return "New" + generate.ToUpperCamelCase(injector.TypeSpec.Name.Name)
+}
+
+// extractParameterNames extracts parameter names from a constructor function declaration.
+func extractParameterNames(ctor *ast.FuncDecl) []string {
+	if ctor == nil || ctor.Type.Params == nil {
+		return nil
+	}
+	var names []string
+	for _, param := range ctor.Type.Params.List {
+		if len(param.Names) == 0 {
+			// Unnamed parameter
+			names = append(names, "_")
+		} else {
+			for _, name := range param.Names {
+				names = append(names, name.Name)
+			}
+		}
+	}
+	return names
+}
+
+// parameterNamesMatch checks if two parameter name lists are identical (order-sensitive).
+func parameterNamesMatch(expected, actual []string) bool {
+	if len(expected) != len(actual) {
+		return false
+	}
+	for i := range expected {
+		if expected[i] != actual[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // dependenciesMatch checks if two dependency lists are equivalent.

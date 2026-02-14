@@ -9,9 +9,9 @@ type Logger interface {
 	Log(msg string)
 }
 
-type AppService struct { // want `braider struct tag conflict on field logger: field is excluded via braider:"-" but matches constructor parameter type`
+type AppService struct {
 	annotation.Injectable[inject.WithoutConstructor]
-	logger Logger `braider:"-"`
+	logger Logger `braider:"-"` // want `braider struct tag conflict on field logger: field is excluded via braider:"-" but matches constructor parameter type`
 }
 
 func NewAppService(logger Logger) *AppService { // want "outdated constructor for AppService"

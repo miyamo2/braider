@@ -9,9 +9,9 @@ type Logger interface {
 	Log(msg string)
 }
 
-type AppService struct { // want "invalid braider struct tag on field logger: tag value must not be empty"
+type AppService struct {
 	annotation.Injectable[inject.Default]
-	logger Logger `braider:""`
+	logger Logger `braider:""` // want "invalid braider struct tag on field logger: tag value must not be empty"
 }
 
 func NewAppService(logger Logger) *AppService {

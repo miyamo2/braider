@@ -2,6 +2,7 @@ package detect
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
 	"reflect"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 // FieldInfo contains analyzed information about a struct field.
 type FieldInfo struct {
 	Name            string     // Field name (or generated name for anonymous)
+	Pos             token.Pos  // Position of the field name in source
 	TypeExpr        ast.Expr   // Original type expression from AST
 	Type            types.Type // Resolved type from type checker
 	IsExported      bool       // Whether the field is exported
@@ -63,6 +65,7 @@ func (a *fieldAnalyzer) AnalyzeFields(pass *analysis.Pass, st *ast.StructType, i
 		// Process each name in the field (handles "a, b int" syntax)
 		for _, name := range field.Names {
 			info := a.analyzeField(pass, name.Name, field.Type)
+			info.Pos = name.Pos()
 			info.NamedDependency = tagInfo.namedDependency
 			info.Excluded = tagInfo.excluded
 			info.InvalidTag = tagInfo.invalidTag
