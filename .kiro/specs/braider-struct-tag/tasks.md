@@ -1,26 +1,26 @@
 # Implementation Plan
 
-- [ ] 1. Extend FieldAnalyzer with struct tag parsing
-- [ ] 1.1 Add struct tag metadata fields to the FieldInfo value object
+- [x] 1. Extend FieldAnalyzer with struct tag parsing
+- [x] 1.1 Add struct tag metadata fields to the FieldInfo value object
   - Extend the field information structure with a named dependency string and an excluded boolean to carry struct tag state through the analysis pipeline
   - When a field has no `braider` tag, both new fields must retain zero-value defaults to preserve existing behavior
   - Ensure the named dependency and excluded states are mutually exclusive
   - _Requirements: 3.3, 3.4_
 
-- [ ] 1.2 Implement the struct tag parsing helper on the field analyzer
+- [x] 1.2 Implement the struct tag parsing helper on the field analyzer
   - Extract the raw tag string from the AST field tag literal, strip surrounding backticks via unquoting, and parse using Go's standard struct tag lookup for the `braider` key
   - When the lookup returns an empty string with presence confirmed, record an invalid-tag state for the caller to report
   - When the tag value is `"-"`, set the excluded flag; otherwise populate the named dependency with the parsed value
   - Handle edge cases: missing tag literal, unquoting failure (treat as untagged), and other struct tag keys on the same field (ignore them)
   - _Requirements: 3.1, 3.2, 3.4_
 
-- [ ] 1.3 Integrate struct tag parsing into the field analysis loop
+- [x] 1.3 Integrate struct tag parsing into the field analysis loop
   - Call the tag parsing helper for each field during field analysis, populating the new metadata on each returned field info
   - Propagate any invalid-tag diagnostic information so the caller (DependencyAnalyzeRunner) can emit the appropriate error
   - Verify that the inject annotation embedding field continues to be skipped before tag parsing
   - _Requirements: 1.1, 1.5, 1.6, 2.1, 3.1, 3.3_
 
-- [ ] 1.4 Add unit tests for struct tag parsing and field analysis
+- [x] 1.4 Add unit tests for struct tag parsing and field analysis
   - Test parsing of `braider:"someName"`, `braider:"-"`, `braider:""`, absent tag, and multi-tag fields (e.g., `json:"x" braider:"name"`)
   - Verify FieldInfo values: named dependency populated for named tags, excluded flag set for exclusion tags, defaults for untagged fields
   - Test that the invalid-tag state is correctly signaled for empty tag values
