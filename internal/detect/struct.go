@@ -3,6 +3,7 @@ package detect
 import (
 	"go/ast"
 	"go/types"
+	"unicode"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -117,7 +118,9 @@ func (d *structDetector) processGenDecl(pass *analysis.Pass, genDecl *ast.GenDec
 // 2. Function is defined in the same package as the struct
 // 3. Function returns *StructName (pointer to the struct type)
 func (d *structDetector) FindExistingConstructor(pass *analysis.Pass, structName string) *ast.FuncDecl {
-	expectedName := "New" + structName
+	runes := []rune(structName)
+	runes[0] = unicode.ToUpper(runes[0])
+	expectedName := "New" + string(runes)
 
 	for _, file := range pass.Files {
 		for _, decl := range file.Decls {
