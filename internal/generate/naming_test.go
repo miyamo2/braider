@@ -229,6 +229,69 @@ func TestIsKeywordOrBuiltin(t *testing.T) {
 	}
 }
 
+func TestToUpperCamelCase(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "lowercase start",
+			input: "service",
+			want:  "Service",
+		},
+		{
+			name:  "already uppercase start",
+			input: "Service",
+			want:  "Service",
+		},
+		{
+			name:  "all lowercase",
+			input: "dbhandler",
+			want:  "Dbhandler",
+		},
+		{
+			name:  "lowerCamelCase",
+			input: "dbHandler",
+			want:  "DbHandler",
+		},
+		{
+			name:  "all caps",
+			input: "DB",
+			want:  "DB",
+		},
+		{
+			name:  "single lowercase char",
+			input: "a",
+			want:  "A",
+		},
+		{
+			name:  "single uppercase char",
+			input: "A",
+			want:  "A",
+		},
+		{
+			name:  "empty string",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "unicode lowercase",
+			input: "über",
+			want:  "Über",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ToUpperCamelCase(tt.input)
+			if got != tt.want {
+				t.Errorf("ToUpperCamelCase(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 // Example demonstrates the usage of ToLowerCamelCase function.
 func ExampleToLowerCamelCase() {
 	// Simple type

@@ -100,3 +100,18 @@ func ToLowerCamelCase(name string) string {
 	}
 	return string(runes)
 }
+
+// ToUpperCamelCase ensures that the first character of name is uppercase.
+// Examples:
+//   - "service" -> "Service"
+//   - "Service" -> "Service" (unchanged)
+//   - "dbHandler" -> "DbHandler"
+//   - "" -> ""
+func ToUpperCamelCase(name string) string {
+	if name == "" {
+		return ""
+	}
+	runes := []rune(name)
+	runes[0] = unicode.ToUpper(runes[0])
+	return string(runes)
+}

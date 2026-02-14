@@ -252,6 +252,27 @@ type Repository interface{}
 			pkgs:        map[string]*types.Package{detect.AnnotationPath: annotationPkg},
 			expectFound: false,
 		},
+		{
+			name: "finds constructor for lowercase struct name (UpperCamelCase)",
+			src: `package test
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+type eventHandler struct {
+	annotation.Injectable
+	repo Repository
+}
+
+func NewEventHandler(repo Repository) *eventHandler {
+	return &eventHandler{repo: repo}
+}
+
+type Repository interface{}
+`,
+			structName:  "eventHandler",
+			pkgs:        map[string]*types.Package{detect.AnnotationPath: annotationPkg},
+			expectFound: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -423,6 +444,23 @@ type Repository interface{}
 `,
 			structName:  "MyService",
 			expectFound: false,
+		},
+		{
+			name: "finds constructor for lowercase struct name via AST fallback",
+			src: `package test
+
+type eventHandler struct {
+	repo Repository
+}
+
+func NewEventHandler(repo Repository) *eventHandler {
+	return &eventHandler{repo: repo}
+}
+
+type Repository interface{}
+`,
+			structName:  "eventHandler",
+			expectFound: true,
 		},
 	}
 

@@ -436,7 +436,7 @@ func getConstructorName(injector detect.ConstructorCandidate) string {
 	if injector.ExistingConstructor != nil {
 		return injector.ExistingConstructor.Name.Name
 	}
-	return "New" + injector.TypeSpec.Name.Name
+	return "New" + generate.ToUpperCamelCase(injector.TypeSpec.Name.Name)
 }
 
 // dependenciesMatch checks if two dependency lists are equivalent.
