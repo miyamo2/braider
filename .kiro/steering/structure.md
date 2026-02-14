@@ -24,9 +24,9 @@ braider follows a **standard Go project layout** with clear separation between p
 **Location**: `internal/analyzer/testdata/`
 **Purpose**: Go source files used as test inputs for analysistest
 **Pattern**: Organized by test category and analyzer:
-- `testdata/bootstrapgen/` - App annotation scenarios (~35 cases: basic, typed_inject, named_inject, provide_typed, provide_named, circular, crosspackage, idempotent, without_constructor, error cases, etc.)
+- `testdata/bootstrapgen/` - App annotation scenarios (~52 cases: basic, typed_inject, named_inject, provide_typed, provide_named, circular, crosspackage, idempotent, without_constructor, error cases, etc.)
 - `testdata/dependency/` - Dependency analysis scenarios (basic, abstrct, cross_package, missing_constructor)
-- `testdata/constructorgen/` - Constructor generation scenarios (simple, multifield, pointer, imported, aliasedimport, definedtypes, typealias, existing, negative)
+- `testdata/constructorgen/` - Constructor generation scenarios (simple, multifield, pointer, imported, aliasedimport, definedtypes, typealias, existing)
 - `testdata/providefunc/` - Provider function detection scenarios (legacy, directories may be empty)
 
 
@@ -115,3 +115,4 @@ _Document patterns, not file trees. New files following patterns should not requ
 _Updated: 2026-02-02 - Added ProvideFunc annotation, expanded generate package utilities, clarified loader package purpose_
 _Updated: 2026-02-11 - Sync: Updated annotation API to current generics-based design (Injectable[T], Provide[T](fn)); added inject/provide/namer subpackages; updated component lists (ProvideCallDetector, BootstrapGenerator, OptionExtractor, NamerValidator); corrected testdata categories_
 _Updated: 2026-02-12 - Sync: Added Variable[T](value) annotation and variable/ option subpackage; added VariableCallDetector, VariableRegistry to component lists; added variable test case categories_
+_Updated: 2026-02-14 - Sync: Updated bootstrapgen case count (~52); removed negative from constructorgen (constructor gen now covers zero-dependency structs)_

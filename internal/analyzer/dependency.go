@@ -121,11 +121,6 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 		// Analyze fields (excluding annotation.Injectable)
 		fields := r.fieldAnalyzer.AnalyzeFields(pass, candidate.StructType, candidate.InjectField)
 
-		// Skip if no injectable fields
-		if !r.fieldAnalyzer.HasInjectableFields(fields) {
-			continue
-		}
-
 		// Check if existing constructor is up-to-date
 		if candidate.ExistingConstructor != nil {
 			// Extract expected dependencies from struct fields
@@ -307,21 +302,23 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 			exprPkgPaths, exprPkgNames := convertExpressionPkgs(variable.ExpressionPkgs)
 
 			// Register to VariableRegistry
-			if err := r.variableRegistry.Register(&registry.VariableInfo{
-				TypeName:           variable.TypeName,
-				PackagePath:        variable.PackagePath,
-				PackageName:        pkgName,
-				LocalName:          localName,
-				ExpressionText:     variable.ExpressionText,
-				ExpressionPkgs:     exprPkgPaths,
-				ExpressionPkgNames: exprPkgNames,
-				IsQualified:        variable.IsQualified,
-				Dependencies:       []string{},
-				Implements:         variable.Implements,
-				RegisteredType:     registeredType,
-				Name:               metadata.Name,
-				OptionMetadata:     metadata,
-			}); err != nil {
+			if err := r.variableRegistry.Register(
+				&registry.VariableInfo{
+					TypeName:           variable.TypeName,
+					PackagePath:        variable.PackagePath,
+					PackageName:        pkgName,
+					LocalName:          localName,
+					ExpressionText:     variable.ExpressionText,
+					ExpressionPkgs:     exprPkgPaths,
+					ExpressionPkgNames: exprPkgNames,
+					IsQualified:        variable.IsQualified,
+					Dependencies:       []string{},
+					Implements:         variable.Implements,
+					RegisteredType:     registeredType,
+					Name:               metadata.Name,
+					OptionMetadata:     metadata,
+				},
+			); err != nil {
 				existingLocation := pass.Pkg.Path()
 				if existing, ok := r.variableRegistry.GetByName(variable.TypeName, metadata.Name); ok {
 					existingLocation = existing.PackagePath

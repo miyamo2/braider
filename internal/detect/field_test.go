@@ -111,46 +111,50 @@ type MyService struct {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pass, file := mockPass(t, tt.src, tt.pkgs)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				pass, file := mockPass(t, tt.src, tt.pkgs)
 
-			// Find the struct type and inject field
-			var structType *ast.StructType
-			ast.Inspect(file, func(n ast.Node) bool {
-				if ts, ok := n.(*ast.TypeSpec); ok {
-					if st, ok := ts.Type.(*ast.StructType); ok {
-						if ts.Name.Name == "MyService" {
-							structType = st
-							return false
+				// Find the struct type and inject field
+				var structType *ast.StructType
+				ast.Inspect(
+					file, func(n ast.Node) bool {
+						if ts, ok := n.(*ast.TypeSpec); ok {
+							if st, ok := ts.Type.(*ast.StructType); ok {
+								if ts.Name.Name == "MyService" {
+									structType = st
+									return false
+								}
+							}
 						}
+						return true
+					},
+				)
+
+				if structType == nil {
+					t.Fatal("MyService struct not found")
+				}
+
+				injectDetector := detect.NewInjectDetector()
+				injectField := injectDetector.FindInjectField(pass, structType)
+
+				fieldAnalyzer := detect.NewFieldAnalyzer()
+				fields := fieldAnalyzer.AnalyzeFields(pass, structType, injectField)
+
+				if len(fields) != tt.expectedCount {
+					t.Errorf("AnalyzeFields() returned %d fields, want %d", len(fields), tt.expectedCount)
+				}
+
+				for i, name := range tt.expectedFields {
+					if i >= len(fields) {
+						break
+					}
+					if fields[i].Name != name {
+						t.Errorf("fields[%d].Name = %s, want %s", i, fields[i].Name, name)
 					}
 				}
-				return true
-			})
-
-			if structType == nil {
-				t.Fatal("MyService struct not found")
-			}
-
-			injectDetector := detect.NewInjectDetector()
-			injectField := injectDetector.FindInjectField(pass, structType)
-
-			fieldAnalyzer := detect.NewFieldAnalyzer()
-			fields := fieldAnalyzer.AnalyzeFields(pass, structType, injectField)
-
-			if len(fields) != tt.expectedCount {
-				t.Errorf("AnalyzeFields() returned %d fields, want %d", len(fields), tt.expectedCount)
-			}
-
-			for i, name := range tt.expectedFields {
-				if i >= len(fields) {
-					break
-				}
-				if fields[i].Name != name {
-					t.Errorf("fields[%d].Name = %s, want %s", i, fields[i].Name, name)
-				}
-			}
-		})
+			},
+		)
 	}
 }
 
@@ -177,17 +181,19 @@ type Config struct{}
 	pass, file := mockPass(t, src, pkgs)
 
 	var structType *ast.StructType
-	ast.Inspect(file, func(n ast.Node) bool {
-		if ts, ok := n.(*ast.TypeSpec); ok {
-			if st, ok := ts.Type.(*ast.StructType); ok {
-				if ts.Name.Name == "MyService" {
-					structType = st
-					return false
+	ast.Inspect(
+		file, func(n ast.Node) bool {
+			if ts, ok := n.(*ast.TypeSpec); ok {
+				if st, ok := ts.Type.(*ast.StructType); ok {
+					if ts.Name.Name == "MyService" {
+						structType = st
+						return false
+					}
 				}
 			}
-		}
-		return true
-	})
+			return true
+		},
+	)
 
 	if structType == nil {
 		t.Fatal("MyService struct not found")
@@ -248,38 +254,6 @@ type Config struct{}
 	}
 }
 
-func TestFieldAnalyzer_HasInjectableFields(t *testing.T) {
-	fieldAnalyzer := detect.NewFieldAnalyzer()
-
-	tests := []struct {
-		name     string
-		fields   []detect.FieldInfo
-		expected bool
-	}{
-		{
-			name:     "no fields",
-			fields:   []detect.FieldInfo{},
-			expected: false,
-		},
-		{
-			name: "has fields",
-			fields: []detect.FieldInfo{
-				{Name: "repo"},
-			},
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := fieldAnalyzer.HasInjectableFields(tt.fields)
-			if result != tt.expected {
-				t.Errorf("HasInjectableFields() = %v, want %v", result, tt.expected)
-			}
-		})
-	}
-}
-
 func TestFieldAnalyzer_PreservesFieldOrder(t *testing.T) {
 	annotationPkg := createAnnotationPackage()
 
@@ -304,17 +278,19 @@ type Delta interface{}
 	pass, file := mockPass(t, src, pkgs)
 
 	var structType *ast.StructType
-	ast.Inspect(file, func(n ast.Node) bool {
-		if ts, ok := n.(*ast.TypeSpec); ok {
-			if st, ok := ts.Type.(*ast.StructType); ok {
-				if ts.Name.Name == "MyService" {
-					structType = st
-					return false
+	ast.Inspect(
+		file, func(n ast.Node) bool {
+			if ts, ok := n.(*ast.TypeSpec); ok {
+				if st, ok := ts.Type.(*ast.StructType); ok {
+					if ts.Name.Name == "MyService" {
+						structType = st
+						return false
+					}
 				}
 			}
-		}
-		return true
-	})
+			return true
+		},
+	)
 
 	injectDetector := detect.NewInjectDetector()
 	injectField := injectDetector.FindInjectField(pass, structType)
@@ -400,62 +376,72 @@ type Fourth struct{}
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pass, file := mockPassWithoutTypesInfo(t, tt.src)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				pass, file := mockPassWithoutTypesInfo(t, tt.src)
 
-			// Find the struct type
-			var structType *ast.StructType
-			ast.Inspect(file, func(n ast.Node) bool {
-				if ts, ok := n.(*ast.TypeSpec); ok {
-					if st, ok := ts.Type.(*ast.StructType); ok {
-						if ts.Name.Name == "MyService" {
-							structType = st
-							return false
+				// Find the struct type
+				var structType *ast.StructType
+				ast.Inspect(
+					file, func(n ast.Node) bool {
+						if ts, ok := n.(*ast.TypeSpec); ok {
+							if st, ok := ts.Type.(*ast.StructType); ok {
+								if ts.Name.Name == "MyService" {
+									structType = st
+									return false
+								}
+							}
 						}
+						return true
+					},
+				)
+
+				if structType == nil {
+					t.Fatal("MyService struct not found")
+				}
+
+				fieldAnalyzer := detect.NewFieldAnalyzer()
+				// Pass nil for injectField since we're testing without annotation package
+				fields := fieldAnalyzer.AnalyzeFields(pass, structType, nil)
+
+				if len(fields) != tt.expectedCount {
+					t.Errorf("AnalyzeFields() returned %d fields, want %d", len(fields), tt.expectedCount)
+					return
+				}
+
+				for i, name := range tt.expectedNames {
+					if fields[i].Name != name {
+						t.Errorf("fields[%d].Name = %s, want %s", i, fields[i].Name, name)
 					}
 				}
-				return true
-			})
 
-			if structType == nil {
-				t.Fatal("MyService struct not found")
-			}
-
-			fieldAnalyzer := detect.NewFieldAnalyzer()
-			// Pass nil for injectField since we're testing without annotation package
-			fields := fieldAnalyzer.AnalyzeFields(pass, structType, nil)
-
-			if len(fields) != tt.expectedCount {
-				t.Errorf("AnalyzeFields() returned %d fields, want %d", len(fields), tt.expectedCount)
-				return
-			}
-
-			for i, name := range tt.expectedNames {
-				if fields[i].Name != name {
-					t.Errorf("fields[%d].Name = %s, want %s", i, fields[i].Name, name)
+				for i, isPointer := range tt.expectedPointer {
+					if fields[i].IsPointer != isPointer {
+						t.Errorf(
+							"fields[%d].IsPointer = %v, want %v (field: %s)",
+							i,
+							fields[i].IsPointer,
+							isPointer,
+							fields[i].Name,
+						)
+					}
 				}
-			}
 
-			for i, isPointer := range tt.expectedPointer {
-				if fields[i].IsPointer != isPointer {
-					t.Errorf("fields[%d].IsPointer = %v, want %v (field: %s)", i, fields[i].IsPointer, isPointer, fields[i].Name)
+				// Verify Type is nil (since TypesInfo is nil)
+				for i, field := range fields {
+					if field.Type != nil {
+						t.Errorf("fields[%d].Type should be nil when TypesInfo is nil, got %v", i, field.Type)
+					}
 				}
-			}
 
-			// Verify Type is nil (since TypesInfo is nil)
-			for i, field := range fields {
-				if field.Type != nil {
-					t.Errorf("fields[%d].Type should be nil when TypesInfo is nil, got %v", i, field.Type)
+				// Verify IsInterface is false (cannot determine from AST alone)
+				for i, field := range fields {
+					if field.IsInterface {
+						t.Errorf("fields[%d].IsInterface should be false when TypesInfo is nil", i)
+					}
 				}
-			}
-
-			// Verify IsInterface is false (cannot determine from AST alone)
-			for i, field := range fields {
-				if field.IsInterface {
-					t.Errorf("fields[%d].IsInterface should be false when TypesInfo is nil", i)
-				}
-			}
-		})
+			},
+		)
 	}
 }
 
@@ -475,17 +461,19 @@ type MyService struct {
 	pass, file := mockPass(t, src, pkgs)
 
 	var structType *ast.StructType
-	ast.Inspect(file, func(n ast.Node) bool {
-		if ts, ok := n.(*ast.TypeSpec); ok {
-			if st, ok := ts.Type.(*ast.StructType); ok {
-				if ts.Name.Name == "MyService" {
-					structType = st
-					return false
+	ast.Inspect(
+		file, func(n ast.Node) bool {
+			if ts, ok := n.(*ast.TypeSpec); ok {
+				if st, ok := ts.Type.(*ast.StructType); ok {
+					if ts.Name.Name == "MyService" {
+						structType = st
+						return false
+					}
 				}
 			}
-		}
-		return true
-	})
+			return true
+		},
+	)
 
 	if structType == nil {
 		t.Fatal("MyService struct not found")
@@ -534,17 +522,19 @@ type MyService struct {
 	pass, file := mockPass(t, src, pkgs)
 
 	var structType *ast.StructType
-	ast.Inspect(file, func(n ast.Node) bool {
-		if ts, ok := n.(*ast.TypeSpec); ok {
-			if st, ok := ts.Type.(*ast.StructType); ok {
-				if ts.Name.Name == "MyService" {
-					structType = st
-					return false
+	ast.Inspect(
+		file, func(n ast.Node) bool {
+			if ts, ok := n.(*ast.TypeSpec); ok {
+				if st, ok := ts.Type.(*ast.StructType); ok {
+					if ts.Name.Name == "MyService" {
+						structType = st
+						return false
+					}
 				}
 			}
-		}
-		return true
-	})
+			return true
+		},
+	)
 
 	if structType == nil {
 		t.Fatal("MyService struct not found")

@@ -23,9 +23,6 @@ type FieldAnalyzer interface {
 	// AnalyzeFields extracts injectable fields from a struct.
 	// Excludes the embedded annotation.Injectable field from results.
 	AnalyzeFields(pass *analysis.Pass, st *ast.StructType, injectField *ast.Field) []FieldInfo
-
-	// HasInjectableFields returns true if the struct has fields requiring injection.
-	HasInjectableFields(fields []FieldInfo) bool
 }
 
 // fieldAnalyzer is the default implementation of FieldAnalyzer.
@@ -89,11 +86,6 @@ func (a *fieldAnalyzer) analyzeField(pass *analysis.Pass, name string, typeExpr 
 	}
 
 	return info
-}
-
-// HasInjectableFields returns true if the struct has fields requiring injection.
-func (a *fieldAnalyzer) HasInjectableFields(fields []FieldInfo) bool {
-	return len(fields) > 0
 }
 
 // isExported returns true if the name is exported (starts with uppercase).
