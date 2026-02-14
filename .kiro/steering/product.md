@@ -5,7 +5,7 @@
 ## Core Capabilities
 
 - **DI Binding Detection**: Static analysis of Go code to identify structs, functions, and variables with annotation markers (`Injectable[T]`, `Provide[T](fn)`, `Variable[T](value)`, `App(main)`)
-- **Constructor Generation**: Auto-generate constructor functions for structs with injectable dependencies
+- **Constructor Generation**: Auto-generate constructor functions for all structs embedding `Injectable[T]`, including zero-dependency structs
 - **Bootstrap Code Generation**: Generate main function IIFE wiring code with `App` annotation
 - **Dependency Graph Resolution**: Analyzes dependency relationships and generates initialization code in topological order
 - **Variable Registration**: Register existing variables/values as dependencies via `Variable[T](value)` (e.g., `annotation.Variable[variable.Default](os.Stdout)`)
@@ -15,7 +15,7 @@
 ## Target Use Cases
 
 - **Application Bootstrap**: Generate wiring code for service initialization with complex dependency graphs
-- **Constructor Generation**: Auto-generate constructor functions for structs with injectable dependencies
+- **Constructor Generation**: Auto-generate constructor functions for all `Injectable[T]` structs, regardless of field count
 - **Refactoring Support**: Detect missing or broken DI bindings during code changes
 
 ## Value Proposition
@@ -32,3 +32,4 @@ _Focus on patterns and purpose, not exhaustive feature lists_
 _Updated: 2026-02-02 - Added ProvideFunc annotation support for function-based dependency providers_
 _Updated: 2026-02-11 - Sync: Corrected annotation names to match current API (Injectable[T], Provide[T](fn)); removed obsolete ProvideFunc references_
 _Updated: 2026-02-12 - Sync: Added Variable[T](value) annotation as a core capability for registering existing variables as dependencies_
+_Updated: 2026-02-14 - Sync: Constructor generation now applies to all Injectable[T] structs, including zero-dependency structs (no HasInjectableFields guard)_
