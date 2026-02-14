@@ -3,8 +3,8 @@
 ## Architecture
 
 braider implements a **multi-analyzer architecture** using `multichecker.Main()` with two coordinated analyzers:
-- **DependencyAnalyzer**: Detects `annotation.Injectable[T]` structs and `annotation.Provide[T](fn)` calls, generates constructors, registers to global registries
-- **AppAnalyzer**: Detects `annotation.App(main)` and generates bootstrap IIFE code
+- **DependencyAnalyzer**: Detects `annotation.Injectable[T]` structs, `annotation.Provide[T](fn)` calls, and `annotation.Variable[T](value)` calls; generates constructors; registers to global registries
+- **AppAnalyzer**: Detects `annotation.App(main)` and generates bootstrap IIFE code using all registered providers, injectors, and variables
 
 Each analyzer implements the `analysis.Analyzer` interface, performs static analysis on Go AST, and proposes code fixes via `SuggestedFix`. Analyzers share state through global registries for cross-package dependency resolution.
 
@@ -70,18 +70,21 @@ Code generation is implemented via `analysis.SuggestedFix` rather than separate 
 
 ### Component-Based Architecture
 The analyzer uses composable components (detectors, generators, reporters) instantiated in `main.go` and passed to analyzer constructors. Each component has a single responsibility and is testable in isolation. Components are organized by concern:
-- **Detectors** (`internal/detect/`): Pattern matching (inject, provide call, app, struct, field, constructor, option extraction, namer validation)
+- **Detectors** (`internal/detect/`): Pattern matching (inject, provide call, variable call, app, struct, field, constructor, option extraction, namer validation)
 - **Generators** (`internal/generate/`): Code generation (constructors, bootstrap IIFE), utilities (imports, formatting, naming, keyword checking, hash markers for idempotency, AST utilities)
 - **Reporters** (`internal/report/`): Diagnostic and suggested fix building
-- **Registries** (`internal/registry/`): Global state for cross-package dependency tracking
-- **Graph** (`internal/graph/`): Dependency graph construction, interface resolution, topological sorting
+- **Registries** (`internal/registry/`): Global state for cross-package dependency tracking (provider, injector, variable, package tracker)
+- **Graph** (`internal/graph/`): Dependency graph construction, interface resolution, topological sorting; Variable nodes participate in graph as zero-dependency leaves
 - **Loader** (`internal/loader/`): Package loading utilities for cross-package analysis
 
 ### AST Inspector Pattern
 Uses `inspect.Analyzer` as a dependency for efficient AST traversal, following the recommended pattern for go/analysis tools.
 
 ### Global Registry Pattern
-Uses shared registries (`ProviderRegistry`, `InjectorRegistry`, `PackageTracker`) to accumulate DI information across multiple packages and analyzer passes. This enables cross-package dependency resolution and ensures the `AppAnalyzer` can access all bindings collected by `DependencyAnalyzer`.
+Uses shared registries (`ProviderRegistry`, `InjectorRegistry`, `VariableRegistry`, `PackageTracker`) to accumulate DI information across multiple packages and analyzer passes. This enables cross-package dependency resolution and ensures the `AppAnalyzer` can access all bindings collected by `DependencyAnalyzer`.
+
+### Variable Expression Handling
+Variable annotations accept only simple identifiers (`myVar`) or package-qualified identifiers (`os.Stdout`). The detector normalizes aliased import qualifiers to declared package names (e.g., `import myos "os"` with `myos.Stdout` becomes `os.Stdout` in `ExpressionText`). During bootstrap generation, expression aliases are rewritten if package name collisions occur. Variable nodes that are not depended upon by other nodes use blank assignments (`_ =`) to avoid unused variable errors.
 
 ### Idempotent Code Generation
 Bootstrap code generation uses hash markers (`// braider:hash:<hash>`) to track dependency graph state. The generator compares current graph hash against existing hash comments to determine if regeneration is needed. This prevents unnecessary rewrites and preserves manual edits in unrelated code sections.
@@ -100,3 +103,4 @@ _Document standards and patterns, not every dependency_
 
 _Updated: 2026-02-02 - Added loader component, expanded generator utilities to include naming and keyword checking_
 _Updated: 2026-02-11 - Sync: Corrected annotation names to current API; added OptionExtractor, NamerValidator to detect components; added AST utilities to generate components_
+_Updated: 2026-02-12 - Sync: Added Variable annotation support (VariableCallDetector, VariableRegistry, Variable expression handling, blank assignment for unused Variable nodes)_

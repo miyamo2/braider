@@ -4,11 +4,12 @@
 
 ## Core Capabilities
 
-- **DI Binding Detection**: Static analysis of Go code to identify structs and functions with annotation markers (`Injectable[T]`, `Provide[T](fn)`, `App(main)`)
+- **DI Binding Detection**: Static analysis of Go code to identify structs, functions, and variables with annotation markers (`Injectable[T]`, `Provide[T](fn)`, `Variable[T](value)`, `App(main)`)
 - **Constructor Generation**: Auto-generate constructor functions for structs with injectable dependencies
 - **Bootstrap Code Generation**: Generate main function IIFE wiring code with `App` annotation
 - **Dependency Graph Resolution**: Analyzes dependency relationships and generates initialization code in topological order
-- **Interface Support**: Automatic resolution of interface dependencies to concrete implementations via `Provide[provide.Typed[I]](fn)` and `Injectable[inject.Typed[I]]`
+- **Variable Registration**: Register existing variables/values as dependencies via `Variable[T](value)` (e.g., `annotation.Variable[variable.Default](os.Stdout)`)
+- **Interface Support**: Automatic resolution of interface dependencies to concrete implementations via `Provide[provide.Typed[I]](fn)`, `Injectable[inject.Typed[I]]`, and `Variable[variable.Typed[I]](value)`
 - **Go Vet Integration**: Works as a standard go vet tool, enabling `go vet -fix` workflow for applying suggested fixes
 
 ## Target Use Cases
@@ -30,3 +31,4 @@ _Focus on patterns and purpose, not exhaustive feature lists_
 
 _Updated: 2026-02-02 - Added ProvideFunc annotation support for function-based dependency providers_
 _Updated: 2026-02-11 - Sync: Corrected annotation names to match current API (Injectable[T], Provide[T](fn)); removed obsolete ProvideFunc references_
+_Updated: 2026-02-12 - Sync: Added Variable[T](value) annotation as a core capability for registering existing variables as dependencies_

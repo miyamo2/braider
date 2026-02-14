@@ -25,9 +25,10 @@ go vet -vettool=$(which braider) -fix ./...           # Apply suggested fixes
 
 braider runs two analyzers via `multichecker.Main` (wired in `cmd/braider/main.go`):
 
-1. **`braider_dependency`** (DependencyAnalyzer) — runs per-package, 4 phases:
+1. **`braider_dependency`** (DependencyAnalyzer) — runs per-package, 5 phases:
    - **Phase 1**: Detect `annotation.Injectable[T]` structs → generate constructors via SuggestedFix
    - **Phase 2**: Detect `annotation.Provide[T](fn)` calls → register to `ProviderRegistry`
+   - **Phase 2.5**: Detect `annotation.Variable[T](value)` calls → register to `VariableRegistry`
    - **Phase 3**: Re-detect Injectable structs → register to `InjectorRegistry` (with `IsPending` flag)
    - **Phase 4**: Mark package as scanned in `PackageTracker`
 
@@ -37,7 +38,7 @@ braider runs two analyzers via `multichecker.Main` (wired in `cmd/braider/main.g
 ### Cross-Analyzer Coordination
 
 The two analyzers share state via **global registries** (thread-safe, `sync.RWMutex`):
-- `ProviderRegistry` / `InjectorRegistry`: nested `map[TypeName]map[Name]*Info`
+- `ProviderRegistry` / `InjectorRegistry` / `VariableRegistry`: nested `map[TypeName]map[Name]*Info`
 - `PackageTracker`: tracks scanned packages; AppAnalyzer calls `WaitForAllPackagesWithContext` before building the graph
 - `context.CancelCauseFunc`: DependencyAnalyzer can cancel bootstrap generation on validation errors
 
@@ -47,7 +48,7 @@ In `InjectorInfo`, `IsPending=true` means the constructor was generated in the c
 
 ### Hash-Based Idempotency
 
-Bootstrap code includes a `// braider:hash:<hash>` comment. On subsequent runs, if the computed hash matches the existing one, regeneration is skipped. Hash inputs: `TypeName`, `ConstructorName`, `IsField`, `Dependencies` (NOT `RegisteredType`).
+Bootstrap code includes a `// braider:hash:<hash>` comment. On subsequent runs, if the computed hash matches the existing one, regeneration is skipped. Hash inputs: `TypeName`, `ConstructorName`, `IsField`, `Dependencies`, `ExpressionText` (NOT `RegisteredType`).
 
 ### Dependency Graph
 
@@ -58,23 +59,34 @@ Bootstrap code includes a `// braider:hash:<hash>` comment. On subsequent runs, 
 
 ### DI Annotations and Options
 
-Three annotation types in `pkg/annotation/`:
+Four annotation types in `pkg/annotation/`:
 - **`annotation.Injectable[T inject.Option]`** — struct embedding; marks DI targets (becomes bootstrap struct field)
 - **`annotation.Provide[T provide.Option](fn)`** — package-level `var _ =`; registers provider function (becomes local var in bootstrap IIFE)
+- **`annotation.Variable[T variable.Option](value)`** — package-level `var _ =`; registers a pre-existing variable/expression as a dependency (becomes direct assignment in bootstrap IIFE, no constructor invocation)
 - **`annotation.App(main)`** — triggers bootstrap generation
 
 Option types customize registration:
-- `inject.Default` / `provide.Default` — standard registration
-- `inject.Typed[I]` / `provide.Typed[I]` — register as interface type `I`
-- `inject.Named[N]` / `provide.Named[N]` — register with name from `N.Name()` (`N` must implement `namer.Namer` and return a string literal)
+- `inject.Default` / `provide.Default` / `variable.Default` — standard registration
+- `inject.Typed[I]` / `provide.Typed[I]` / `variable.Typed[I]` — register as interface type `I`
+- `inject.Named[N]` / `provide.Named[N]` / `variable.Named[N]` — register with name from `N.Name()` (`N` must implement `namer.Namer` and return a string literal)
 - `inject.WithoutConstructor` — skip constructor generation (inject only)
 
 Mixed options via anonymous interface embedding: `Injectable[interface{ inject.Typed[I]; inject.Named[N] }]`
 
+### Variable Annotation Details
+
+`annotation.Variable[T](value)` registers an existing variable or package-qualified identifier (e.g., `os.Stdout`) as a DI dependency without invoking a constructor. Key behaviors:
+- Supported argument expressions: identifiers (`myVar`) and package-qualified selectors (`os.Stdout`)
+- Unsupported expressions (literals, function calls, composite literals, unary/binary ops) emit diagnostic errors
+- Variable nodes have no dependencies (`InDegree=0`), so they always appear first in topological order
+- In bootstrap code: `varName := expressionText` (or `_ = expressionText` if not depended upon)
+- Expression packages are normalized to declared names (not user aliases) for consistent import handling
+- Aliased imports in expressions are rewritten to collision-safe aliases during bootstrap generation
+
 ### Internal Package Layers
 
-- **`detect/`** — AST pattern recognition (InjectDetector, ProvideCallDetector, AppDetector, StructDetector, FieldAnalyzer, ConstructorAnalyzer, OptionExtractor, NamerValidator)
-- **`registry/`** — shared mutable state (ProviderRegistry, InjectorRegistry, PackageTracker)
+- **`detect/`** — AST pattern recognition (InjectDetector, ProvideCallDetector, VariableCallDetector, AppDetector, StructDetector, FieldAnalyzer, ConstructorAnalyzer, OptionExtractor, NamerValidator)
+- **`registry/`** — shared mutable state (ProviderRegistry, InjectorRegistry, VariableRegistry, PackageTracker)
 - **`graph/`** — DependencyGraphBuilder, TopologicalSorter, InterfaceRegistry
 - **`generate/`** — ConstructorGenerator, BootstrapGenerator, hash computation, import management
 - **`report/`** — SuggestedFixBuilder, DiagnosticEmitter
@@ -100,7 +112,7 @@ Tests use `golang.org/x/tools/go/analysis/analysistest` with testdata directorie
 
 ### Key Test Directories
 
-- `testdata/bootstrapgen/` — ~50 test cases covering basic, typed_inject, named_inject, provide_typed, provide_named, circular, error cases, idempotent cases
+- `testdata/bootstrapgen/` — ~50 test cases covering basic, typed_inject, named_inject, provide_typed, provide_named, variable, variable_named, variable_typed, variable_pkg_collision, circular, error cases, idempotent cases
 - `testdata/constructorgen/`, `testdata/providefunc/`, `testdata/dependency/`
 
 ## Commit Messages
