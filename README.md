@@ -128,27 +128,6 @@ type PrimaryDBName struct{}
 func (PrimaryDBName) Name() string { return "primaryDB" }
 ```
 
-### Migration
-
-Replace the legacy `annotation.Inject` struct with `annotation.Injectable[inject.Default]`:
-
-```diff
- type MyService struct {
--    annotation.Inject
-+    annotation.Injectable[inject.Default]
-     repo Repository
- }
-```
-
-Replace the legacy `annotation.Provide` struct with `annotation.Provide[provide.Default](fn)`:
-
-```diff
--var _ = annotation.ProvideFunc(NewRepository)
-+var _ = annotation.Provide[provide.Default](NewRepository)
-```
-
-The generic annotation interfaces provide compile-time option validation and support for advanced DI scenarios such as interface-typed registration, named dependencies, and custom constructors. See [Options](#options) for details.
-
 ## Example
 
 ```go
