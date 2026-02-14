@@ -1,0 +1,37 @@
+// Task 7.2: Outdated hash test for braider struct tags.
+// Verifies that when bootstrap hash is stale, regeneration occurs.
+// The braider:"-" tag on AppService.logger excludes it from hash computation.
+// The wrong hash triggers "bootstrap code is outdated" diagnostic.
+package main
+
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"struct_tag_outdated/repository"
+	"struct_tag_outdated/service"
+)
+
+var _ = annotation.App(main) // want "bootstrap code is outdated"
+
+func main() {
+	_ = dependency
+}
+
+// braider:hash:0000000000000000
+var dependency = func() struct {
+	orderRepository *repository.OrderRepository
+	userRepository  *repository.UserRepository
+	appService      *service.AppService
+} {
+	orderRepository := repository.NewOrderRepository()
+	userRepository := repository.NewUserRepository()
+	appService := service.NewAppService(userRepository, orderRepository)
+	return struct {
+		orderRepository *repository.OrderRepository
+		userRepository  *repository.UserRepository
+		appService      *service.AppService
+	}{
+		orderRepository: orderRepository,
+		userRepository:  userRepository,
+		appService:      appService,
+	}
+}()

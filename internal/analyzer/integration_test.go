@@ -581,3 +581,121 @@ func TestIntegration_ErrorVariableUnresolvableExpression(t *testing.T) {
 	// Phase 2: AppAnalyzer skips bootstrap due to cancelled context (no diagnostic expected)
 	analysistest.Run(t, testdir, appAnalyzer, ".")
 }
+
+// --- Group G: Struct Tag Integration Tests ---
+
+// TestIntegration_StructTagNamed tests braider:"name" struct tag with Provide[Named]:
+// Injectable struct with braider:"primaryRepo" field -> Provide[Named] with matching name -> named wiring in bootstrap.
+func TestIntegration_StructTagNamed(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/struct_tag_named"
+
+	// Phase 1: DependencyAnalyzer scans repository (Named provider) and service (struct tag named dep)
+	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_named/repository")
+	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_named/service")
+
+	// Phase 2: AppAnalyzer generates bootstrap with named wiring
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_StructTagExclude tests braider:"-" struct tag for field exclusion:
+// Injectable struct with one normal field and one braider:"-" field -> bootstrap only wires the non-excluded field.
+func TestIntegration_StructTagExclude(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/struct_tag_exclude"
+
+	// Phase 1: DependencyAnalyzer scans service (excluded field + normal field)
+	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_exclude/service")
+
+	// Phase 2: AppAnalyzer generates bootstrap without excluded field
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_StructTagMixed tests mixed struct tags in a single struct:
+// braider:"name" + braider:"-" + untagged -> bootstrap correctly handles each field type.
+func TestIntegration_StructTagMixed(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/struct_tag_mixed"
+
+	// Phase 1: DependencyAnalyzer scans repository (Named provider) and service (mixed tags)
+	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_mixed/repository")
+	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_mixed/service")
+
+	// Phase 2: AppAnalyzer generates bootstrap with mixed tag handling
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_StructTagAllExcluded tests all non-annotation fields excluded via braider:"-":
+// All fields have braider:"-" -> zero-param constructor generated -> bootstrap uses zero-arg constructor.
+func TestIntegration_StructTagAllExcluded(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/struct_tag_all_excluded"
+
+	// Phase 1: DependencyAnalyzer scans service (all fields excluded)
+	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_all_excluded/service")
+
+	// Phase 2: AppAnalyzer generates bootstrap with zero-arg constructor
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_ErrorStructTagEmpty tests braider:"" invalid tag diagnostic:
+// Field with empty braider tag value -> non-fatal diagnostic emitted -> bootstrap still generates.
+func TestIntegration_ErrorStructTagEmpty(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/error_struct_tag_empty"
+
+	// Phase 1: DependencyAnalyzer detects invalid empty tag and emits diagnostic (non-fatal)
+	analysistest.Run(t, testdir, depAnalyzer, "error_struct_tag_empty/service")
+
+	// Phase 2: AppAnalyzer generates bootstrap (non-fatal error doesn't cancel)
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_ErrorStructTagConflict tests WithoutConstructor + braider:"-" conflict:
+// Injectable[WithoutConstructor] with excluded field matching constructor parameter type -> non-fatal diagnostic.
+func TestIntegration_ErrorStructTagConflict(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/error_struct_tag_conflict"
+
+	// Phase 1: DependencyAnalyzer detects struct tag conflict and emits diagnostic (non-fatal)
+	analysistest.Run(t, testdir, depAnalyzer, "error_struct_tag_conflict/service")
+
+	// Phase 2: AppAnalyzer generates bootstrap (non-fatal error doesn't cancel)
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_StructTagIdempotent tests idempotent behavior with braider struct tags.
+// When bootstrap code with correct hash already exists (including braider:"name" tagged fields),
+// re-running the analyzer should produce NO diagnostic.
+// Verifies hash stability: TypeName, ConstructorName, IsField, Dependencies (with #name composite keys).
+func TestIntegration_StructTagIdempotent(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/struct_tag_idempotent"
+	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_idempotent/repository")
+	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_idempotent/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_StructTagOutdated tests hash mismatch detection with braider struct tags.
+// When existing bootstrap has wrong hash (braider:"name" fields changed), re-running should
+// detect mismatch and regenerate bootstrap code.
+// Verifies that struct tag named dependencies affect hash computation correctly.
+func TestIntegration_StructTagOutdated(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/struct_tag_outdated"
+	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_outdated/repository")
+	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_outdated/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+// TestIntegration_StructTagTypedFields tests braider:"name" tags across all supported field types.
+// Concrete type, pointer type, and interface type fields each with named tags and matching
+// named providers. Verifies constructor generation and bootstrap wiring for all three type variants.
+func TestIntegration_StructTagTypedFields(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/struct_tag_typed_fields"
+	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_typed_fields/domain")
+	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_typed_fields/provider")
+	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_typed_fields/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}

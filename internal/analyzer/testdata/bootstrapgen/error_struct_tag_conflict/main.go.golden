@@ -1,0 +1,28 @@
+package main
+
+import (
+	"error_struct_tag_conflict/service"
+	"github.com/miyamo2/braider/pkg/annotation"
+)
+
+var _ = annotation.App(main) // want "bootstrap code is missing"
+
+func main() {
+	_ = dependency
+}
+
+// braider:hash:3d49d0e2430c900c
+var dependency = func() struct {
+	loggerImpl *service.LoggerImpl
+	appService *service.AppService
+} {
+	loggerImpl := service.NewLoggerImpl()
+	appService := service.NewAppService(loggerImpl)
+	return struct {
+		loggerImpl *service.LoggerImpl
+		appService *service.AppService
+	}{
+		loggerImpl: loggerImpl,
+		appService: appService,
+	}
+}()
