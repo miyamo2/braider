@@ -2,10 +2,8 @@ name: Release
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'CHANGELOG.md'
+    tags:
+      - "v*"
 
 permissions:
   contents: write
@@ -19,16 +17,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create Release
-        id: release
-        uses: ./.github/actions/release-common
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          changelog_path: CHANGELOG.md
-          branch: main
+          go-version-file: go.mod
 
-      - name: Output Release Info
-        run: |
-          echo "Created release:"
-          echo "  Tag: ${{ steps.release.outputs.tag }}"
-          echo "  Version: ${{ steps.release.outputs.version }}"
-          echo "  URL: ${{ steps.release.outputs.release_url }}"
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

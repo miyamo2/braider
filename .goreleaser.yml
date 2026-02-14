@@ -1,0 +1,42 @@
+version: 2
+
+builds:
+  - main: ./cmd/braider
+    binary: braider
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    format_overrides:
+      - goos: windows
+        format: zip
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^style:"
+      - "^ci:"
+      - "^chore:"
+      - "^test:"
+
+release:
+  github:
+    owner: miyamo2
+    name: braider
+  draft: false
+  prerelease: auto
+  make_latest: true
+  mode: replace
