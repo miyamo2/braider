@@ -17,7 +17,7 @@ import (
 
 // GeneratedConstructor contains the generated constructor code.
 type GeneratedConstructor struct {
-	FuncName   string // Function name (New<StructName>)
+	FuncName   string // Function name (New<UpperCamelCaseStructName>)
 	StructName string // Original struct name
 	Code       string // Formatted constructor source code
 }
@@ -49,7 +49,7 @@ func NewConstructorGenerator() ConstructorGenerator {
 // GenerateConstructor creates constructor code for a struct.
 func (g *constructorGenerator) GenerateConstructor(candidate detect.ConstructorCandidate, fields []detect.FieldInfo) (*GeneratedConstructor, error) {
 	structName := candidate.TypeSpec.Name.Name
-	funcName := "New" + structName
+	funcName := "New" + ToUpperCamelCase(structName)
 
 	// Build parameter list
 	params := g.buildParams(fields)
@@ -224,7 +224,7 @@ func (g *constructorGenerator) GenerateConstructorWithOptions(candidate detect.C
 	}
 
 	structName := candidate.TypeSpec.Name.Name
-	funcName := "New" + structName
+	funcName := "New" + ToUpperCamelCase(structName)
 
 	// Build parameter list
 	params := g.buildParams(fields)
@@ -305,7 +305,7 @@ func (g *constructorGenerator) GenerateConstructorWithNamedDeps(candidate detect
 	}
 
 	structName := candidate.TypeSpec.Name.Name
-	funcName := "New" + structName
+	funcName := "New" + ToUpperCamelCase(structName)
 
 	// Task 5.2: Build parameter list with named dependencies
 	params := g.buildParamsWithNames(fields, dependencyNames)
