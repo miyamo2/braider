@@ -5,6 +5,8 @@ import (
 	"go/types"
 	"unicode"
 
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -29,11 +31,8 @@ type FieldAnalyzer interface {
 }
 
 // fieldAnalyzer is the default implementation of FieldAnalyzer.
-type fieldAnalyzer struct{}
-
-// NewFieldAnalyzer creates a new FieldAnalyzer instance.
-func NewFieldAnalyzer() FieldAnalyzer {
-	return &fieldAnalyzer{}
+type fieldAnalyzer struct {
+	annotation.Injectable[inject.Typed[FieldAnalyzer]]
 }
 
 // AnalyzeFields extracts injectable fields from a struct.

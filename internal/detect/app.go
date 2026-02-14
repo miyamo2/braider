@@ -6,6 +6,8 @@ import (
 	"go/token"
 	"go/types"
 
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -65,11 +67,8 @@ func (e *AppValidationError) Error() string {
 }
 
 // appDetector is the default implementation of AppDetector.
-type appDetector struct{}
-
-// NewAppDetector creates a new AppDetector instance.
-func NewAppDetector() AppDetector {
-	return &appDetector{}
+type appDetector struct {
+	annotation.Injectable[inject.Typed[AppDetector]]
 }
 
 // DetectAppAnnotations finds all annotation.App calls in the package.
@@ -90,12 +89,14 @@ func (d *appDetector) DetectAppAnnotations(pass *analysis.Pass) []*AppAnnotation
 			(*ast.GenDecl)(nil),
 		}
 
-		insp.Preorder(nodeFilter, func(n ast.Node) {
-			genDecl := n.(*ast.GenDecl)
-			// Find the file containing this declaration
-			file := d.findFileForNode(pass, genDecl)
-			apps = d.processGenDecl(pass, genDecl, apps, file)
-		})
+		insp.Preorder(
+			nodeFilter, func(n ast.Node) {
+				genDecl := n.(*ast.GenDecl)
+				// Find the file containing this declaration
+				file := d.findFileForNode(pass, genDecl)
+				apps = d.processGenDecl(pass, genDecl, apps, file)
+			},
+		)
 	} else {
 		// Fallback: iterate files manually
 		for _, file := range pass.Files {
@@ -111,7 +112,9 @@ func (d *appDetector) DetectAppAnnotations(pass *analysis.Pass) []*AppAnnotation
 }
 
 // processGenDecl processes a GenDecl node and adds AppAnnotation if found.
-func (d *appDetector) processGenDecl(pass *analysis.Pass, genDecl *ast.GenDecl, apps []*AppAnnotation, file *ast.File) []*AppAnnotation {
+func (d *appDetector) processGenDecl(
+	pass *analysis.Pass, genDecl *ast.GenDecl, apps []*AppAnnotation, file *ast.File,
+) []*AppAnnotation {
 	// Only process var declarations
 	if genDecl.Tok != token.VAR {
 		return apps

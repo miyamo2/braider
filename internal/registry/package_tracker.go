@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/provide"
 )
 
 // DefaultTimeout is the default timeout for waiting for all packages.
@@ -12,6 +15,8 @@ const DefaultTimeout = 30 * time.Second
 
 // PackageStatusPollInterval is the interval for checking package scan status.
 const PackageStatusPollInterval = 10 * time.Millisecond
+
+var _ = annotation.Provide[provide.Default](NewPackageTracker)
 
 // PackageTracker tracks scanned packages and provides synchronization.
 // Thread-safe for parallel analyzer execution.

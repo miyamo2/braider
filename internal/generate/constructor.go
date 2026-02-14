@@ -13,6 +13,8 @@ import (
 
 	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/registry"
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
 )
 
 // GeneratedConstructor contains the generated constructor code.
@@ -30,24 +32,28 @@ type ConstructorGenerator interface {
 	// GenerateConstructorWithOptions creates constructor code with option-aware return type.
 	// Returns nil if WithoutConstructor option is set.
 	// Task 5.1: Implement option-aware return type selection.
-	GenerateConstructorWithOptions(candidate detect.ConstructorCandidate, fields []detect.FieldInfo, info *registry.InjectorInfo) (*GeneratedConstructor, error)
+	GenerateConstructorWithOptions(
+		candidate detect.ConstructorCandidate, fields []detect.FieldInfo, info *registry.InjectorInfo,
+	) (*GeneratedConstructor, error)
 
 	// GenerateConstructorWithNamedDeps creates constructor code with named dependency parameters.
 	// dependencyNames maps field names to custom parameter names for named dependencies.
 	// Task 5.2: Implement named dependency parameter naming.
-	GenerateConstructorWithNamedDeps(candidate detect.ConstructorCandidate, fields []detect.FieldInfo, info *registry.InjectorInfo, dependencyNames map[string]string) (*GeneratedConstructor, error)
+	GenerateConstructorWithNamedDeps(
+		candidate detect.ConstructorCandidate, fields []detect.FieldInfo, info *registry.InjectorInfo,
+		dependencyNames map[string]string,
+	) (*GeneratedConstructor, error)
 }
 
 // constructorGenerator is the default implementation of ConstructorGenerator.
-type constructorGenerator struct{}
-
-// NewConstructorGenerator creates a new ConstructorGenerator instance.
-func NewConstructorGenerator() ConstructorGenerator {
-	return &constructorGenerator{}
+type constructorGenerator struct {
+	annotation.Injectable[inject.Typed[ConstructorGenerator]]
 }
 
 // GenerateConstructor creates constructor code for a struct.
-func (g *constructorGenerator) GenerateConstructor(candidate detect.ConstructorCandidate, fields []detect.FieldInfo) (*GeneratedConstructor, error) {
+func (g *constructorGenerator) GenerateConstructor(
+	candidate detect.ConstructorCandidate, fields []detect.FieldInfo,
+) (*GeneratedConstructor, error) {
 	structName := candidate.TypeSpec.Name.Name
 	funcName := "New" + structName
 
@@ -217,7 +223,9 @@ func DeriveParamName(fieldName string) string {
 
 // GenerateConstructorWithOptions creates constructor code with option-aware return type.
 // Returns nil if WithoutConstructor option is set (Task 5.1).
-func (g *constructorGenerator) GenerateConstructorWithOptions(candidate detect.ConstructorCandidate, fields []detect.FieldInfo, info *registry.InjectorInfo) (*GeneratedConstructor, error) {
+func (g *constructorGenerator) GenerateConstructorWithOptions(
+	candidate detect.ConstructorCandidate, fields []detect.FieldInfo, info *registry.InjectorInfo,
+) (*GeneratedConstructor, error) {
 	// Task 5.1: Check WithoutConstructor option - skip generation if set
 	if info != nil && info.OptionMetadata.WithoutConstructor {
 		return nil, nil
@@ -290,15 +298,20 @@ func (g *constructorGenerator) determineReturnType(structName string, info *regi
 	}
 
 	// Typed[I] option: return interface type
-	return types.TypeString(info.OptionMetadata.TypedInterface, func(p *types.Package) string {
-		// Use unqualified type name (same package context)
-		return ""
-	})
+	return types.TypeString(
+		info.OptionMetadata.TypedInterface, func(p *types.Package) string {
+			// Use unqualified type name (same package context)
+			return ""
+		},
+	)
 }
 
 // GenerateConstructorWithNamedDeps creates constructor code with named dependency parameters.
 // Task 5.2: Supports custom parameter names for named dependencies.
-func (g *constructorGenerator) GenerateConstructorWithNamedDeps(candidate detect.ConstructorCandidate, fields []detect.FieldInfo, info *registry.InjectorInfo, dependencyNames map[string]string) (*GeneratedConstructor, error) {
+func (g *constructorGenerator) GenerateConstructorWithNamedDeps(
+	candidate detect.ConstructorCandidate, fields []detect.FieldInfo, info *registry.InjectorInfo,
+	dependencyNames map[string]string,
+) (*GeneratedConstructor, error) {
 	// Task 5.1: Check WithoutConstructor option first
 	if info != nil && info.OptionMetadata.WithoutConstructor {
 		return nil, nil
@@ -364,7 +377,9 @@ func (g *constructorGenerator) GenerateConstructorWithNamedDeps(candidate detect
 
 // buildParamsWithNames builds parameter list with custom names for named dependencies.
 // Task 5.2: Uses dependencyNames map to override default parameter names.
-func (g *constructorGenerator) buildParamsWithNames(fields []detect.FieldInfo, dependencyNames map[string]string) string {
+func (g *constructorGenerator) buildParamsWithNames(
+	fields []detect.FieldInfo, dependencyNames map[string]string,
+) string {
 	if len(fields) == 0 {
 		return ""
 	}
@@ -387,7 +402,9 @@ func (g *constructorGenerator) buildParamsWithNames(fields []detect.FieldInfo, d
 
 // buildAssignmentsWithNames builds field assignments with custom parameter names.
 // Task 5.2: Uses dependencyNames map for parameter references in assignments.
-func (g *constructorGenerator) buildAssignmentsWithNames(fields []detect.FieldInfo, dependencyNames map[string]string) []string {
+func (g *constructorGenerator) buildAssignmentsWithNames(
+	fields []detect.FieldInfo, dependencyNames map[string]string,
+) []string {
 	if len(fields) == 0 {
 		return nil
 	}

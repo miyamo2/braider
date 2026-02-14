@@ -5,6 +5,8 @@ import (
 	"go/ast"
 	"go/types"
 
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -26,11 +28,8 @@ type InjectDetector interface {
 }
 
 // injectDetector is the default implementation of InjectDetector.
-type injectDetector struct{}
-
-// NewInjectDetector creates a new InjectDetector instance.
-func NewInjectDetector() InjectDetector {
-	return &injectDetector{}
+type injectDetector struct {
+	annotation.Injectable[inject.Typed[InjectDetector]]
 }
 
 // HasInjectAnnotation checks if a struct embeds annotation.Injectable[T].

@@ -8,6 +8,8 @@ import (
 	"go/token"
 	"go/types"
 
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -79,11 +81,8 @@ type VariableCallDetector interface {
 }
 
 // variableCallDetector is the default implementation of VariableCallDetector.
-type variableCallDetector struct{}
-
-// NewVariableCallDetector creates a new VariableCallDetector instance.
-func NewVariableCallDetector() VariableCallDetector {
-	return &variableCallDetector{}
+type variableCallDetector struct {
+	annotation.Injectable[inject.Typed[VariableCallDetector]]
 }
 
 // DetectVariables returns all annotation.Variable[T](value) calls in the package.
@@ -213,7 +212,9 @@ func (d *variableCallDetector) isVariableCall(pass *analysis.Pass, callExpr *ast
 }
 
 // extractCandidate extracts a VariableCandidate from a validated Variable[T](value) call.
-func (d *variableCallDetector) extractCandidate(pass *analysis.Pass, callExpr *ast.CallExpr) (*VariableCandidate, *VariableDetectionError) {
+func (d *variableCallDetector) extractCandidate(pass *analysis.Pass, callExpr *ast.CallExpr) (
+	*VariableCandidate, *VariableDetectionError,
+) {
 	if len(callExpr.Args) == 0 {
 		return nil, nil
 	}
@@ -360,26 +361,28 @@ func (d *variableCallDetector) isQualifiedExpr(expr ast.Expr) bool {
 func (d *variableCallDetector) collectExpressionPkgs(pass *analysis.Pass, expr ast.Expr) map[string]string {
 	pkgs := make(map[string]string)
 
-	ast.Inspect(expr, func(n ast.Node) bool {
-		ident, ok := n.(*ast.Ident)
-		if !ok {
+	ast.Inspect(
+		expr, func(n ast.Node) bool {
+			ident, ok := n.(*ast.Ident)
+			if !ok {
+				return true
+			}
+
+			// Check if this identifier refers to a package-level object
+			obj, exists := pass.TypesInfo.Uses[ident]
+			if !exists {
+				return true
+			}
+
+			// Check if the object is a package name (used as qualifier in selector expressions)
+			if pkgName, ok := obj.(*types.PkgName); ok {
+				pkg := pkgName.Imported()
+				pkgs[pkg.Path()] = pkg.Name()
+			}
+
 			return true
-		}
-
-		// Check if this identifier refers to a package-level object
-		obj, exists := pass.TypesInfo.Uses[ident]
-		if !exists {
-			return true
-		}
-
-		// Check if the object is a package name (used as qualifier in selector expressions)
-		if pkgName, ok := obj.(*types.PkgName); ok {
-			pkg := pkgName.Imported()
-			pkgs[pkg.Path()] = pkg.Name()
-		}
-
-		return true
-	})
+		},
+	)
 
 	return pkgs
 }

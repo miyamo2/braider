@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
 )
 
 // TopologicalSorter provides topological ordering with cycle detection.
-type TopologicalSorter struct{}
-
-// NewTopologicalSorter creates a new topological sorter.
-func NewTopologicalSorter() *TopologicalSorter {
-	return &TopologicalSorter{}
+type TopologicalSorter struct {
+	annotation.Injectable[inject.Default]
 }
 
 // Sort orders nodes topologically using Kahn's algorithm.

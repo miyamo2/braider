@@ -4,6 +4,8 @@ import (
 	"go/ast"
 	"go/types"
 
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -14,11 +16,8 @@ type ConstructorAnalyzer interface {
 }
 
 // constructorAnalyzer is the default implementation of ConstructorAnalyzer.
-type constructorAnalyzer struct{}
-
-// NewConstructorAnalyzer creates a new ConstructorAnalyzer instance.
-func NewConstructorAnalyzer() ConstructorAnalyzer {
-	return &constructorAnalyzer{}
+type constructorAnalyzer struct {
+	annotation.Injectable[inject.Typed[ConstructorAnalyzer]]
 }
 
 // ExtractDependencies returns fully qualified type names of constructor parameters.

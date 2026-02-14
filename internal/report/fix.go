@@ -10,6 +10,8 @@ import (
 
 	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/generate"
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -44,11 +46,8 @@ type SuggestedFixBuilder interface {
 }
 
 // suggestedFixBuilder is the default implementation of SuggestedFixBuilder.
-type suggestedFixBuilder struct{}
-
-// NewSuggestedFixBuilder creates a new SuggestedFixBuilder instance.
-func NewSuggestedFixBuilder() SuggestedFixBuilder {
-	return &suggestedFixBuilder{}
+type suggestedFixBuilder struct {
+	annotation.Injectable[inject.Typed[SuggestedFixBuilder]]
 }
 
 // BuildConstructorFix creates a SuggestedFix for constructor insertion or replacement.
@@ -152,21 +151,25 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 
 			unifiedBlock := b.buildUnifiedImportBlock(sortedImports)
 
-			edits = append(edits, analysis.TextEdit{
-				Pos:     firstImportStart,
-				End:     lastImportEnd,
-				NewText: []byte(unifiedBlock),
-			})
+			edits = append(
+				edits, analysis.TextEdit{
+					Pos:     firstImportStart,
+					End:     lastImportEnd,
+					NewText: []byte(unifiedBlock),
+				},
+			)
 		} else {
 			// Case 2: Import doesn't exist - insert new import block
 			unifiedBlock := b.buildUnifiedImportBlock(sortedImports)
 			insertPos := b.findImportInsertionPoint(file, nil)
 
-			edits = append(edits, analysis.TextEdit{
-				Pos:     insertPos,
-				End:     insertPos,
-				NewText: []byte("\n\n" + unifiedBlock),
-			})
+			edits = append(
+				edits, analysis.TextEdit{
+					Pos:     insertPos,
+					End:     insertPos,
+					NewText: []byte("\n\n" + unifiedBlock),
+				},
+			)
 		}
 	}
 
@@ -177,22 +180,26 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 
 	// Add dependency variable
 	dependencyText := "\n\n" + bootstrap.DependencyVar + "\n"
-	edits = append(edits, analysis.TextEdit{
-		Pos:     insertPos,
-		End:     insertPos,
-		NewText: []byte(dependencyText),
-	})
+	edits = append(
+		edits, analysis.TextEdit{
+			Pos:     insertPos,
+			End:     insertPos,
+			NewText: []byte(dependencyText),
+		},
+	)
 
 	// Phase 3: Add main reference if needed
 	// Add main reference if dependency is not referenced and _ = dependency doesn't already exist
 	if mainFunc != nil && !generate.IsDependencyReferenced(mainFunc) && !generate.HasBlankDependencyAssignment(mainFunc) {
 		mainRefPos := b.findMainReferenceInsertionPoint(mainFunc)
 		mainRefText := "\t" + bootstrap.MainReference + "\n"
-		edits = append(edits, analysis.TextEdit{
-			Pos:     mainRefPos,
-			End:     mainRefPos,
-			NewText: []byte(mainRefText),
-		})
+		edits = append(
+			edits, analysis.TextEdit{
+				Pos:     mainRefPos,
+				End:     mainRefPos,
+				NewText: []byte(mainRefText),
+			},
+		)
 	}
 
 	return analysis.SuggestedFix{
@@ -245,43 +252,51 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 
 				unifiedBlock := b.buildUnifiedImportBlock(sortedImports)
 
-				edits = append(edits, analysis.TextEdit{
-					Pos:     firstImportStart,
-					End:     lastImportEnd,
-					NewText: []byte(unifiedBlock),
-				})
+				edits = append(
+					edits, analysis.TextEdit{
+						Pos:     firstImportStart,
+						End:     lastImportEnd,
+						NewText: []byte(unifiedBlock),
+					},
+				)
 			} else {
 				// Case 2: Import doesn't exist - insert new import block
 				unifiedBlock := b.buildUnifiedImportBlock(sortedImports)
 				insertPos := b.findImportInsertionPoint(file, nil)
 
-				edits = append(edits, analysis.TextEdit{
-					Pos:     insertPos,
-					End:     insertPos,
-					NewText: []byte("\n\n" + unifiedBlock),
-				})
+				edits = append(
+					edits, analysis.TextEdit{
+						Pos:     insertPos,
+						End:     insertPos,
+						NewText: []byte("\n\n" + unifiedBlock),
+					},
+				)
 			}
 		}
 	}
 
 	// Phase 2: Replace existing dependency variable
 	start, end := b.calculateBootstrapReplacementRange(existing)
-	edits = append(edits, analysis.TextEdit{
-		Pos:     start,
-		End:     end,
-		NewText: []byte(bootstrap.DependencyVar),
-	})
+	edits = append(
+		edits, analysis.TextEdit{
+			Pos:     start,
+			End:     end,
+			NewText: []byte(bootstrap.DependencyVar),
+		},
+	)
 
 	// Phase 3: Update main reference if needed
 	// Update main reference if needed (only if not referenced and _ = dependency doesn't exist)
 	if mainFunc != nil && !generate.IsDependencyReferenced(mainFunc) && !generate.HasBlankDependencyAssignment(mainFunc) {
 		mainRefPos := b.findMainReferenceInsertionPoint(mainFunc)
 		mainRefText := "\t" + bootstrap.MainReference + "\n"
-		edits = append(edits, analysis.TextEdit{
-			Pos:     mainRefPos,
-			End:     mainRefPos,
-			NewText: []byte(mainRefText),
-		})
+		edits = append(
+			edits, analysis.TextEdit{
+				Pos:     mainRefPos,
+				End:     mainRefPos,
+				NewText: []byte(mainRefText),
+			},
+		)
 	}
 
 	return analysis.SuggestedFix{
@@ -384,7 +399,9 @@ func (b *suggestedFixBuilder) collectAllExistingImports(file *ast.File) ([]*ast.
 }
 
 // mergeAndSortImports combines existing and new imports, deduplicates, and sorts.
-func (b *suggestedFixBuilder) mergeAndSortImports(existing map[string]bool, newImports []generate.ImportInfo) []generate.ImportInfo {
+func (b *suggestedFixBuilder) mergeAndSortImports(
+	existing map[string]bool, newImports []generate.ImportInfo,
+) []generate.ImportInfo {
 	// Merge existing and new imports
 	merged := make(map[string]generate.ImportInfo)
 
@@ -403,9 +420,11 @@ func (b *suggestedFixBuilder) mergeAndSortImports(existing map[string]bool, newI
 	for _, imp := range merged {
 		sorted = append(sorted, imp)
 	}
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Path < sorted[j].Path
-	})
+	sort.Slice(
+		sorted, func(i, j int) bool {
+			return sorted[i].Path < sorted[j].Path
+		},
+	)
 
 	return sorted
 }

@@ -5,6 +5,8 @@ import (
 	"go/token"
 	"strings"
 
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -63,7 +65,9 @@ type DiagnosticEmitter interface {
 	EmitGraphBuildError(reporter Reporter, pos token.Pos, reason string)
 
 	// EmitDuplicateNamedDependencyWarning reports duplicate (TypeName, Name) pairs (non-fatal).
-	EmitDuplicateNamedDependencyWarning(reporter Reporter, pos token.Pos, typeName string, name string, location1 string, location2 string)
+	EmitDuplicateNamedDependencyWarning(
+		reporter Reporter, pos token.Pos, typeName string, name string, location1 string, location2 string,
+	)
 
 	// EmitOptionValidationError reports a fatal option validation error (constraint violation, interface mismatch, non-literal Namer).
 	EmitOptionValidationError(reporter Reporter, pos token.Pos, reason string)
@@ -73,11 +77,8 @@ type DiagnosticEmitter interface {
 }
 
 // diagnosticEmitter is the default implementation of DiagnosticEmitter.
-type diagnosticEmitter struct{}
-
-// NewDiagnosticEmitter creates a new DiagnosticEmitter instance.
-func NewDiagnosticEmitter() DiagnosticEmitter {
-	return &diagnosticEmitter{}
+type diagnosticEmitter struct {
+	annotation.Injectable[inject.Typed[DiagnosticEmitter]]
 }
 
 // EmitConstructorFix reports a diagnostic with constructor SuggestedFix.
@@ -200,8 +201,11 @@ func (e *diagnosticEmitter) EmitPackageLoadWarning(reporter Reporter, pos token.
 func (e *diagnosticEmitter) EmitPackageWaitWarning(reporter Reporter, pos token.Pos, reason string) {
 	reporter.Report(
 		analysis.Diagnostic{
-			Pos:     pos,
-			Message: fmt.Sprintf("warning: timeout waiting for package analysis: %s (bootstrap may be incomplete)", reason),
+			Pos: pos,
+			Message: fmt.Sprintf(
+				"warning: timeout waiting for package analysis: %s (bootstrap may be incomplete)",
+				reason,
+			),
 		},
 	)
 }
@@ -217,11 +221,19 @@ func (e *diagnosticEmitter) EmitGraphBuildError(reporter Reporter, pos token.Pos
 }
 
 // EmitDuplicateNamedDependencyWarning reports duplicate (TypeName, Name) pairs (non-fatal correlation error).
-func (e *diagnosticEmitter) EmitDuplicateNamedDependencyWarning(reporter Reporter, pos token.Pos, typeName string, name string, location1 string, location2 string) {
+func (e *diagnosticEmitter) EmitDuplicateNamedDependencyWarning(
+	reporter Reporter, pos token.Pos, typeName string, name string, location1 string, location2 string,
+) {
 	reporter.Report(
 		analysis.Diagnostic{
-			Pos:     pos,
-			Message: fmt.Sprintf("duplicate dependency name %q for type %s (first: %s, duplicate: %s)", name, typeName, location1, location2),
+			Pos: pos,
+			Message: fmt.Sprintf(
+				"duplicate dependency name %q for type %s (first: %s, duplicate: %s)",
+				name,
+				typeName,
+				location1,
+				location2,
+			),
 		},
 	)
 }
@@ -238,8 +250,10 @@ func (e *diagnosticEmitter) EmitOptionValidationError(reporter Reporter, pos tok
 
 // EmitUnsupportedVariableExpression reports an unsupported Variable argument expression error.
 func (e *diagnosticEmitter) EmitUnsupportedVariableExpression(reporter Reporter, pos token.Pos, reason string) {
-	reporter.Report(analysis.Diagnostic{
-		Pos:     pos,
-		Message: reason,
-	})
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:     pos,
+			Message: reason,
+		},
+	)
 }

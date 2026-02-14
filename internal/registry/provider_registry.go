@@ -11,6 +11,8 @@ import (
 	"sync"
 
 	"github.com/miyamo2/braider/internal/detect"
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/provide"
 )
 
 // ProviderInfo contains information about a Provide struct.
@@ -55,6 +57,8 @@ func (i *ProviderInfo) GetDependencies() []string {
 func (i *ProviderInfo) GetName() string {
 	return i.Name
 }
+
+var _ = annotation.Provide[provide.Default](NewProviderRegistry)
 
 // ProviderRegistry stores all discovered provider structs globally.
 // Thread-safe for potential parallel analyzer execution.

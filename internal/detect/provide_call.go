@@ -4,6 +4,8 @@ import (
 	"go/ast"
 	"go/types"
 
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -42,11 +44,8 @@ type ProvideCallDetector interface {
 }
 
 // provideCallDetector is the default implementation of ProvideCallDetector.
-type provideCallDetector struct{}
-
-// NewProvideCallDetector creates a new ProvideCallDetector instance.
-func NewProvideCallDetector() ProvideCallDetector {
-	return &provideCallDetector{}
+type provideCallDetector struct {
+	annotation.Injectable[inject.Typed[ProvideCallDetector]]
 }
 
 // DetectProviders returns all annotation.Provide[T](fn) calls in the package.

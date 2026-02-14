@@ -3,6 +3,9 @@ package generate
 import (
 	"errors"
 	"go/format"
+
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/inject"
 )
 
 // CodeFormatter formats generated Go code.
@@ -12,11 +15,8 @@ type CodeFormatter interface {
 }
 
 // codeFormatter is the default implementation of CodeFormatter.
-type codeFormatter struct{}
-
-// NewCodeFormatter creates a new CodeFormatter instance.
-func NewCodeFormatter() CodeFormatter {
-	return &codeFormatter{}
+type codeFormatter struct {
+	annotation.Injectable[inject.Typed[CodeFormatter]]
 }
 
 // FormatCode applies gofmt to the provided source code.

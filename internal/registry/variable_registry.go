@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	"github.com/miyamo2/braider/internal/detect"
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/provide"
 )
 
 // VariableInfo contains information about a Variable annotation.
@@ -67,6 +69,8 @@ type VariableRegistry struct {
 	mu        sync.RWMutex
 	variables map[string]map[string]*VariableInfo
 }
+
+var _ = annotation.Provide[provide.Default](NewVariableRegistry)
 
 // NewVariableRegistry creates a new empty registry.
 func NewVariableRegistry() *VariableRegistry {

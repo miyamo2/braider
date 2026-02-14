@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-
 	"github.com/miyamo2/braider/internal/analyzer"
 	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/generate"
@@ -10,79 +9,138 @@ import (
 	"github.com/miyamo2/braider/internal/loader"
 	"github.com/miyamo2/braider/internal/registry"
 	"github.com/miyamo2/braider/internal/report"
-	"golang.org/x/tools/go/analysis/multichecker"
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/variable"
+)
+
+var (
+	bootstrapCtx, bootstrapCancel = context.WithCancelCause(context.Background())
+	_                             = annotation.Variable[variable.Default](bootstrapCtx)
+	_                             = annotation.Variable[variable.Default](bootstrapCancel)
+	_                             = annotation.App(main)
 )
 
 func main() {
-	// Step 1: Registries and shared context
-	providerRegistry := registry.NewProviderRegistry()
+	_ = dependency
+
+	// multichecker.Main(dependencyAnalyzer, appAnalyzer)
+}
+
+// braider:hash:a1d754d90158c4d5
+var dependency = func() struct {
+	appDetector             detect.AppDetector
+	constructorAnalyzer     detect.ConstructorAnalyzer
+	fieldAnalyzer           detect.FieldAnalyzer
+	injectDetector          detect.InjectDetector
+	provideCallDetector     detect.ProvideCallDetector
+	structDetector          detect.StructDetector
+	variableCallDetector    detect.VariableCallDetector
+	codeFormatter           generate.CodeFormatter
+	bootstrapGenerator      *generate.bootstrapGenerator
+	constructorGenerator    generate.ConstructorGenerator
+	dependencyGraphBuilder  *graph.DependencyGraphBuilder
+	topologicalSorter       *graph.TopologicalSorter
+	namerValidatorImpl      detect.NamerValidator
+	optionExtractorImpl     detect.OptionExtractor
+	diagnosticEmitter       report.DiagnosticEmitter
+	suggestedFixBuilder     report.SuggestedFixBuilder
+	appAnalyzeRunner        *analyzer.AppAnalyzeRunner
+	dependencyAnalyzeRunner *analyzer.DependencyAnalyzeRunner
+} {
+	cancelCauseFunc := bootstrapCancel
+	context := bootstrapCtx
+	appDetector := detect.NewAppDetector()
+	constructorAnalyzer := detect.NewconstructorAnalyzer()
+	fieldAnalyzer := detect.NewfieldAnalyzer()
+	injectDetector := detect.NewinjectDetector()
+	provideCallDetector := detect.NewprovideCallDetector()
+	structDetector := detect.NewstructDetector(injectDetector)
+	variableCallDetector := detect.NewvariableCallDetector()
+	codeFormatter := generate.NewcodeFormatter()
+	bootstrapGenerator := generate.NewbootstrapGenerator(codeFormatter)
+	constructorGenerator := generate.NewconstructorGenerator()
+	interfaceRegistry := graph.NewInterfaceRegistry()
+	dependencyGraphBuilder := graph.NewDependencyGraphBuilder(interfaceRegistry)
+	topologicalSorter := graph.NewTopologicalSorter()
+	packageLoader := loader.NewPackageLoader()
+	namerValidatorImpl := detect.NewnamerValidatorImpl(packageLoader)
+	optionExtractorImpl := detect.NewoptionExtractorImpl(namerValidatorImpl)
 	injectorRegistry := registry.NewInjectorRegistry()
 	packageTracker := registry.NewPackageTracker()
-	bootstrapCtx, bootstrapCancel := context.WithCancelCause(context.Background())
-
-	// Step 2: Loaders
-	packageLoader := loader.NewPackageLoader()
-
-	// Step 3: Basic detectors (no dependencies)
-	injectDetector := detect.NewInjectDetector()
-	fieldAnalyzer := detect.NewFieldAnalyzer()
-	constructorAnalyzer := detect.NewConstructorAnalyzer()
-	appDetector := detect.NewAppDetector()
-
-	// Step 4: Complex detectors (with dependencies)
-	provideCallDetector := detect.NewProvideCallDetector()
-	structDetector := detect.NewStructDetector(injectDetector)
-	namerValidator := detect.NewNamerValidator(packageLoader)
-	optionExtractor := detect.NewOptionExtractor(namerValidator)
-
-	// Step 5: Graph components
-	graphBuilder := graph.NewDependencyGraphBuilder()
-	sorter := graph.NewTopologicalSorter()
-
-	// Step 6: Generators and reporters
-	constructorGenerator := generate.NewConstructorGenerator()
-	bootstrapGenerator := generate.NewBootstrapGenerator()
-	suggestedFixBuilder := report.NewSuggestedFixBuilder()
-	diagnosticEmitter := report.NewDiagnosticEmitter()
-
-	// Step 4.5: Variable components
-	variableCallDetector := detect.NewVariableCallDetector()
+	providerRegistry := registry.NewProviderRegistry()
 	variableRegistry := registry.NewVariableRegistry()
-
-	// Step 7: Instantiate analyzers
-	dependencyAnalyzer := analyzer.DependencyAnalyzer(
+	diagnosticEmitter := report.NewdiagnosticEmitter()
+	suggestedFixBuilder := report.NewsuggestedFixBuilder()
+	appAnalyzeRunner := analyzer.NewAppAnalyzeRunner(
+		appDetector,
+		injectorRegistry,
+		providerRegistry,
+		packageLoader,
+		packageTracker,
+		context,
+		dependencyGraphBuilder,
+		topologicalSorter,
+		bootstrapGenerator,
+		suggestedFixBuilder,
+		diagnosticEmitter,
+		variableRegistry,
+	)
+	appAnalyzer := analyzer.NewAppAnalyzer(appAnalyzeRunner)
+	dependencyAnalyzeRunner := analyzer.NewDependencyAnalyzeRunner(
 		providerRegistry,
 		injectorRegistry,
 		packageTracker,
-		bootstrapCancel,
+		cancelCauseFunc,
 		provideCallDetector,
 		injectDetector,
 		structDetector,
 		fieldAnalyzer,
 		constructorAnalyzer,
-		optionExtractor,
+		optionExtractorImpl,
 		constructorGenerator,
 		suggestedFixBuilder,
 		diagnosticEmitter,
 		variableCallDetector,
 		variableRegistry,
 	)
-
-	appAnalyzer := analyzer.AppAnalyzer(
-		appDetector,
-		injectorRegistry,
-		providerRegistry,
-		packageLoader,
-		packageTracker,
-		bootstrapCtx,
-		graphBuilder,
-		sorter,
-		bootstrapGenerator,
-		suggestedFixBuilder,
-		diagnosticEmitter,
-		variableRegistry,
-	)
-
-	// Step 7: Pass to multichecker
-	multichecker.Main(dependencyAnalyzer, appAnalyzer)
-}
+	dependencyAnalyzer := analyzer.NewDependencyAnalyzer(dependencyAnalyzeRunner)
+	return struct {
+		appDetector             detect.AppDetector
+		constructorAnalyzer     detect.ConstructorAnalyzer
+		fieldAnalyzer           detect.FieldAnalyzer
+		injectDetector          detect.InjectDetector
+		provideCallDetector     detect.ProvideCallDetector
+		structDetector          detect.StructDetector
+		variableCallDetector    detect.VariableCallDetector
+		codeFormatter           generate.CodeFormatter
+		bootstrapGenerator      *generate.bootstrapGenerator
+		constructorGenerator    generate.ConstructorGenerator
+		dependencyGraphBuilder  *graph.DependencyGraphBuilder
+		topologicalSorter       *graph.TopologicalSorter
+		namerValidatorImpl      detect.NamerValidator
+		optionExtractorImpl     detect.OptionExtractor
+		diagnosticEmitter       report.DiagnosticEmitter
+		suggestedFixBuilder     report.SuggestedFixBuilder
+		appAnalyzeRunner        *analyzer.AppAnalyzeRunner
+		dependencyAnalyzeRunner *analyzer.DependencyAnalyzeRunner
+	}{
+		appDetector:             appDetector,
+		constructorAnalyzer:     constructorAnalyzer,
+		fieldAnalyzer:           fieldAnalyzer,
+		injectDetector:          injectDetector,
+		provideCallDetector:     provideCallDetector,
+		structDetector:          structDetector,
+		variableCallDetector:    variableCallDetector,
+		codeFormatter:           codeFormatter,
+		bootstrapGenerator:      bootstrapGenerator,
+		constructorGenerator:    constructorGenerator,
+		dependencyGraphBuilder:  dependencyGraphBuilder,
+		topologicalSorter:       topologicalSorter,
+		namerValidatorImpl:      namerValidatorImpl,
+		optionExtractorImpl:     optionExtractorImpl,
+		diagnosticEmitter:       diagnosticEmitter,
+		suggestedFixBuilder:     suggestedFixBuilder,
+		appAnalyzeRunner:        appAnalyzeRunner,
+		dependencyAnalyzeRunner: dependencyAnalyzeRunner,
+	}
+}()
