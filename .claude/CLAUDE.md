@@ -112,8 +112,16 @@ Tests use `golang.org/x/tools/go/analysis/analysistest` with testdata directorie
 
 ### Key Test Directories
 
-- `testdata/bootstrapgen/` — ~50 test cases covering basic, typed_inject, named_inject, provide_typed, provide_named, variable, variable_named, variable_typed, variable_pkg_collision, circular, error cases, idempotent cases
-- `testdata/constructorgen/`, `testdata/providefunc/`, `testdata/dependency/`
+- `testdata/bootstrapgen/` — 51 test case directories organized by category:
+  - Core: basic, simpleapp, multitype, crosspackage, modulewide, samefileapp, emptygraph, depinuse, depblank, pkgcollision, without_constructor
+  - Interface: iface, ifacedep, crossiface, unresiface
+  - Typed/Named inject: typed_inject, named_inject
+  - Provide: provide_typed, provide_named
+  - Variable: variable_basic, variable_named, variable_typed, variable_typed_named, variable_cross_package, variable_pkg_collision, variable_alias_import, variable_ident_ext_type, variable_mixed
+  - Idempotent: idempotent, idempotent_import, outdated, variable_idempotent, variable_outdated
+  - Error: error_cases, error_duplicate_name, error_nonliteral, error_provide_typed, error_variable_*, circular, ambiguous*, missingctor, unresolvedparam, unresparam, unresolvedif, contextcancel, nonmainapp, noapp, multipleapp
+- `testdata/constructorgen/` — per-file test cases: simple, multifield, pointer, existing, imported, aliasedimport, definedtypes, typealias
+- `testdata/dependency/` — DependencyAnalyzer-only tests: basic, abstrct, cross_package, missing_constructor
 
 ## Commit Messages
 
