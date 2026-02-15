@@ -18,3 +18,7 @@ type Service struct {
 	annotation.Injectable[inject.Default]
 	repo Repository
 }
+
+func NewService(repo Repository) *Service {
+	return &Service{repo: repo}
+}

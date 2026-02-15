@@ -137,6 +137,14 @@ func TestIntegration_CrossPackageInterface(t *testing.T) {
 	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
+func TestIntegration_PackageNameCollision(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/pkgcollision"
+	analysistest.Run(t, testdir, depAnalyzer, "pkgcollision/v1user")
+	analysistest.Run(t, testdir, depAnalyzer, "pkgcollision/v2user")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
 func TestIntegration_ModuleWideDiscovery(t *testing.T) {
 	depAnalyzer, appAnalyzer := setupIntegrationDeps()
 	testdir := "testdata/bootstrapgen/modulewide"
@@ -168,10 +176,26 @@ func TestIntegration_AmbiguousInterface(t *testing.T) {
 	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
+func TestIntegration_AmbiguousInterfaceProvide(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/ambiguousiface"
+	analysistest.Run(t, testdir, depAnalyzer, "example.com/ambiguousiface/domain")
+	analysistest.Run(t, testdir, depAnalyzer, "example.com/ambiguousiface/repository")
+	analysistest.Run(t, testdir, depAnalyzer, "example.com/ambiguousiface/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
 func TestIntegration_UnresolvedInterface(t *testing.T) {
 	depAnalyzer, appAnalyzer := setupIntegrationDeps()
 	testdir := "testdata/bootstrapgen/unresiface"
 	analysistest.Run(t, testdir, depAnalyzer, "unresiface/writer")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+func TestIntegration_UnresolvedInterfaceDependency(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/unresolvedif"
+	analysistest.Run(t, testdir, depAnalyzer, "example.com/unresolvedif/writer")
 	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
@@ -207,6 +231,13 @@ func TestIntegration_SameFileApp(t *testing.T) {
 	depAnalyzer, appAnalyzer := setupIntegrationDeps()
 	testdir := "testdata/bootstrapgen/samefileapp"
 	analysistest.Run(t, testdir, depAnalyzer, "samefileapp/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+func TestIntegration_SimpleApp(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/simpleapp"
+	analysistest.Run(t, testdir, depAnalyzer, "simpleapp/service")
 	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
@@ -336,6 +367,21 @@ func TestIntegration_ErrorProvideTyped(t *testing.T) {
 
 	// Phase 2: AppAnalyzer skips due to cancelled validation context (no diagnostics expected)
 	analysistest.Run(t, testdir, appAnalyzer, ".")
+}
+
+func TestIntegration_ErrorUnresolvedParam(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/unresolvedparam"
+	analysistest.Run(t, testdir, depAnalyzer, "example.com/unresolvedparam/repository")
+	analysistest.Run(t, testdir, depAnalyzer, "example.com/unresolvedparam/service")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+}
+
+func TestIntegration_ErrorUnresolvedParamDetail(t *testing.T) {
+	depAnalyzer, appAnalyzer := setupIntegrationDeps()
+	testdir := "testdata/bootstrapgen/unresparam"
+	analysistest.Run(t, testdir, depAnalyzer, "unresparam/repository")
+	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
 
 // TestIntegration_ErrorDuplicateName tests duplicate (TypeName, Name) detection:

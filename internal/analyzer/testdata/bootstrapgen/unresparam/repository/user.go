@@ -13,6 +13,6 @@ type UserRepository struct {
 }
 
 // NewUserRepository is a constructor for UserRepository.
-func NewUserRepository(db *sql.DB) UserRepository {
-	return UserRepository{db: db}
+func NewUserRepository(db *sql.DB) *UserRepository {
+	return &UserRepository{db: db}
 }
