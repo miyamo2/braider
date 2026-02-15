@@ -10,7 +10,7 @@
 //
 // Run the analyzer:
 //
-//	go vet -vettool=$(which braider) -fix ./...
+//	braider -fix ./...
 package main
 
 import (
@@ -28,7 +28,7 @@ type stdLogger struct {
 	annotation.Injectable[inject.Default]
 }
 
-func NewStdLogger() *stdLogger { return &stdLogger{} }
+func NewStdLogger() *stdLogger      { return &stdLogger{} }
 func (l *stdLogger) Log(msg string) {}
 
 var _ = annotation.Provide[provide.Typed[Logger]](NewStdLogger)

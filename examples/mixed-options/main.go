@@ -8,7 +8,7 @@
 //
 // Run the analyzer:
 //
-//	go vet -vettool=$(which braider) -fix ./...
+//	braider -fix ./...
 package main
 
 import (
