@@ -64,6 +64,6 @@ type Default interface {
 //	}()
 type Container[T any] interface {
 	Option
-	annotation.AppDefinedContainer
+	annotation.AppContainer
 	definedContainerParam() T
 }
