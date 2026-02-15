@@ -207,7 +207,7 @@ func TestComputeGraphHash_ConstructorNameChanges(t *testing.T) {
 				LocalName:       "Repository",
 				ConstructorName: "NewRepository",
 				Dependencies:    []string{},
-				IsField:         false,
+				IsField:         true,
 			},
 		},
 		Edges: map[string][]string{
@@ -232,7 +232,7 @@ func TestComputeGraphHash_ConstructorNameChanges(t *testing.T) {
 				LocalName:       "Repository",
 				ConstructorName: "NewRepository",
 				Dependencies:    []string{},
-				IsField:         false,
+				IsField:         true,
 			},
 		},
 		Edges: map[string][]string{

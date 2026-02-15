@@ -149,16 +149,19 @@ type app struct {
 //	}
 //
 //	var dependency = func() struct {
-//		Service Service
+//		clock   Clock
+//		service *Service
 //	} {
 //		clock := NewClock()
 //		service := NewService(clock)
 //		return struct {
-//			Service Service
+//			clock   Clock
+//			service *Service
 //		}{
-//			Service: service,
+//			clock:   clock,
+//			service: service,
 //		}
-//	}
+//	}()
 func App(_ func()) annotation.App {
 	return app{}
 }

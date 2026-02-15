@@ -14,7 +14,7 @@ import (
 )
 
 // ProviderInfo contains information about a Provide struct.
-// These are dependency providers that become local variables in the bootstrap IIFE.
+// These are dependency providers that become fields in the bootstrap dependency struct.
 type ProviderInfo struct {
 	// TypeName is the fully qualified type name (e.g., "example.com/repo.UserRepository")
 	TypeName string

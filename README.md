@@ -44,7 +44,7 @@ go vet -vettool=$(which braider) -fix ./...
 ### Annotations
 
 - `annotation.Injectable[inject.Default]` — marks structs that need constructor generation and will be exposed from the bootstrap dependency struct.
-- `annotation.Provide[provide.Default](fn)` — registers provider functions used as local variables inside the bootstrap IIFE.
+- `annotation.Provide[provide.Default](fn)` — registers provider functions exposed as fields in the bootstrap dependency struct.
 - `annotation.App(main)` — marks the entry point where bootstrap code is generated.
 
 ### Options

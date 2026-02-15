@@ -12,20 +12,26 @@ func main() {
 	_ = dependency
 }
 
-// braider:hash:e182e75e68094f9b
+// braider:hash:d813e486975059e7
 var dependency = func() struct {
-	orderService *service.OrderService
-	userService  *service.UserService
+	orderRepository repository.OrderRepository
+	userRepository  repository.UserRepository
+	orderService    *service.OrderService
+	userService     *service.UserService
 } {
 	orderRepository := repository.NewOrderRepository()
 	userRepository := repository.NewUserRepository()
 	orderService := service.NewOrderService(orderRepository)
 	userService := service.NewUserService(userRepository)
 	return struct {
-		orderService *service.OrderService
-		userService  *service.UserService
+		orderRepository repository.OrderRepository
+		userRepository  repository.UserRepository
+		orderService    *service.OrderService
+		userService     *service.UserService
 	}{
-		orderService: orderService,
-		userService:  userService,
+		orderRepository: orderRepository,
+		userRepository:  userRepository,
+		orderService:    orderService,
+		userService:     userService,
 	}
 }()

@@ -55,7 +55,7 @@ The `variable-annotation` feature adds a new `annotation.Variable[T variable.Opt
 3. When a Variable is registered with `variable.Typed[I]`, the DependencyGraphBuilder shall register the Variable node under the interface type `I` in the InterfaceRegistry, enabling resolution of dependencies that reference `I`.
 4. When a Variable is registered with `variable.Named[N]`, the DependencyGraphBuilder shall use the composite key `TypeName#Name` for the graph node, consistent with existing named dependency handling.
 5. When an Injectable struct or Provide function depends on a type that is satisfied by a Variable registration, the dependency graph shall resolve it to the Variable node.
-6. The Variable node shall have `IsField` set to `false`, since Variable dependencies are expressed as local variable assignments in the bootstrap IIFE (similar to Provide nodes), not as struct fields.
+6. The Variable node shall have `IsField` set to `false`, since Variable dependencies are expressed as local variable assignments in the bootstrap IIFE, not as struct fields (unlike Provide and Injectable nodes which are struct fields).
 
 ### Requirement 5: Bootstrap Code Generation for Variables
 

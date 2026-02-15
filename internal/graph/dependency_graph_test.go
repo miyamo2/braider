@@ -256,7 +256,7 @@ func TestDependencyGraph_IsField(t *testing.T) {
 		wantFlags map[string]bool // type name -> IsField
 	}{
 		{
-			name: "provider has IsField=false",
+			name: "provider has IsField=true",
 			providers: []*registry.ProviderInfo{
 				{
 					TypeName:        "example.com/repo.UserRepository",
@@ -269,7 +269,7 @@ func TestDependencyGraph_IsField(t *testing.T) {
 			},
 			injectors: nil,
 			wantFlags: map[string]bool{
-				"example.com/repo.UserRepository": false,
+				"example.com/repo.UserRepository": true,
 			},
 		},
 		{
@@ -312,7 +312,7 @@ func TestDependencyGraph_IsField(t *testing.T) {
 				},
 			},
 			wantFlags: map[string]bool{
-				"example.com/repo.UserRepository": false,
+				"example.com/repo.UserRepository": true,
 				"example.com/service.UserService": true,
 			},
 		},
