@@ -15,8 +15,8 @@ go build ./...                                        # Build all packages
 go test ./...                                         # Run all tests
 go test -v -run TestAppAnalyzer ./internal/analyzer   # Run a specific test
 go build -o braider ./cmd/braider                     # Build analyzer binary
-go vet -vettool=$(which braider) ./...                # Run analyzer
-go vet -vettool=$(which braider) -fix ./...           # Apply suggested fixes
+braider ./...                                         # Run analyzer
+braider -fix ./...                                    # Apply suggested fixes
 ```
 
 ## Architecture

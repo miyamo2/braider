@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	"github.com/miyamo2/braider/internal/detect"
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/provide"
 )
 
 // InjectorInfo contains information about an Inject struct.
@@ -50,6 +52,8 @@ func (i *InjectorInfo) GetDependencies() []string {
 func (i *InjectorInfo) GetName() string {
 	return i.Name
 }
+
+var _ = annotation.Provide[provide.Default](NewInjectorRegistry)
 
 // InjectorRegistry stores all discovered injector structs globally.
 // Thread-safe for potential parallel analyzer execution.

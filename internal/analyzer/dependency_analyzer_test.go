@@ -77,13 +77,14 @@ func createDependencyAnalyzer(
 	variableCallDetector detect.VariableCallDetector,
 	variableRegistry *registry.VariableRegistry,
 ) *analysis.Analyzer {
-	return DependencyAnalyzer(
+	runner := NewDependencyAnalyzeRunner(
 		providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
 		provideCallDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
 		variableCallDetector, variableRegistry,
 	)
+	return (*analysis.Analyzer)(NewDependencyAnalyzer(runner))
 }
 
 func TestDependencyAnalyzer(t *testing.T) {
