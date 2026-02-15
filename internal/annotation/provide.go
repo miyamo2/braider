@@ -1,31 +1,21 @@
 package annotation
 
-type ProviderMarker struct{}
-
 type Provider interface {
-	_IsProvider() ProviderMarker
+	_IsProvider()
 }
-
-type ProviderOptionMarker struct{}
 
 type ProviderOption interface {
-	_IsProviderOption() ProviderOptionMarker
+	_IsProviderOption()
 }
-
-type ProviderDefaultMarker struct{}
 
 type ProviderDefault interface {
-	_IsProviderDefault() ProviderDefaultMarker
+	_IsProviderDefault()
 }
-
-type ProviderTypedMarker struct{}
 
 type ProviderTyped interface {
-	_IsProviderTyped() ProviderTypedMarker
+	_IsProviderTyped()
 }
 
-type ProviderNamedMarker struct{}
-
 type ProviderNamed interface {
-	_IsProviderNamed() ProviderNamedMarker
+	_IsProviderNamed()
 }

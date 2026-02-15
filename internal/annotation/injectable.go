@@ -1,37 +1,25 @@
 package annotation
 
-type InjectableMarker struct{}
-
 type Injectable interface {
-	_IsInjectable() InjectableMarker
+	_IsInjectable()
 }
-
-type InjectableOptionMarker struct{}
 
 type InjectableOption interface {
-	_IsInjectableOption() InjectableOptionMarker
+	_IsInjectableOption()
 }
-
-type InjectableDefaultMarker struct{}
 
 type InjectableDefault interface {
-	_IsInjectableDefault() InjectableDefaultMarker
+	_IsInjectableDefault()
 }
-
-type InjectableTypedMarker struct{}
 
 type InjectableTyped interface {
-	_IsInjectableTyped() InjectableTypedMarker
+	_IsInjectableTyped()
 }
-
-type InjectableNamedMarker struct{}
 
 type InjectableNamed interface {
-	_IsInjectableNamed() InjectableNamedMarker
+	_IsInjectableNamed()
 }
 
-type InjectableWithoutConstructorMarker struct{}
-
 type InjectableWithoutConstructor interface {
-	_IsInjectableWithoutConstructor() InjectableWithoutConstructorMarker
+	_IsInjectableWithoutConstructor()
 }
