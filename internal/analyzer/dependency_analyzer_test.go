@@ -12,24 +12,17 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-// setupDependencyAnalyzerDeps creates all required dependencies for DependencyAnalyzer tests.
-func setupDependencyAnalyzerDeps() (
-	*registry.ProviderRegistry,
-	*registry.InjectorRegistry,
-	*registry.PackageTracker,
-	context.CancelCauseFunc,
-	detect.ProvideCallDetector,
-	detect.InjectDetector,
-	detect.StructDetector,
-	detect.FieldAnalyzer,
-	detect.ConstructorAnalyzer,
-	detect.OptionExtractor,
-	generate.ConstructorGenerator,
-	report.SuggestedFixBuilder,
-	report.DiagnosticEmitter,
-	detect.VariableCallDetector,
-	*registry.VariableRegistry,
-) {
+// depAnalyzerTestEnv holds the DependencyAnalyzer and its registries for test assertions.
+type depAnalyzerTestEnv struct {
+	analyzer         *analysis.Analyzer
+	providerRegistry *registry.ProviderRegistry
+	injectorRegistry *registry.InjectorRegistry
+	packageTracker   *registry.PackageTracker
+}
+
+// newDepAnalyzerTestEnv creates a DependencyAnalyzer with all real components.
+// Returns a struct with the analyzer and registries needed for test assertions.
+func newDepAnalyzerTestEnv() *depAnalyzerTestEnv {
 	providerRegistry := registry.NewProviderRegistry()
 	injectorRegistry := registry.NewInjectorRegistry()
 	packageTracker := registry.NewPackageTracker()
@@ -38,202 +31,104 @@ func setupDependencyAnalyzerDeps() (
 	injectDetector := detect.NewInjectDetector()
 	fieldAnalyzer := detect.NewFieldAnalyzer()
 	constructorAnalyzer := detect.NewConstructorAnalyzer()
-
 	provideCallDetector := detect.NewProvideCallDetector()
 	structDetector := detect.NewStructDetector(injectDetector)
 	variableCallDetector := detect.NewVariableCallDetector()
-
-	// Use nil option extractor for tests that don't need it
 	var optionExtractor detect.OptionExtractor
-
 	constructorGenerator := generate.NewConstructorGenerator()
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
-
 	variableRegistry := registry.NewVariableRegistry()
 
-	return providerRegistry, injectorRegistry, packageTracker, cancel,
-		provideCallDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer, optionExtractor,
-		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
-		variableCallDetector, variableRegistry
-}
-
-// createDependencyAnalyzer creates a DependencyAnalyzer with the provided dependencies.
-func createDependencyAnalyzer(
-	providerRegistry *registry.ProviderRegistry,
-	injectorRegistry *registry.InjectorRegistry,
-	packageTracker *registry.PackageTracker,
-	bootstrapCancel context.CancelCauseFunc,
-	provideCallDetector detect.ProvideCallDetector,
-	injectDetector detect.InjectDetector,
-	structDetector detect.StructDetector,
-	fieldAnalyzer detect.FieldAnalyzer,
-	constructorAnalyzer detect.ConstructorAnalyzer,
-	optionExtractor detect.OptionExtractor,
-	constructorGenerator generate.ConstructorGenerator,
-	suggestedFixBuilder report.SuggestedFixBuilder,
-	diagnosticEmitter report.DiagnosticEmitter,
-	variableCallDetector detect.VariableCallDetector,
-	variableRegistry *registry.VariableRegistry,
-) *analysis.Analyzer {
 	runner := NewDependencyAnalyzeRunner(
-		providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
+		providerRegistry, injectorRegistry, packageTracker, cancel,
 		provideCallDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
 		variableCallDetector, variableRegistry,
 	)
-	return (*analysis.Analyzer)(NewDependencyAnalyzer(runner))
+	analyzer := (*analysis.Analyzer)(NewDependencyAnalyzer(runner))
+
+	return &depAnalyzerTestEnv{
+		analyzer:         analyzer,
+		providerRegistry: providerRegistry,
+		injectorRegistry: injectorRegistry,
+		packageTracker:   packageTracker,
+	}
 }
 
 func TestDependencyAnalyzer(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
-		provideCallDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer, optionExtractor,
-		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
-		variableCallDetector, variableRegistry := setupDependencyAnalyzerDeps()
-
-	analyzer := createDependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
-		provideCallDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer, optionExtractor,
-		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
-		variableCallDetector, variableRegistry,
-	)
-
-	analysistest.Run(t, "testdata/dependency/basic", analyzer, ".")
+	env := newDepAnalyzerTestEnv()
+	analysistest.Run(t, "testdata/dependency/basic", env.analyzer, ".")
 
 	// Verify providers were registered
-	providers := providerRegistry.GetAll()
-	if len(providers) == 0 {
+	if len(env.providerRegistry.GetAll()) == 0 {
 		t.Error("expected providers to be registered, got none")
 	}
 
 	// Verify injectors were registered
-	injectors := injectorRegistry.GetAll()
-	if len(injectors) == 0 {
+	if len(env.injectorRegistry.GetAll()) == 0 {
 		t.Error("expected injectors to be registered, got none")
 	}
 
 	// Verify package was marked as scanned
-	if !packageTracker.IsPackageScanned("example.com/dependency/basic") {
+	if !env.packageTracker.IsPackageScanned("example.com/dependency/basic") {
 		t.Error("expected package to be marked as scanned")
 	}
 }
 
 func TestDependencyAnalyzer_SuggestedFixes(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
-		provideCallDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer, optionExtractor,
-		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
-		variableCallDetector, variableRegistry := setupDependencyAnalyzerDeps()
-
-	analyzer := createDependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
-		provideCallDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer, optionExtractor,
-		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
-		variableCallDetector, variableRegistry,
-	)
-
-	// Run with suggested fixes to verify code generation
-	// Now using DependencyAnalyzer which includes constructor generation (Phase 1)
-	analysistest.RunWithSuggestedFixes(t, "testdata/constructorgen", analyzer, ".")
+	env := newDepAnalyzerTestEnv()
+	analysistest.RunWithSuggestedFixes(t, "testdata/constructorgen", env.analyzer, ".")
 }
 
 func TestDependencyAnalyzer_MissingProvideConstructor(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
-		provideCallDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer, optionExtractor,
-		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
-		variableCallDetector, variableRegistry := setupDependencyAnalyzerDeps()
-
-	analyzer := createDependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
-		provideCallDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer, optionExtractor,
-		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
-		variableCallDetector, variableRegistry,
-	)
-
-	analysistest.Run(t, "testdata/dependency/missing_constructor", analyzer, ".")
+	env := newDepAnalyzerTestEnv()
+	analysistest.Run(t, "testdata/dependency/missing_constructor", env.analyzer, ".")
 
 	// Provider should not be registered when constructor is missing
-	providers := providerRegistry.GetAll()
-	if len(providers) != 0 {
-		t.Errorf("expected no providers to be registered when constructor missing, got %d", len(providers))
+	if n := len(env.providerRegistry.GetAll()); n != 0 {
+		t.Errorf("expected no providers to be registered when constructor missing, got %d", n)
 	}
 }
 
 func TestDependencyAnalyzer_CrossPackage(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
-		provideCallDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer, optionExtractor,
-		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
-		variableCallDetector, variableRegistry := setupDependencyAnalyzerDeps()
-
-	analyzer := createDependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
-		provideCallDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer, optionExtractor,
-		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
-		variableCallDetector, variableRegistry,
-	)
-
-	// Analyze multiple packages
-	analysistest.Run(t, "testdata/dependency/cross_package", analyzer, "./...")
+	env := newDepAnalyzerTestEnv()
+	analysistest.Run(t, "testdata/dependency/cross_package", env.analyzer, "./...")
 
 	// Verify both packages registered their structs
-	providers := providerRegistry.GetAll()
-	injectors := injectorRegistry.GetAll()
-
-	totalStructs := len(providers) + len(injectors)
+	totalStructs := len(env.providerRegistry.GetAll()) + len(env.injectorRegistry.GetAll())
 	if totalStructs < 2 {
 		t.Errorf("expected at least 2 structs from cross-package test, got %d", totalStructs)
 	}
 
 	// Verify both packages were marked as scanned
-	if !packageTracker.IsPackageScanned("example.com/dependency/cross_package/repo") {
+	if !env.packageTracker.IsPackageScanned("example.com/dependency/cross_package/repo") {
 		t.Error("expected repo package to be marked as scanned")
 	}
-	if !packageTracker.IsPackageScanned("example.com/dependency/cross_package/service") {
+	if !env.packageTracker.IsPackageScanned("example.com/dependency/cross_package/service") {
 		t.Error("expected service package to be marked as scanned")
 	}
 }
 
 func TestDependencyAnalyzer_InterfaceImplementation(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
-		provideCallDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer, optionExtractor,
-		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
-		variableCallDetector, variableRegistry := setupDependencyAnalyzerDeps()
-
-	analyzer := createDependencyAnalyzer(
-		providerRegistry, injectorRegistry, packageTracker, bootstrapCancel,
-		provideCallDetector, injectDetector, structDetector,
-		fieldAnalyzer, constructorAnalyzer, optionExtractor,
-		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
-		variableCallDetector, variableRegistry,
-	)
-
-	analysistest.Run(t, "testdata/dependency/abstrct", analyzer, "./...")
+	env := newDepAnalyzerTestEnv()
+	analysistest.Run(t, "testdata/dependency/abstrct", env.analyzer, "./...")
 
 	// Verify Implements field is populated
-	providers := providerRegistry.GetAll()
-	injectors := injectorRegistry.GetAll()
-
 	hasImplements := false
-	for _, p := range providers {
+	for _, p := range env.providerRegistry.GetAll() {
 		if len(p.Implements) > 0 {
 			hasImplements = true
 			break
 		}
 	}
-	for _, i := range injectors {
-		if len(i.Implements) > 0 {
-			hasImplements = true
-			break
+	if !hasImplements {
+		for _, i := range env.injectorRegistry.GetAll() {
+			if len(i.Implements) > 0 {
+				hasImplements = true
+				break
+			}
 		}
 	}
 

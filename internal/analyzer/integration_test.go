@@ -89,301 +89,395 @@ func buildIntegrationDeps() (
 	return depAnalyzer, appAnalyzer, injectorReg, providerReg, variableReg
 }
 
-func TestIntegration_BasicSinglePackage(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/basic"
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/basic/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
+// TestIntegration runs all standard integration tests as table-driven subtests.
+// Each test case creates fresh analyzers with isolated registries, scans dependency packages
+// with DependencyAnalyzer, then verifies bootstrap generation with AppAnalyzer.
+func TestIntegration(t *testing.T) {
+	tests := []struct {
+		name          string
+		testdir       string
+		depPackages   []string
+		appSuggestFix bool
+	}{
+		// --- Core scenarios ---
+		{
+			name:          "BasicSinglePackage",
+			testdir:       "basic",
+			depPackages:   []string{"example.com/basic/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "CrossPackageImports",
+			testdir:       "crosspackage",
+			depPackages:   []string{"crosspackage/repository", "crosspackage/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "MultiTypeCrossPackage",
+			testdir:       "multitype",
+			depPackages:   []string{"example.com/multitype/repository", "example.com/multitype/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "SimpleApp",
+			testdir:       "simpleapp",
+			depPackages:   []string{"simpleapp/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "SameFileApp",
+			testdir:       "samefileapp",
+			depPackages:   []string{"samefileapp/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "EmptyGraph",
+			testdir:       "emptygraph",
+			depPackages:   nil,
+			appSuggestFix: true,
+		},
+		{
+			name:          "DependencyAlreadyUsed",
+			testdir:       "depinuse",
+			depPackages:   []string{"."},
+			appSuggestFix: true,
+		},
+		{
+			name:          "DependencyBlankIdentifier",
+			testdir:       "depblank",
+			depPackages:   []string{"example.com/depblank/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "PackageNameCollision",
+			testdir:       "pkgcollision",
+			depPackages:   []string{"pkgcollision/v1user", "pkgcollision/v2user"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ModuleWideDiscovery",
+			testdir:       "modulewide",
+			depPackages:   []string{"modulewide/repository", "modulewide/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "WithoutConstructor",
+			testdir:       "without_constructor",
+			depPackages:   []string{"without_constructor/service"},
+			appSuggestFix: true,
+		},
 
-func TestIntegration_CrossPackageImports(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/crosspackage"
-	analysistest.Run(t, testdir, depAnalyzer, "crosspackage/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "crosspackage/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
+		// --- Interface resolution ---
+		{
+			name:          "InterfaceResolution",
+			testdir:       "iface",
+			depPackages:   []string{"iface/domain", "iface/repository", "iface/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "InterfaceDependency",
+			testdir:       "ifacedep",
+			depPackages:   []string{"example.com/ifacedep/domain", "example.com/ifacedep/repository", "example.com/ifacedep/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "CrossPackageInterface",
+			testdir:       "crossiface",
+			depPackages:   []string{"crossiface/domain", "crossiface/repository", "crossiface/service"},
+			appSuggestFix: true,
+		},
 
-func TestIntegration_MultiTypeCrossPackage(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/multitype"
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/multitype/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/multitype/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
+		// --- Typed/Named inject ---
+		{
+			name:          "TypedInject",
+			testdir:       "typed_inject",
+			depPackages:   []string{"typed_inject/domain", "typed_inject/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "NamedInject",
+			testdir:       "named_inject",
+			depPackages:   []string{"named_inject/service"},
+			appSuggestFix: true,
+		},
 
-func TestIntegration_InterfaceDependency(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/ifacedep"
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/ifacedep/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/ifacedep/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/ifacedep/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
+		// --- Provide variations ---
+		{
+			name:          "ProvideTyped",
+			testdir:       "provide_typed",
+			depPackages:   []string{"provide_typed/domain", "provide_typed/repository", "provide_typed/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ProvideNamed",
+			testdir:       "provide_named",
+			depPackages:   []string{"provide_named/repository"},
+			appSuggestFix: true,
+		},
 
-func TestIntegration_InterfaceResolution(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/iface"
-	analysistest.Run(t, testdir, depAnalyzer, "iface/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "iface/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "iface/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
+		// --- Variable annotation ---
+		{
+			name:          "VariableBasic",
+			testdir:       "variable_basic",
+			depPackages:   []string{"variable_basic/config"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "VariableTyped",
+			testdir:       "variable_typed",
+			depPackages:   []string{"variable_typed/domain", "variable_typed/config"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "VariableNamed",
+			testdir:       "variable_named",
+			depPackages:   []string{"variable_named/config"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "VariableMixed",
+			testdir:       "variable_mixed",
+			depPackages:   []string{"variable_mixed/domain", "variable_mixed/config", "variable_mixed/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "VariableTypedNamed",
+			testdir:       "variable_typed_named",
+			depPackages:   []string{"variable_typed_named/domain", "variable_typed_named/config"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "VariableCrossPackage",
+			testdir:       "variable_cross_package",
+			depPackages:   []string{"variable_cross_package/config", "variable_cross_package/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "VariableAliasImport",
+			testdir:       "variable_alias_import",
+			depPackages:   []string{"variable_alias_import/config"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "VariablePkgCollision",
+			testdir:       "variable_pkg_collision",
+			depPackages:   []string{"variable_pkg_collision/v1/config", "variable_pkg_collision/v2/config", "variable_pkg_collision/reg"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "VariableIdentExternalType",
+			testdir:       "variable_ident_ext_type",
+			depPackages:   []string{"variable_ident_ext_type/config"},
+			appSuggestFix: true,
+		},
 
-func TestIntegration_CrossPackageInterface(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/crossiface"
-	analysistest.Run(t, testdir, depAnalyzer, "crossiface/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "crossiface/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "crossiface/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
+		// --- Idempotent/outdated ---
+		{
+			name:          "IdempotentBehavior",
+			testdir:       "idempotent",
+			depPackages:   []string{"."},
+			appSuggestFix: true,
+		},
+		{
+			name:          "IdempotentImport",
+			testdir:       "idempotent_import",
+			depPackages:   []string{"idempotent_import/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "BootstrapUpdate",
+			testdir:       "outdated",
+			depPackages:   []string{"outdated/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "VariableIdempotent",
+			testdir:       "variable_idempotent",
+			depPackages:   []string{"."},
+			appSuggestFix: true,
+		},
+		{
+			name:          "VariableOutdated",
+			testdir:       "variable_outdated",
+			depPackages:   []string{"variable_outdated/config", "variable_outdated/service"},
+			appSuggestFix: true,
+		},
 
-func TestIntegration_PackageNameCollision(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/pkgcollision"
-	analysistest.Run(t, testdir, depAnalyzer, "pkgcollision/v1user")
-	analysistest.Run(t, testdir, depAnalyzer, "pkgcollision/v2user")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
+		// --- Struct tag ---
+		{
+			name:          "StructTagNamed",
+			testdir:       "struct_tag_named",
+			depPackages:   []string{"struct_tag_named/repository", "struct_tag_named/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "StructTagExclude",
+			testdir:       "struct_tag_exclude",
+			depPackages:   []string{"struct_tag_exclude/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "StructTagMixed",
+			testdir:       "struct_tag_mixed",
+			depPackages:   []string{"struct_tag_mixed/repository", "struct_tag_mixed/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "StructTagAllExcluded",
+			testdir:       "struct_tag_all_excluded",
+			depPackages:   []string{"struct_tag_all_excluded/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "StructTagIdempotent",
+			testdir:       "struct_tag_idempotent",
+			depPackages:   []string{"struct_tag_idempotent/repository", "struct_tag_idempotent/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "StructTagOutdated",
+			testdir:       "struct_tag_outdated",
+			depPackages:   []string{"struct_tag_outdated/repository", "struct_tag_outdated/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "StructTagTypedFields",
+			testdir:       "struct_tag_typed_fields",
+			depPackages:   []string{"struct_tag_typed_fields/domain", "struct_tag_typed_fields/provider", "struct_tag_typed_fields/service"},
+			appSuggestFix: true,
+		},
 
-func TestIntegration_ModuleWideDiscovery(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/modulewide"
-	analysistest.Run(t, testdir, depAnalyzer, "modulewide/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "modulewide/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
+		// --- App-only (no DependencyAnalyzer) ---
+		{
+			name:          "NonMainReference",
+			testdir:       "nonmainapp",
+			depPackages:   nil,
+			appSuggestFix: true,
+		},
+		{
+			name:          "NoAppAnnotation",
+			testdir:       "noapp",
+			depPackages:   nil,
+			appSuggestFix: true,
+		},
 
-func TestIntegration_IdempotentImport(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/idempotent_import"
-	analysistest.Run(t, testdir, depAnalyzer, "idempotent_import/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
+		// --- Error cases (AppAnalyzer uses Run, not RunWithSuggestedFixes) ---
+		{
+			name:          "ErrorCases",
+			testdir:       "error_cases",
+			depPackages:   []string{"error_cases/service"},
+			appSuggestFix: false,
+		},
+		{
+			name:          "ErrorNonLiteralNamer",
+			testdir:       "error_nonliteral",
+			depPackages:   []string{"error_nonliteral/service"},
+			appSuggestFix: false,
+		},
+		{
+			name:          "ErrorProvideTyped",
+			testdir:       "error_provide_typed",
+			depPackages:   []string{"error_provide_typed/domain", "error_provide_typed/repository"},
+			appSuggestFix: false,
+		},
+		{
+			name:          "ErrorVariableTyped",
+			testdir:       "error_variable_typed",
+			depPackages:   []string{"error_variable_typed/domain", "error_variable_typed/config"},
+			appSuggestFix: false,
+		},
+		{
+			name:          "ErrorVariableNamer",
+			testdir:       "error_variable_namer",
+			depPackages:   []string{"error_variable_namer/config", "."},
+			appSuggestFix: false,
+		},
+		{
+			name:          "ErrorVariableNameMismatch",
+			testdir:       "error_variable_name_mismatch",
+			depPackages:   []string{"error_variable_name_mismatch/config", "error_variable_name_mismatch/service"},
+			appSuggestFix: false,
+		},
+		{
+			name:          "ErrorVariableUnresolvableExpression",
+			testdir:       "error_variable_unresolvable",
+			depPackages:   []string{"error_variable_unresolvable/config"},
+			appSuggestFix: false,
+		},
 
-func TestIntegration_CircularDependency(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/circular"
-	analysistest.Run(t, testdir, depAnalyzer, "circular/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
+		// --- Error cases (non-fatal, AppAnalyzer still generates bootstrap) ---
+		{
+			name:          "ErrorUnresolvedParam",
+			testdir:       "unresolvedparam",
+			depPackages:   []string{"example.com/unresolvedparam/repository", "example.com/unresolvedparam/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ErrorUnresolvedParamDetail",
+			testdir:       "unresparam",
+			depPackages:   []string{"unresparam/repository"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "CircularDependency",
+			testdir:       "circular",
+			depPackages:   []string{"circular/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "AmbiguousInterface",
+			testdir:       "ambiguous",
+			depPackages:   []string{"ambiguous/domain", "ambiguous/repository", "ambiguous/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "AmbiguousInterfaceProvide",
+			testdir:       "ambiguousiface",
+			depPackages:   []string{"example.com/ambiguousiface/domain", "example.com/ambiguousiface/repository", "example.com/ambiguousiface/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "UnresolvedInterface",
+			testdir:       "unresiface",
+			depPackages:   []string{"unresiface/writer"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "UnresolvedInterfaceDependency",
+			testdir:       "unresolvedif",
+			depPackages:   []string{"example.com/unresolvedif/writer"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ErrorStructTagEmpty",
+			testdir:       "error_struct_tag_empty",
+			depPackages:   []string{"error_struct_tag_empty/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ErrorStructTagConflict",
+			testdir:       "error_struct_tag_conflict",
+			depPackages:   []string{"error_struct_tag_conflict/service"},
+			appSuggestFix: true,
+		},
+	}
 
-func TestIntegration_AmbiguousInterface(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/ambiguous"
-	analysistest.Run(t, testdir, depAnalyzer, "ambiguous/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "ambiguous/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "ambiguous/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			depAnalyzer, appAnalyzer := setupIntegrationDeps()
+			testdir := "testdata/bootstrapgen/" + tt.testdir
 
-func TestIntegration_AmbiguousInterfaceProvide(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/ambiguousiface"
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/ambiguousiface/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/ambiguousiface/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/ambiguousiface/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
+			for _, pkg := range tt.depPackages {
+				analysistest.Run(t, testdir, depAnalyzer, pkg)
+			}
 
-func TestIntegration_UnresolvedInterface(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/unresiface"
-	analysistest.Run(t, testdir, depAnalyzer, "unresiface/writer")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestIntegration_UnresolvedInterfaceDependency(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/unresolvedif"
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/unresolvedif/writer")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestIntegration_DependencyAlreadyUsed(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/depinuse"
-	analysistest.Run(t, testdir, depAnalyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestIntegration_IdempotentBehavior(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/idempotent"
-	analysistest.Run(t, testdir, depAnalyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestIntegration_DependencyBlankIdentifier(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/depblank"
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/depblank/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestIntegration_BootstrapUpdate(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/outdated"
-	analysistest.Run(t, testdir, depAnalyzer, "outdated/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestIntegration_SameFileApp(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/samefileapp"
-	analysistest.Run(t, testdir, depAnalyzer, "samefileapp/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestIntegration_SimpleApp(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/simpleapp"
-	analysistest.Run(t, testdir, depAnalyzer, "simpleapp/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// --- Group D: No Injectable/Provide → Simple Two-phase (3 tests) ---
-
-func TestIntegration_EmptyGraph(t *testing.T) {
-	_, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/emptygraph"
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestIntegration_NonMainReference(t *testing.T) {
-	_, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/nonmainapp"
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestIntegration_NoAppAnnotation(t *testing.T) {
-	_, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/noapp"
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_TypedInject tests Injectable[inject.Typed[I]] flow:
-// struct registered with interface type -> bootstrap declares interface-typed field.
-func TestIntegration_TypedInject(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/typed_inject"
-
-	// Phase 1: DependencyAnalyzer scans domain and service packages
-	analysistest.Run(t, testdir, depAnalyzer, "typed_inject/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "typed_inject/service")
-
-	// Phase 2: AppAnalyzer generates bootstrap with golden file verification
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_NamedInject tests Injectable[inject.Named[N]] flow:
-// structs with Namer types -> bootstrap uses custom variable names from Name() method.
-func TestIntegration_NamedInject(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/named_inject"
-
-	// Phase 1: DependencyAnalyzer scans service package (Namer types in same package)
-	analysistest.Run(t, testdir, depAnalyzer, "named_inject/service")
-
-	// Phase 2: AppAnalyzer generates bootstrap with named variables
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_ProvideTyped tests Provide[provide.Typed[I]] + Injectable[inject.Default] flow:
-// provider with interface type -> injector depends on provider -> bootstrap wires both.
-func TestIntegration_ProvideTyped(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/provide_typed"
-
-	// Phase 1: DependencyAnalyzer scans all packages in order
-	analysistest.Run(t, testdir, depAnalyzer, "provide_typed/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "provide_typed/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "provide_typed/service")
-
-	// Phase 2: AppAnalyzer generates bootstrap
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_WithoutConstructor tests Injectable[inject.WithoutConstructor] flow:
-// constructor generation skipped, but struct appears in bootstrap using manual constructor.
-func TestIntegration_WithoutConstructor(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/without_constructor"
-
-	// Phase 1: DependencyAnalyzer scans service (WithoutConstructor skips Phase 1 generation)
-	analysistest.Run(t, testdir, depAnalyzer, "without_constructor/service")
-
-	// Phase 2: AppAnalyzer generates bootstrap with manual constructor
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_ErrorCases tests Typed[I] constraint violation:
-// concrete type does not implement interface -> fatal validation error -> AppAnalyzer skipped.
-func TestIntegration_ErrorCases(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/error_cases"
-
-	// Phase 1: DependencyAnalyzer detects constraint violation and emits diagnostic
-	analysistest.Run(t, testdir, depAnalyzer, "error_cases/service")
-
-	// Phase 2: AppAnalyzer skips due to cancelled validation context (no diagnostics expected)
-	analysistest.Run(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_ErrorNonLiteralNamer tests Named[N] with non-literal Name() return:
-// Namer returns variable instead of string literal -> fatal validation error -> AppAnalyzer skipped.
-func TestIntegration_ErrorNonLiteralNamer(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/error_nonliteral"
-
-	// Phase 1: DependencyAnalyzer detects non-literal Name() return and emits diagnostic
-	analysistest.Run(t, testdir, depAnalyzer, "error_nonliteral/service")
-
-	// Phase 2: AppAnalyzer skips due to cancelled validation context (no diagnostics expected)
-	analysistest.Run(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_ProvideNamed tests Provide[provide.Named[N]] flow:
-// provider with named registration -> bootstrap uses custom variable name from Name() method.
-func TestIntegration_ProvideNamed(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/provide_named"
-
-	// Phase 1: DependencyAnalyzer scans repository package with Named provider
-	analysistest.Run(t, testdir, depAnalyzer, "provide_named/repository")
-
-	// Phase 2: AppAnalyzer generates bootstrap with named variable
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_ErrorProvideTyped tests Provide[provide.Typed[I]] constraint violation:
-// concrete type does not implement interface -> fatal validation error -> AppAnalyzer skipped.
-func TestIntegration_ErrorProvideTyped(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/error_provide_typed"
-
-	// Phase 1: DependencyAnalyzer scans packages; repository triggers constraint violation
-	analysistest.Run(t, testdir, depAnalyzer, "error_provide_typed/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "error_provide_typed/repository")
-
-	// Phase 2: AppAnalyzer skips due to cancelled validation context (no diagnostics expected)
-	analysistest.Run(t, testdir, appAnalyzer, ".")
-}
-
-func TestIntegration_ErrorUnresolvedParam(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/unresolvedparam"
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/unresolvedparam/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "example.com/unresolvedparam/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-func TestIntegration_ErrorUnresolvedParamDetail(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/unresparam"
-	analysistest.Run(t, testdir, depAnalyzer, "unresparam/repository")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+			if tt.appSuggestFix {
+				analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
+			} else {
+				analysistest.Run(t, testdir, appAnalyzer, ".")
+			}
+		})
+	}
 }
 
 // TestIntegration_ErrorDuplicateName tests duplicate (TypeName, Name) detection:
@@ -432,114 +526,6 @@ func TestIntegration_ErrorDuplicateName(t *testing.T) {
 	}
 }
 
-// --- Group F: Variable Annotation Integration Tests ---
-
-// TestIntegration_VariableBasic tests Variable[variable.Default] flow:
-// pre-existing value registered under its declared type -> bootstrap assigns as local variable.
-func TestIntegration_VariableBasic(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/variable_basic"
-	analysistest.Run(t, testdir, depAnalyzer, "variable_basic/config")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_VariableTyped tests Variable[variable.Typed[I]] flow:
-// pre-existing value registered as interface type -> bootstrap assigns as local variable.
-func TestIntegration_VariableTyped(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/variable_typed"
-	analysistest.Run(t, testdir, depAnalyzer, "variable_typed/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "variable_typed/config")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_VariableNamed tests Variable[variable.Named[N]] flow:
-// pre-existing value registered with custom name -> bootstrap uses named variable.
-func TestIntegration_VariableNamed(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/variable_named"
-	analysistest.Run(t, testdir, depAnalyzer, "variable_named/config")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_VariableMixed tests Variable + Provide + Injectable coexisting:
-// Variable (os.Stdout as Writer) + Injectable UserService (depends on Writer) -> topological order.
-func TestIntegration_VariableMixed(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/variable_mixed"
-	analysistest.Run(t, testdir, depAnalyzer, "variable_mixed/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "variable_mixed/config")
-	analysistest.Run(t, testdir, depAnalyzer, "variable_mixed/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_VariableTypedNamed tests Variable with mixed options via anonymous interface:
-// Variable[interface{ variable.Typed[I]; variable.Named[N] }] -> typed + named registration.
-func TestIntegration_VariableTypedNamed(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/variable_typed_named"
-	analysistest.Run(t, testdir, depAnalyzer, "variable_typed_named/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "variable_typed_named/config")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_VariableCrossPackage tests Variable in non-main package:
-// Variable in config package + Injectable in service package -> cross-package resolution.
-func TestIntegration_VariableCrossPackage(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/variable_cross_package"
-	analysistest.Run(t, testdir, depAnalyzer, "variable_cross_package/config")
-	analysistest.Run(t, testdir, depAnalyzer, "variable_cross_package/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_VariableIdempotent tests Variable bootstrap idempotency:
-// pre-existing bootstrap with correct hash -> no regeneration, no diagnostics.
-func TestIntegration_VariableIdempotent(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/variable_idempotent"
-	analysistest.Run(t, testdir, depAnalyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_VariableOutdated tests Variable bootstrap update detection:
-// pre-existing bootstrap with wrong hash -> "bootstrap code is outdated" diagnostic + regeneration.
-func TestIntegration_VariableOutdated(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/variable_outdated"
-	analysistest.Run(t, testdir, depAnalyzer, "variable_outdated/config")
-	analysistest.Run(t, testdir, depAnalyzer, "variable_outdated/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_ErrorVariableTyped tests Variable[variable.Typed[I]] constraint violation:
-// argument type does not implement typed interface -> fatal validation error -> AppAnalyzer skipped.
-func TestIntegration_ErrorVariableTyped(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/error_variable_typed"
-
-	// Phase 1: DependencyAnalyzer scans domain (interface), then config (Variable call triggers error)
-	analysistest.Run(t, testdir, depAnalyzer, "error_variable_typed/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "error_variable_typed/config")
-
-	// Phase 2: AppAnalyzer skips due to cancelled validation context (no diagnostics expected)
-	analysistest.Run(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_ErrorVariableNamer tests Variable[variable.Named[N]] with non-literal Name() return:
-// Namer returns variable instead of string literal -> fatal validation error -> AppAnalyzer skipped.
-func TestIntegration_ErrorVariableNamer(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/error_variable_namer"
-
-	// Phase 1: DependencyAnalyzer scans config first (Namer type), then main (Variable call triggers error)
-	analysistest.Run(t, testdir, depAnalyzer, "error_variable_namer/config")
-	analysistest.Run(t, testdir, depAnalyzer, ".")
-
-	// Phase 2: AppAnalyzer skips due to cancelled validation context (no diagnostics expected)
-	analysistest.Run(t, testdir, appAnalyzer, ".")
-}
-
 // TestIntegration_ErrorVariableDuplicateName tests duplicate (TypeName, Name) detection for Variables:
 // Same named Variable registered twice -> non-fatal warning emitted.
 // Uses programmatic registry access since analysistest cannot naturally test duplicate registration.
@@ -576,174 +562,4 @@ func TestIntegration_ErrorVariableDuplicateName(t *testing.T) {
 	if !strings.Contains(err.Error(), "duplicate named dependency") {
 		t.Fatalf("Error should mention 'duplicate named dependency', got: %v", err)
 	}
-}
-
-// TestIntegration_ErrorVariableNameMismatch tests unresolvable dependency with named Variable hint:
-// Injectable depends on *os.File (unnamed) but only os.File#stdout exists -> hint emitted.
-func TestIntegration_ErrorVariableNameMismatch(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/error_variable_name_mismatch"
-
-	// Phase 1: DependencyAnalyzer scans config (Variable) and service (Injectable)
-	analysistest.Run(t, testdir, depAnalyzer, "error_variable_name_mismatch/config")
-	analysistest.Run(t, testdir, depAnalyzer, "error_variable_name_mismatch/service")
-
-	// Phase 2: AppAnalyzer fails to resolve *os.File (unnamed) and emits hint about os.File#stdout
-	analysistest.Run(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_VariableAliasImport tests Variable with aliased import normalization (Bug #7):
-// import myos "os" + annotation.Variable[variable.Default](myos.Stdout) -> ExpressionText = "os.Stdout".
-// Bootstrap should use the declared package name "os", not the user alias "myos".
-func TestIntegration_VariableAliasImport(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/variable_alias_import"
-	analysistest.Run(t, testdir, depAnalyzer, "variable_alias_import/config")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_VariablePkgCollision tests Variable with package name collision (Bug #8):
-// Two packages named "config" (v1/config and v2/config) both referenced by Variable expressions.
-// Collision aliases (v1config, v2config) must be reflected in ExpressionText rewriting.
-func TestIntegration_VariablePkgCollision(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/variable_pkg_collision"
-	analysistest.Run(t, testdir, depAnalyzer, "variable_pkg_collision/v1/config")
-	analysistest.Run(t, testdir, depAnalyzer, "variable_pkg_collision/v2/config")
-	analysistest.Run(t, testdir, depAnalyzer, "variable_pkg_collision/reg")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_ErrorVariableUnresolvableExpression tests that Variable annotations
-// with unsupported expression types emit diagnostic errors and cancel bootstrap generation.
-// Using a primitive literal (42) as the Variable argument: the argument is *ast.BasicLit,
-// not *ast.Ident or *ast.SelectorExpr, so the detector emits a diagnostic error.
-// Since the bootstrap context is cancelled, the App annotation does not emit any diagnostic.
-func TestIntegration_ErrorVariableUnresolvableExpression(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/error_variable_unresolvable"
-
-	// Phase 1: DependencyAnalyzer detects unsupported Variable argument and emits error
-	analysistest.Run(t, testdir, depAnalyzer, "error_variable_unresolvable/config")
-
-	// Phase 2: AppAnalyzer skips bootstrap due to cancelled context (no diagnostic expected)
-	analysistest.Run(t, testdir, appAnalyzer, ".")
-}
-
-// --- Group G: Struct Tag Integration Tests ---
-
-// TestIntegration_StructTagNamed tests braider:"name" struct tag with Provide[Named]:
-// Injectable struct with braider:"primaryRepo" field -> Provide[Named] with matching name -> named wiring in bootstrap.
-func TestIntegration_StructTagNamed(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/struct_tag_named"
-
-	// Phase 1: DependencyAnalyzer scans repository (Named provider) and service (struct tag named dep)
-	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_named/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_named/service")
-
-	// Phase 2: AppAnalyzer generates bootstrap with named wiring
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_StructTagExclude tests braider:"-" struct tag for field exclusion:
-// Injectable struct with one normal field and one braider:"-" field -> bootstrap only wires the non-excluded field.
-func TestIntegration_StructTagExclude(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/struct_tag_exclude"
-
-	// Phase 1: DependencyAnalyzer scans service (excluded field + normal field)
-	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_exclude/service")
-
-	// Phase 2: AppAnalyzer generates bootstrap without excluded field
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_StructTagMixed tests mixed struct tags in a single struct:
-// braider:"name" + braider:"-" + untagged -> bootstrap correctly handles each field type.
-func TestIntegration_StructTagMixed(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/struct_tag_mixed"
-
-	// Phase 1: DependencyAnalyzer scans repository (Named provider) and service (mixed tags)
-	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_mixed/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_mixed/service")
-
-	// Phase 2: AppAnalyzer generates bootstrap with mixed tag handling
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_StructTagAllExcluded tests all non-annotation fields excluded via braider:"-":
-// All fields have braider:"-" -> zero-param constructor generated -> bootstrap uses zero-arg constructor.
-func TestIntegration_StructTagAllExcluded(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/struct_tag_all_excluded"
-
-	// Phase 1: DependencyAnalyzer scans service (all fields excluded)
-	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_all_excluded/service")
-
-	// Phase 2: AppAnalyzer generates bootstrap with zero-arg constructor
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_ErrorStructTagEmpty tests braider:"" invalid tag diagnostic:
-// Field with empty braider tag value -> non-fatal diagnostic emitted -> bootstrap still generates.
-func TestIntegration_ErrorStructTagEmpty(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/error_struct_tag_empty"
-
-	// Phase 1: DependencyAnalyzer detects invalid empty tag and emits diagnostic (non-fatal)
-	analysistest.Run(t, testdir, depAnalyzer, "error_struct_tag_empty/service")
-
-	// Phase 2: AppAnalyzer generates bootstrap (non-fatal error doesn't cancel)
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_ErrorStructTagConflict tests WithoutConstructor + braider:"-" conflict:
-// Injectable[WithoutConstructor] with excluded field matching constructor parameter type -> non-fatal diagnostic.
-func TestIntegration_ErrorStructTagConflict(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/error_struct_tag_conflict"
-
-	// Phase 1: DependencyAnalyzer detects struct tag conflict and emits diagnostic (non-fatal)
-	analysistest.Run(t, testdir, depAnalyzer, "error_struct_tag_conflict/service")
-
-	// Phase 2: AppAnalyzer generates bootstrap (non-fatal error doesn't cancel)
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_StructTagIdempotent tests idempotent behavior with braider struct tags.
-// When bootstrap code with correct hash already exists (including braider:"name" tagged fields),
-// re-running the analyzer should produce NO diagnostic.
-// Verifies hash stability: TypeName, ConstructorName, IsField, Dependencies (with #name composite keys).
-func TestIntegration_StructTagIdempotent(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/struct_tag_idempotent"
-	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_idempotent/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_idempotent/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_StructTagOutdated tests hash mismatch detection with braider struct tags.
-// When existing bootstrap has wrong hash (braider:"name" fields changed), re-running should
-// detect mismatch and regenerate bootstrap code.
-// Verifies that struct tag named dependencies affect hash computation correctly.
-func TestIntegration_StructTagOutdated(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/struct_tag_outdated"
-	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_outdated/repository")
-	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_outdated/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
-}
-
-// TestIntegration_StructTagTypedFields tests braider:"name" tags across all supported field types.
-// Concrete type, pointer type, and interface type fields each with named tags and matching
-// named providers. Verifies constructor generation and bootstrap wiring for all three type variants.
-func TestIntegration_StructTagTypedFields(t *testing.T) {
-	depAnalyzer, appAnalyzer := setupIntegrationDeps()
-	testdir := "testdata/bootstrapgen/struct_tag_typed_fields"
-	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_typed_fields/domain")
-	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_typed_fields/provider")
-	analysistest.Run(t, testdir, depAnalyzer, "struct_tag_typed_fields/service")
-	analysistest.RunWithSuggestedFixes(t, testdir, appAnalyzer, ".")
 }
