@@ -13,7 +13,7 @@ import (
 	"github.com/miyamo2/braider/internal/detect"
 )
 
-// ProviderInfo contains information about a Provide struct.
+// ProviderInfo contains information about a Provide annotation.
 // These are dependency providers that become fields in the bootstrap dependency struct.
 type ProviderInfo struct {
 	// TypeName is the fully qualified type name (e.g., "example.com/repo.UserRepository")

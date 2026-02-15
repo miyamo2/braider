@@ -133,9 +133,9 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 				if bootstrap == nil {
 					t.Fatal("bootstrap is nil")
 				}
-				// Repository (Provide) should appear in struct fields with interface type
+				// Repository (Provide) should appear as a field in the dependencies struct with interface type
 				if !strings.Contains(bootstrap.DependencyVar, "repository interface{}") {
-					t.Error("Provide type should be in struct fields with interface type")
+					t.Error("Provide type should appear as a dependencies struct field with interface type")
 				}
 				// Repository should be initialized
 				if !strings.Contains(bootstrap.DependencyVar, "repository := pkg.NewRepository()") {
