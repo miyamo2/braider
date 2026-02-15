@@ -1,6 +1,6 @@
 module github.com/miyamo2/braider
 
-go 1.24
+go 1.25
 
 require golang.org/x/tools v0.29.0
 

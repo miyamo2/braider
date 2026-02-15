@@ -10,7 +10,7 @@ Each analyzer implements the `analysis.Analyzer` interface, performs static anal
 
 ## Core Technologies
 
-- **Language**: Go 1.24
+- **Language**: go 1.25
 - **Framework**: `golang.org/x/tools/go/analysis` (Go analyzer framework)
 - **Runtime**: Standard Go toolchain (`go vet`)
 
@@ -42,7 +42,7 @@ Each analyzer implements the `analysis.Analyzer` interface, performs static anal
 ## Development Environment
 
 ### Required Tools
-- Go 1.24+
+- go 1.25+
 - Standard Go toolchain
 
 ### Common Commands

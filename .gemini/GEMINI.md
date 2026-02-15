@@ -6,7 +6,7 @@ This file provides guidance to Gemini CLI when working with code in this reposit
 
 **braider** is a `go vet` analyzer that resolves DI (Dependency Injection) bindings and generates wiring code automatically using `analysis.SuggestedFix`. Inspired by [google/wire](https://github.com/google/wire), it produces plain Go code with no runtime container.
 
-- **Go 1.24** / **`golang.org/x/tools/go/analysis`**
+- **go 1.25** / **`golang.org/x/tools/go/analysis`**
 
 ## Build & Test Commands
 
