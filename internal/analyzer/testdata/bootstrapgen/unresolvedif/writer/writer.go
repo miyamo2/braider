@@ -15,6 +15,6 @@ type MyWriter struct {
 	iface MyInterface // No injectable implements MyInterface
 }
 
-func NewMyWriter(iface MyInterface) MyWriter {
-	return MyWriter{iface: iface}
+func NewMyWriter(iface MyInterface) *MyWriter {
+	return &MyWriter{iface: iface}
 }

@@ -109,7 +109,7 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 						LocalName:       "Repository",
 						ConstructorName: "NewRepository",
 						Dependencies:    []string{},
-						IsField:         false, // Provide - not in return struct
+						IsField:         true, // Provide - now in return struct
 						RegisteredType:  types.NewInterfaceType([]*types.Func{}, []types.Type{}), // Mock interface type
 					},
 					"example.com/pkg.Service": {
@@ -133,11 +133,11 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 				if bootstrap == nil {
 					t.Fatal("bootstrap is nil")
 				}
-				// Repository (Provide) should NOT appear in struct fields
-				if strings.Contains(bootstrap.DependencyVar, "repository interface{}") && strings.Contains(bootstrap.DependencyVar, "struct {") {
-					t.Error("Provide type should not be in struct fields")
+				// Repository (Provide) should appear as a field in the dependencies struct with interface type
+				if !strings.Contains(bootstrap.DependencyVar, "repository interface{}") {
+					t.Error("Provide type should appear as a dependencies struct field with interface type")
 				}
-				// Repository should be initialized with interface type
+				// Repository should be initialized
 				if !strings.Contains(bootstrap.DependencyVar, "repository := pkg.NewRepository()") {
 					t.Error("missing NewRepository call for Provide")
 				}
@@ -196,7 +196,7 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 						LocalName:       "Repository",
 						ConstructorName: "NewRepository",
 						Dependencies:    []string{},
-						IsField:         false, // Provide
+						IsField:         true, // Provide - now in return struct
 						Name:            "userRepo", // Named dependency
 					},
 					"example.com/pkg.Service": {
@@ -220,7 +220,10 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 				if bootstrap == nil {
 					t.Fatal("bootstrap is nil")
 				}
-				// Repository should use named variable "userRepo"
+				// Repository should use named variable "userRepo" and be a struct field
+				if !strings.Contains(bootstrap.DependencyVar, "userRepo pkg.Repository") {
+					t.Error("missing userRepo struct field")
+				}
 				if !strings.Contains(bootstrap.DependencyVar, "userRepo := pkg.NewRepository()") {
 					t.Error("missing named variable userRepo for Repository")
 				}
@@ -241,7 +244,7 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 						LocalName:       "Repository",
 						ConstructorName: "NewRepository",
 						Dependencies:    []string{},
-						IsField:         false, // Provide
+						IsField:         true, // Provide - now in return struct
 					},
 					"example.com/pkg.Service": {
 						TypeName:        "example.com/pkg.Service",
@@ -264,13 +267,9 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 				if bootstrap == nil {
 					t.Fatal("bootstrap is nil")
 				}
-				// Only Service should be a field (Inject)
-				if !strings.Contains(bootstrap.DependencyVar, "service pkg.Service") {
-					t.Error("missing service field")
-				}
-				// Repository should NOT be a field (Provide)
-				if strings.Contains(bootstrap.DependencyVar, "repository pkg.Repository") {
-					t.Error("repository should not be a field")
+				// Both should be struct fields (check longest name field which has no gofmt padding)
+				if !strings.Contains(bootstrap.DependencyVar, "repository pkg.Repository") {
+					t.Error("missing repository field")
 				}
 				// Both should have initialization
 				if !strings.Contains(bootstrap.DependencyVar, "repository := pkg.NewRepository()") {
@@ -292,7 +291,7 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 						LocalName:       "ConfigProvider",
 						ConstructorName: "NewConfigProvider",
 						Dependencies:    []string{},
-						IsField:         false, // Provide only
+						IsField:         true, // Provide - now in return struct
 					},
 					"example.com/pkg.DBProvider": {
 						TypeName:        "example.com/pkg.DBProvider",
@@ -301,7 +300,7 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 						LocalName:       "DBProvider",
 						ConstructorName: "NewDBProvider",
 						Dependencies:    []string{},
-						IsField:         false, // Provide only
+						IsField:         true, // Provide - now in return struct
 					},
 				},
 				Edges: map[string][]string{
@@ -315,11 +314,15 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 				if bootstrap == nil {
 					t.Fatal("bootstrap is nil")
 				}
-				// Should have var dependency but with no fields
+				// Should have var dependency with Provide fields
 				if !strings.Contains(bootstrap.DependencyVar, "var dependency") {
 					t.Error("missing var dependency declaration")
 				}
-				// Both Provide types should be initialized as local variables
+				// Check longest name field which has no gofmt padding
+				if !strings.Contains(bootstrap.DependencyVar, "configProvider pkg.ConfigProvider") {
+					t.Error("missing configProvider field")
+				}
+				// Both should have initialization
 				if !strings.Contains(bootstrap.DependencyVar, "configProvider := pkg.NewConfigProvider()") {
 					t.Error("missing NewConfigProvider call")
 				}
@@ -339,7 +342,7 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 						LocalName:       "A",
 						ConstructorName: "NewA",
 						Dependencies:    []string{},
-						IsField:         false,
+						IsField:         true, // Provide - now in return struct
 					},
 					"example.com/pkg.B": {
 						TypeName:        "example.com/pkg.B",
@@ -348,7 +351,7 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 						LocalName:       "B",
 						ConstructorName: "NewB",
 						Dependencies:    []string{"example.com/pkg.A"},
-						IsField:         false,
+						IsField:         true, // Provide - now in return struct
 					},
 					"example.com/pkg.C": {
 						TypeName:        "example.com/pkg.C",
@@ -860,7 +863,7 @@ var dependency = func() struct {
 				PackagePath:     "example.com/pkg",
 				LocalName:       "Repository",
 				ConstructorName: "NewRepository",
-				IsField:         false,
+				IsField:         true,
 			},
 		},
 		Edges: map[string][]string{

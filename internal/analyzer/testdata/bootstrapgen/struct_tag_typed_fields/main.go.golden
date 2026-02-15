@@ -1,0 +1,38 @@
+package main
+
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"struct_tag_typed_fields/domain"
+	"struct_tag_typed_fields/provider"
+	"struct_tag_typed_fields/service"
+)
+
+var _ = annotation.App(main) // want "bootstrap code is missing"
+
+func main() {
+	_ = dependency
+}
+
+// braider:hash:80b9de3d5f44c06e
+var dependency = func() struct {
+	primaryCache  *provider.CacheStore
+	consoleLogger domain.Logger
+	mainDB        *provider.Database
+	appService    *service.AppService
+} {
+	primaryCache := provider.NewCacheStore()
+	consoleLogger := provider.NewConsoleLogger()
+	mainDB := provider.NewDatabase()
+	appService := service.NewAppService(primaryCache, mainDB, consoleLogger)
+	return struct {
+		primaryCache  *provider.CacheStore
+		consoleLogger domain.Logger
+		mainDB        *provider.Database
+		appService    *service.AppService
+	}{
+		primaryCache:  primaryCache,
+		consoleLogger: consoleLogger,
+		mainDB:        mainDB,
+		appService:    appService,
+	}
+}()

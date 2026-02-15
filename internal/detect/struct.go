@@ -3,6 +3,7 @@ package detect
 import (
 	"go/ast"
 	"go/types"
+	"unicode"
 
 	"github.com/miyamo2/braider/pkg/annotation"
 	"github.com/miyamo2/braider/pkg/annotation/inject"
@@ -126,7 +127,9 @@ func (d *structDetector) processGenDecl(
 // 2. Function is defined in the same package as the struct
 // 3. Function returns *StructName (pointer to the struct type)
 func (d *structDetector) FindExistingConstructor(pass *analysis.Pass, structName string) *ast.FuncDecl {
-	expectedName := "New" + structName
+	runes := []rune(structName)
+	runes[0] = unicode.ToUpper(runes[0])
+	expectedName := "New" + string(runes)
 
 	for _, file := range pass.Files {
 		for _, decl := range file.Decls {

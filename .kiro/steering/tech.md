@@ -10,7 +10,7 @@ Each analyzer implements the `analysis.Analyzer` interface, performs static anal
 
 ## Core Technologies
 
-- **Language**: Go 1.24
+- **Language**: go 1.25
 - **Framework**: `golang.org/x/tools/go/analysis` (Go analyzer framework)
 - **Runtime**: Standard Go toolchain (`go vet`)
 
@@ -42,7 +42,7 @@ Each analyzer implements the `analysis.Analyzer` interface, performs static anal
 ## Development Environment
 
 ### Required Tools
-- Go 1.24+
+- go 1.25+
 - Standard Go toolchain
 
 ### Common Commands
@@ -83,8 +83,20 @@ Uses `inspect.Analyzer` as a dependency for efficient AST traversal, following t
 ### Global Registry Pattern
 Uses shared registries (`ProviderRegistry`, `InjectorRegistry`, `VariableRegistry`, `PackageTracker`) to accumulate DI information across multiple packages and analyzer passes. This enables cross-package dependency resolution and ensures the `AppAnalyzer` can access all bindings collected by `DependencyAnalyzer`.
 
+### Bootstrap Struct Field vs Local Variable
+In the dependency graph, `Node.IsField` determines how a dependency appears in the bootstrap IIFE:
+- **IsField=true** (Injectable and Provide nodes): Become fields in the returned dependency struct, accessible to the caller
+- **IsField=false** (Variable nodes): Become local variables within the IIFE, not exposed to the caller
+
 ### Variable Expression Handling
 Variable annotations accept only simple identifiers (`myVar`) or package-qualified identifiers (`os.Stdout`). The detector normalizes aliased import qualifiers to declared package names (e.g., `import myos "os"` with `myos.Stdout` becomes `os.Stdout` in `ExpressionText`). During bootstrap generation, expression aliases are rewritten if package name collisions occur. Variable nodes that are not depended upon by other nodes use blank assignments (`_ =`) to avoid unused variable errors.
+
+### Struct Tag Field Control
+Fields in `Injectable[T]` structs can use `braider` struct tags for field-level DI customization:
+- `braider:"name"` - Resolve the field as a named dependency (equivalent to `Named[N]` at the field level)
+- `braider:"-"` - Exclude the field from DI resolution entirely (field is not wired in the constructor)
+- Empty tag `braider:""` emits a diagnostic error (ambiguous intent)
+- Conflicting tags (e.g., `braider:"name"` on a field whose type is already registered with a different name) emit a diagnostic error
 
 ### Idempotent Code Generation
 Bootstrap code generation uses hash markers (`// braider:hash:<hash>`) to track dependency graph state. The generator compares current graph hash against existing hash comments to determine if regeneration is needed. This prevents unnecessary rewrites and preserves manual edits in unrelated code sections.
@@ -104,3 +116,4 @@ _Document standards and patterns, not every dependency_
 _Updated: 2026-02-02 - Added loader component, expanded generator utilities to include naming and keyword checking_
 _Updated: 2026-02-11 - Sync: Corrected annotation names to current API; added OptionExtractor, NamerValidator to detect components; added AST utilities to generate components_
 _Updated: 2026-02-12 - Sync: Added Variable annotation support (VariableCallDetector, VariableRegistry, Variable expression handling, blank assignment for unused Variable nodes)_
+_Updated: 2026-02-15 - Sync: Added Bootstrap struct field vs local variable pattern (Provide now IsField=true); added struct tag field control pattern (braider:"name", braider:"-")_

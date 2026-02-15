@@ -15,8 +15,8 @@ import (
 	"github.com/miyamo2/braider/pkg/annotation/provide"
 )
 
-// ProviderInfo contains information about a Provide struct.
-// These are dependency providers that become local variables in the bootstrap IIFE.
+// ProviderInfo contains information about a Provide annotation.
+// These are dependency providers that become fields in the bootstrap dependency struct.
 type ProviderInfo struct {
 	// TypeName is the fully qualified type name (e.g., "example.com/repo.UserRepository")
 	TypeName string
@@ -33,7 +33,7 @@ type ProviderInfo struct {
 	// Implements contains fully qualified interface types this struct implements
 	Implements []string
 	// IsPending indicates whether the constructor is being generated in the current pass (true)
-	// or already exists on disk (false). Typically false for Provide structs as they require
+	// or already exists on disk (false). Typically false for Provide annotations as they require
 	// existing constructors, but included for consistency with InjectorInfo.
 	IsPending bool
 

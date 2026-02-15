@@ -667,3 +667,111 @@ func TestDiagnosticEmitter_EmitUnsupportedVariableExpression(t *testing.T) {
 		t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
 	}
 }
+
+func TestDiagnosticEmitter_EmitInvalidStructTagError(t *testing.T) {
+	tests := []struct {
+		name      string
+		fieldName string
+		wantMsg   string
+	}{
+		{
+			name:      "standard field name",
+			fieldName: "Logger",
+			wantMsg:   "invalid braider struct tag on field Logger: tag value must not be empty",
+		},
+		{
+			name:      "unexported field",
+			fieldName: "db",
+			wantMsg:   "invalid braider struct tag on field db: tag value must not be empty",
+		},
+		{
+			name:      "empty field name",
+			fieldName: "",
+			wantMsg:   "invalid braider struct tag on field : tag value must not be empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			emitter := report.NewDiagnosticEmitter()
+			reporter := &mockReporter{}
+			pos := token.Pos(600)
+
+			emitter.EmitInvalidStructTagError(reporter, pos, tt.fieldName)
+
+			if len(reporter.diagnostics) != 1 {
+				t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+			}
+
+			d := reporter.diagnostics[0]
+
+			if d.Pos != pos {
+				t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+			}
+
+			if d.Message != tt.wantMsg {
+				t.Errorf("diagnostic.Message = %q, want %q", d.Message, tt.wantMsg)
+			}
+
+			if len(d.SuggestedFixes) != 0 {
+				t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
+			}
+		})
+	}
+}
+
+func TestDiagnosticEmitter_EmitStructTagConflictError(t *testing.T) {
+	tests := []struct {
+		name      string
+		fieldName string
+		reason    string
+		wantMsg   string
+	}{
+		{
+			name:      "exclusion tag conflicts with constructor param",
+			fieldName: "Logger",
+			reason:    "field is excluded via braider:\"-\" but matches constructor parameter type",
+			wantMsg:   "braider struct tag conflict on field Logger: field is excluded via braider:\"-\" but matches constructor parameter type",
+		},
+		{
+			name:      "named tag on field not in constructor",
+			fieldName: "DB",
+			reason:    "field has braider:\"primary\" but does not match any constructor parameter type",
+			wantMsg:   "braider struct tag conflict on field DB: field has braider:\"primary\" but does not match any constructor parameter type",
+		},
+		{
+			name:      "empty field name",
+			fieldName: "",
+			reason:    "conflict reason",
+			wantMsg:   "braider struct tag conflict on field : conflict reason",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			emitter := report.NewDiagnosticEmitter()
+			reporter := &mockReporter{}
+			pos := token.Pos(700)
+
+			emitter.EmitStructTagConflictError(reporter, pos, tt.fieldName, tt.reason)
+
+			if len(reporter.diagnostics) != 1 {
+				t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+			}
+
+			d := reporter.diagnostics[0]
+
+			if d.Pos != pos {
+				t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+			}
+
+			if d.Message != tt.wantMsg {
+				t.Errorf("diagnostic.Message = %q, want %q", d.Message, tt.wantMsg)
+			}
+
+			if len(d.SuggestedFixes) != 0 {
+				t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
+			}
+		})
+	}
+}

@@ -1,0 +1,57 @@
+version: 2
+
+builds:
+  - main: ./cmd/braider
+    binary: braider
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    format_overrides:
+      - goos: windows
+        format: zip
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^doc:"
+      - "^style:"
+      - "^ci:"
+      - "^chore:"
+      - "^refactor:"
+      - "^test:"
+      - "^Update coverage badges"
+
+brews:
+  - repository:
+      owner: miyamo2
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/miyamo2/braider"
+    description: "A go vet analyzer that resolves DI bindings and generates wiring code automatically"
+    license: "MIT"
+    test: |
+      system "#{bin}/braider", "-h"
+
+release:
+  github:
+    owner: miyamo2
+    name: braider
+  draft: false
+  prerelease: auto
+  make_latest: true
+  mode: replace
