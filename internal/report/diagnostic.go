@@ -70,6 +70,12 @@ type DiagnosticEmitter interface {
 
 	// EmitUnsupportedVariableExpression reports an unsupported Variable argument expression error.
 	EmitUnsupportedVariableExpression(reporter Reporter, pos token.Pos, reason string)
+
+	// EmitInvalidStructTagError reports an invalid braider struct tag value (braider:"").
+	EmitInvalidStructTagError(reporter Reporter, pos token.Pos, fieldName string)
+
+	// EmitStructTagConflictError reports a braider struct tag conflict with WithoutConstructor.
+	EmitStructTagConflictError(reporter Reporter, pos token.Pos, fieldName string, reason string)
 }
 
 // diagnosticEmitter is the default implementation of DiagnosticEmitter.
@@ -241,5 +247,21 @@ func (e *diagnosticEmitter) EmitUnsupportedVariableExpression(reporter Reporter,
 	reporter.Report(analysis.Diagnostic{
 		Pos:     pos,
 		Message: reason,
+	})
+}
+
+// EmitInvalidStructTagError reports an invalid braider struct tag value (braider:"").
+func (e *diagnosticEmitter) EmitInvalidStructTagError(reporter Reporter, pos token.Pos, fieldName string) {
+	reporter.Report(analysis.Diagnostic{
+		Pos:     pos,
+		Message: fmt.Sprintf("invalid braider struct tag on field %s: tag value must not be empty", fieldName),
+	})
+}
+
+// EmitStructTagConflictError reports a braider struct tag conflict with WithoutConstructor.
+func (e *diagnosticEmitter) EmitStructTagConflictError(reporter Reporter, pos token.Pos, fieldName string, reason string) {
+	reporter.Report(analysis.Diagnostic{
+		Pos:     pos,
+		Message: fmt.Sprintf("braider struct tag conflict on field %s: %s", fieldName, reason),
 	})
 }

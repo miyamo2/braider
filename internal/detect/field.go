@@ -2,7 +2,10 @@ package detect
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
+	"reflect"
+	"strconv"
 	"unicode"
 
 	"golang.org/x/tools/go/analysis"
@@ -10,12 +13,16 @@ import (
 
 // FieldInfo contains analyzed information about a struct field.
 type FieldInfo struct {
-	Name        string     // Field name (or generated name for anonymous)
-	TypeExpr    ast.Expr   // Original type expression from AST
-	Type        types.Type // Resolved type from type checker
-	IsExported  bool       // Whether the field is exported
-	IsPointer   bool       // Whether the type is a pointer
-	IsInterface bool       // Whether the type is an interface
+	Name            string     // Field name (or generated name for anonymous)
+	Pos             token.Pos  // Position of the field name in source
+	TypeExpr        ast.Expr   // Original type expression from AST
+	Type            types.Type // Resolved type from type checker
+	IsExported      bool       // Whether the field is exported
+	IsPointer       bool       // Whether the type is a pointer
+	IsInterface     bool       // Whether the type is an interface
+	NamedDependency string     // Named dependency from braider:"name" tag (empty if not tagged)
+	Excluded        bool       // True if field has braider:"-" tag (excluded from DI)
+	InvalidTag      bool       // True if field has braider:"" tag (empty value, invalid)
 }
 
 // FieldAnalyzer analyzes struct fields for constructor generation.
@@ -52,9 +59,16 @@ func (a *fieldAnalyzer) AnalyzeFields(pass *analysis.Pass, st *ast.StructType, i
 			continue
 		}
 
+		// Parse struct tag for braider key (shared across all names in same field declaration)
+		tagInfo := a.parseStructTag(field)
+
 		// Process each name in the field (handles "a, b int" syntax)
 		for _, name := range field.Names {
 			info := a.analyzeField(pass, name.Name, field.Type)
+			info.Pos = name.Pos()
+			info.NamedDependency = tagInfo.namedDependency
+			info.Excluded = tagInfo.excluded
+			info.InvalidTag = tagInfo.invalidTag
 			fields = append(fields, info)
 		}
 	}
@@ -86,6 +100,49 @@ func (a *fieldAnalyzer) analyzeField(pass *analysis.Pass, name string, typeExpr 
 	}
 
 	return info
+}
+
+// structTagInfo holds parsed braider struct tag metadata.
+type structTagInfo struct {
+	namedDependency string // Named dependency value (empty if not tagged or excluded)
+	excluded        bool   // True if braider:"-"
+	invalidTag      bool   // True if braider:"" (empty value)
+}
+
+// parseStructTag parses the braider struct tag from an ast.Field.
+// It extracts the raw tag string from the field's Tag literal, strips surrounding
+// backticks via strconv.Unquote, and uses reflect.StructTag.Lookup("braider") to
+// find the braider key value.
+func (a *fieldAnalyzer) parseStructTag(field *ast.Field) structTagInfo {
+	if field.Tag == nil {
+		return structTagInfo{}
+	}
+
+	// field.Tag.Value includes surrounding backticks or quotes (e.g., `json:"x" braider:"name"`)
+	rawTag, err := strconv.Unquote(field.Tag.Value)
+	if err != nil {
+		// Non-standard tag format; treat as untagged
+		return structTagInfo{}
+	}
+
+	value, ok := reflect.StructTag(rawTag).Lookup("braider")
+	if !ok {
+		// No braider key present; treat as standard dependency
+		return structTagInfo{}
+	}
+
+	// Empty value: braider:""
+	if value == "" {
+		return structTagInfo{invalidTag: true}
+	}
+
+	// Exclusion: braider:"-"
+	if value == "-" {
+		return structTagInfo{excluded: true}
+	}
+
+	// Named dependency: braider:"name"
+	return structTagInfo{namedDependency: value}
 }
 
 // isExported returns true if the name is exported (starts with uppercase).

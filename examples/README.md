@@ -14,3 +14,5 @@ braider -f ./...
 - `without-constructor`: `Injectable[inject.WithoutConstructor]` skips constructor generation and relies on a manual `New<Type>`.
 - `mixed-options`: combines `Typed[I]` and `Named[N]` via an embedded option interface.
 - `provide-typed`: `Provide[provide.Typed[I]]` registers provider functions as interface types.
+- `struct-tag-named`: `braider:"<name>"` struct tag injects a named dependency into a specific field.
+- `struct-tag-exclude`: `braider:"-"` struct tag excludes a field from dependency injection.
