@@ -40,7 +40,7 @@ type Node struct {
 	ConstructorName string      // New<TypeName>
 	Dependencies    []string    // Types this depends on
 	InDegree        int         // Number of types that depend on this node (for Kahn's algorithm)
-	IsField         bool        // True for Inject/Provide structs (dependency struct fields), false for Variable nodes (local variables only)
+	IsField         bool        // True for Inject/Provide nodes exposed as dependency struct fields; false for Variable nodes (local variables only)
 	RegisteredType  types.Type  // Interface type for Typed[I], concrete type otherwise (nil = use concrete type)
 	Name            string      // Dependency name from Named[N], empty if unnamed
 	ExpressionText     string   // Formatted expression source text for Variable nodes (empty for Provider/Injector nodes)
