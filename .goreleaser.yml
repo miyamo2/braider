@@ -32,6 +32,18 @@ changelog:
       - "^chore:"
       - "^test:"
 
+brews:
+  - repository:
+      owner: miyamo2
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/miyamo2/braider"
+    description: "A go vet analyzer that resolves DI bindings and generates wiring code automatically"
+    license: "MIT"
+    test: |
+      system "#{bin}/braider", "-h"
+
 release:
   github:
     owner: miyamo2
