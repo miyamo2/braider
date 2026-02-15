@@ -32,13 +32,13 @@ go install github.com/miyamo2/braider/cmd/braider@latest
 2. (Optional) Run the analyzer to check for configuration issues
 
 ```bash
-go vet -vettool=$(which braider) ./...
+braider ./...
 ```
 
 3. Apply generated constructors and bootstrap wiring
 
 ```bash
-go vet -vettool=$(which braider) -fix ./...
+braider -fix ./...
 ```
 
 ### Annotations
@@ -163,7 +163,7 @@ var _ = annotation.App(main)
 func main() {}
 ```
 
-**Following `go vet -vettool=$(which braider) -fix ./...`, the generated bootstrap code will look like this**
+**Following `braider -fix ./...`, the generated bootstrap code will look like this**
 
 ```go
 package main

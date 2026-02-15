@@ -40,13 +40,14 @@ func newDepAnalyzerTestEnv() *depAnalyzerTestEnv {
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 	variableRegistry := registry.NewVariableRegistry()
 
-	analyzer := DependencyAnalyzer(
+	runner := NewDependencyAnalyzeRunner(
 		providerRegistry, injectorRegistry, packageTracker, cancel,
 		provideCallDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
 		variableCallDetector, variableRegistry,
 	)
+	analyzer := (*analysis.Analyzer)(NewDependencyAnalyzer(runner))
 
 	return &depAnalyzerTestEnv{
 		analyzer:         analyzer,

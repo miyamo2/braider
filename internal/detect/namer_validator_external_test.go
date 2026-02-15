@@ -7,10 +7,10 @@
 //   - Simpler test maintenance
 //
 // To add a new test case:
-//   1. Create directory: testdata/namer_validator/<case_name>/
-//   2. Add main.go with the test case
-//   3. Add go.mod
-//   4. Add test function using LoadTestPackage()
+//  1. Create directory: testdata/namer_validator/<case_name>/
+//  2. Add main.go with the test case
+//  3. Add go.mod
+//  4. Add test function using LoadTestPackage()
 package detect
 
 import (
@@ -53,7 +53,7 @@ func TestNamerValidator_ExtractName_InvalidSignature(t *testing.T) {
 			tt.name, func(t *testing.T) {
 				pkg, pass := LoadTestPackage(t, tt.relativeDir)
 
-				validator := NewNamerValidator(nil)
+				validator := NewNamerValidatorImpl(nil)
 
 				namedType := FindNamedType(pkg, tt.typeName)
 				if namedType == nil {
@@ -89,7 +89,7 @@ func TestNamerValidator_ExtractName_ExternalPackage(t *testing.T) {
 		},
 	}
 
-	validator := NewNamerValidator(loader)
+	validator := NewNamerValidatorImpl(loader)
 
 	// Get ExternalNamer type from external package
 	namedType := FindNamedType(externalPkg, "ExternalNamer")
@@ -116,7 +116,7 @@ func TestNamerValidator_ExtractName_ExternalPackageNotAvailable(t *testing.T) {
 	_, currentPass := LoadTestPackage(t, "namer_validator/no_loader/current")
 
 	// Create validator without loader
-	validator := NewNamerValidator(nil)
+	validator := NewNamerValidatorImpl(nil)
 
 	namedType := FindNamedType(externalPkg, "ExternalNamer")
 	if namedType == nil {
@@ -151,7 +151,7 @@ func TestNamerValidator_ExtractName_ExternalPackageLoadError(t *testing.T) {
 		Packages: map[string]*packages.Package{},
 	}
 
-	validator := NewNamerValidator(loader)
+	validator := NewNamerValidatorImpl(loader)
 
 	namedType := FindNamedType(externalPkg, "ExternalNamer")
 	if namedType == nil {

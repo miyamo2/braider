@@ -84,7 +84,7 @@ func (FuncKeywordName) Name() string { return "func" }
 		Pkg:       pkg,
 	}
 
-	validator := NewNamerValidator(nil) // nil loader for same-package validation
+	validator := NewNamerValidatorImpl(nil) // nil loader for same-package validation
 
 	tests := []struct {
 		name        string
@@ -206,7 +206,7 @@ type NoMethodType struct{}
 		Pkg:       pkg,
 	}
 
-	validator := NewNamerValidator(nil)
+	validator := NewNamerValidatorImpl(nil)
 
 	obj := pkg.Scope().Lookup("NoMethodType")
 	if obj == nil {

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/provide"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -27,6 +29,8 @@ type PackageLoader interface {
 	// FindModuleRoot finds the module root directory from a given path.
 	FindModuleRoot(dir string) (string, error)
 }
+
+var _ = annotation.Provide[provide.Default](NewPackageLoader)
 
 // packageLoader is the default implementation of PackageLoader.
 type packageLoader struct {

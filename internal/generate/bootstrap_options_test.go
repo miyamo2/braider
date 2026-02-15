@@ -87,7 +87,7 @@ func TestBootstrapGenerator_InterfaceTypedVariables(t *testing.T) {
 						},
 					},
 					Edges: map[string][]string{
-						"example.com/repo.UserRepository":  {},
+						"example.com/repo.UserRepository": {},
 						"example.com/service.UserService": {"example.com/repo.UserRepository"},
 					},
 				}
@@ -162,7 +162,7 @@ func TestBootstrapGenerator_InterfaceTypedVariables(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g, sortedTypes := tt.setupGraph()
 
-			bg := NewBootstrapGenerator()
+			bg := NewBootstrapGenerator(NewCodeFormatter())
 			pass := &analysis.Pass{
 				Pkg: types.NewPackage("example.com/main", "main"),
 			}
@@ -277,7 +277,7 @@ func TestBootstrapGenerator_NamedVariableNaming(t *testing.T) {
 						},
 					},
 					Edges: map[string][]string{
-						"example.com/repo.Repository":      {},
+						"example.com/repo.Repository":     {},
 						"example.com/service.UserService": {"example.com/repo.Repository"},
 					},
 				}
@@ -304,7 +304,7 @@ func TestBootstrapGenerator_NamedVariableNaming(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g, sortedTypes := tt.setupGraph()
 
-			bg := NewBootstrapGenerator()
+			bg := NewBootstrapGenerator(NewCodeFormatter())
 			pass := &analysis.Pass{
 				Pkg: types.NewPackage("example.com/main", "main"),
 			}
@@ -368,7 +368,7 @@ func TestBootstrapGenerator_TopologicalSortPreservation(t *testing.T) {
 						},
 					},
 					Edges: map[string][]string{
-						"example.com/repo.Repository":      {},
+						"example.com/repo.Repository":     {},
 						"example.com/service.UserService": {"example.com/repo.Repository"},
 					},
 				}
@@ -455,8 +455,8 @@ func TestBootstrapGenerator_TopologicalSortPreservation(t *testing.T) {
 						},
 					},
 					Edges: map[string][]string{
-						"example.com/logger.Logger":        {},
-						"example.com/repo.Repository":      {"example.com/logger.Logger"},
+						"example.com/logger.Logger":       {},
+						"example.com/repo.Repository":     {"example.com/logger.Logger"},
 						"example.com/service.UserService": {"example.com/repo.Repository"},
 					},
 				}
@@ -480,7 +480,7 @@ func TestBootstrapGenerator_TopologicalSortPreservation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g, sortedTypes := tt.setupGraph()
 
-			bg := NewBootstrapGenerator()
+			bg := NewBootstrapGenerator(NewCodeFormatter())
 			pass := &analysis.Pass{
 				Pkg: types.NewPackage("example.com/main", "main"),
 			}

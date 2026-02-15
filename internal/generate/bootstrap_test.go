@@ -109,7 +109,7 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 						LocalName:       "Repository",
 						ConstructorName: "NewRepository",
 						Dependencies:    []string{},
-						IsField:         true, // Provide - now in return struct
+						IsField:         true,                                                    // Provide - now in return struct
 						RegisteredType:  types.NewInterfaceType([]*types.Func{}, []types.Type{}), // Mock interface type
 					},
 					"example.com/pkg.Service": {
@@ -196,7 +196,7 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 						LocalName:       "Repository",
 						ConstructorName: "NewRepository",
 						Dependencies:    []string{},
-						IsField:         true, // Provide - now in return struct
+						IsField:         true,       // Provide - now in return struct
 						Name:            "userRepo", // Named dependency
 					},
 					"example.com/pkg.Service": {
@@ -391,7 +391,7 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bg := NewBootstrapGenerator()
+			bg := NewBootstrapGenerator(NewCodeFormatter())
 
 			// Create minimal pass
 			pass := &analysis.Pass{
@@ -651,7 +651,7 @@ func TestBootstrapGenerator_GenerateBootstrap_VariableExpressionAssignment(t *te
 					},
 				},
 				Edges: map[string][]string{
-					"os.File":                {},
+					"os.File":                 {},
 					"example.com/pkg.Service": {"os.File"},
 				},
 			},
@@ -677,7 +677,7 @@ func TestBootstrapGenerator_GenerateBootstrap_VariableExpressionAssignment(t *te
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bg := NewBootstrapGenerator()
+			bg := NewBootstrapGenerator(NewCodeFormatter())
 
 			currentPkg := tt.currentPkg
 			if currentPkg == "" {
@@ -782,7 +782,7 @@ var (
 				Files: []*ast.File{file},
 			}
 
-			bg := NewBootstrapGenerator()
+			bg := NewBootstrapGenerator(NewCodeFormatter())
 			existing := bg.DetectExistingBootstrap(pass)
 
 			got := existing != nil
@@ -837,7 +837,7 @@ var dependency = func() struct {
 		Files: []*ast.File{file},
 	}
 
-	bg := NewBootstrapGenerator()
+	bg := NewBootstrapGenerator(NewCodeFormatter())
 	existing := bg.DetectExistingBootstrap(pass)
 	if existing == nil {
 		t.Fatal("Failed to detect existing bootstrap")
@@ -1034,7 +1034,7 @@ func TestExtractHashFromComments(t *testing.T) {
 				Files: []*ast.File{file},
 			}
 
-			bg := NewBootstrapGenerator()
+			bg := NewBootstrapGenerator(NewCodeFormatter())
 			existing := bg.DetectExistingBootstrap(pass)
 
 			if existing == nil && tt.want != "" {

@@ -12,6 +12,7 @@ import (
 	"github.com/miyamo2/braider/internal/graph"
 	"github.com/miyamo2/braider/internal/registry"
 	"github.com/miyamo2/braider/internal/report"
+	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/packages"
 )
@@ -54,9 +55,9 @@ func setupTestDependencies() (
 	packageTracker := registry.NewPackageTracker()
 	bootstrapCtx, bootstrapCancel := context.WithCancelCause(context.Background())
 	appDetector := detect.NewAppDetector()
-	graphBuilder := graph.NewDependencyGraphBuilder()
+	graphBuilder := graph.NewDependencyGraphBuilder(graph.NewInterfaceRegistry())
 	sorter := graph.NewTopologicalSorter()
-	bootstrapGenerator := generate.NewBootstrapGenerator()
+	bootstrapGenerator := generate.NewBootstrapGenerator(generate.NewCodeFormatter())
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 
@@ -87,12 +88,13 @@ func TestAppAnalyzer_ContextCancellation(t *testing.T) {
 
 	packageLoader := &mockPackageLoader{}
 	variableReg := registry.NewVariableRegistry()
-	analyzer := AppAnalyzer(
+	runner := NewAppAnalyzeRunner(
 		appDetector, injectorRegistry, providerRegistry, packageLoader,
 		packageTracker, bootstrapCtx,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 		variableReg,
 	)
+	analyzer := (*analysis.Analyzer)(NewAppAnalyzer(runner))
 
 	// Should not emit any diagnostics when context is cancelled
 	analysistest.Run(t, "testdata/bootstrapgen/contextcancel", analyzer, ".")
@@ -118,12 +120,13 @@ func TestAppAnalyzer_MissingConstructor(t *testing.T) {
 
 	packageLoader := &mockPackageLoader{}
 	variableReg := registry.NewVariableRegistry()
-	analyzer := AppAnalyzer(
+	runner := NewAppAnalyzeRunner(
 		appDetector, injectorRegistry, providerRegistry, packageLoader,
 		packageTracker, bootstrapCtx,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 		variableReg,
 	)
+	analyzer := (*analysis.Analyzer)(NewAppAnalyzer(runner))
 	analysistest.Run(t, "testdata/bootstrapgen/missingctor", analyzer, ".")
 	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/missingctor", analyzer, ".")
 }
@@ -159,12 +162,13 @@ func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
 
 	packageLoader := &mockPackageLoader{}
 	variableReg := registry.NewVariableRegistry()
-	analyzer := AppAnalyzer(
+	runner := NewAppAnalyzeRunner(
 		appDetector, injectorRegistry, providerRegistry, packageLoader,
 		packageTracker, bootstrapCtx,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 		variableReg,
 	)
+	analyzer := (*analysis.Analyzer)(NewAppAnalyzer(runner))
 	analysistest.Run(t, "testdata/bootstrapgen/multipleapp", analyzer, "./...")
 }
 

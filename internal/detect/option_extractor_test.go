@@ -33,7 +33,7 @@ func TestOptionExtractor_ExtractInjectOptions_Default(t *testing.T) {
 	concreteType := types.NewPointer(obj.Type())
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractor(mockValidator)
+	extractor := NewOptionExtractorImpl(mockValidator)
 
 	metadata, err := extractor.ExtractInjectOptions(pass, injectableExpr, concreteType)
 
@@ -75,7 +75,7 @@ func TestOptionExtractor_ExtractInjectOptions_Typed(t *testing.T) {
 	ifaceType := ifaceObj.Type()
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractor(mockValidator)
+	extractor := NewOptionExtractorImpl(mockValidator)
 
 	metadata, err := extractor.ExtractInjectOptions(pass, injectableExpr, concreteType)
 
@@ -111,7 +111,7 @@ func TestOptionExtractor_ExtractInjectOptions_Named(t *testing.T) {
 			return "database", nil
 		},
 	}
-	extractor := NewOptionExtractor(mockValidator)
+	extractor := NewOptionExtractorImpl(mockValidator)
 
 	metadata, err := extractor.ExtractInjectOptions(pass, injectableExpr, concreteType)
 
@@ -136,7 +136,7 @@ func TestOptionExtractor_ExtractInjectOptions_WithoutConstructor(t *testing.T) {
 	concreteType := types.NewPointer(obj.Type())
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractor(mockValidator)
+	extractor := NewOptionExtractorImpl(mockValidator)
 
 	metadata, err := extractor.ExtractInjectOptions(pass, injectableExpr, concreteType)
 
@@ -164,7 +164,7 @@ func TestOptionExtractor_ExtractInjectOptions_TypedNonInterface(t *testing.T) {
 	concreteType := types.NewPointer(obj.Type())
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractor(mockValidator)
+	extractor := NewOptionExtractorImpl(mockValidator)
 
 	_, err := extractor.ExtractInjectOptions(pass, injectableExpr, concreteType)
 
@@ -184,7 +184,7 @@ func TestOptionExtractor_ExtractVariableOptions_Default(t *testing.T) {
 	callExpr, argType := FindVariableCall(t, pkg)
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractor(mockValidator)
+	extractor := NewOptionExtractorImpl(mockValidator)
 
 	metadata, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
 
@@ -218,7 +218,7 @@ func TestOptionExtractor_ExtractVariableOptions_Typed(t *testing.T) {
 	ifaceType := ifaceObj.Type()
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractor(mockValidator)
+	extractor := NewOptionExtractorImpl(mockValidator)
 
 	metadata, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
 
@@ -246,7 +246,7 @@ func TestOptionExtractor_ExtractVariableOptions_Named(t *testing.T) {
 			return "stdout", nil
 		},
 	}
-	extractor := NewOptionExtractor(mockValidator)
+	extractor := NewOptionExtractorImpl(mockValidator)
 
 	metadata, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
 
@@ -275,7 +275,7 @@ func TestOptionExtractor_ExtractVariableOptions_Mixed(t *testing.T) {
 			return "stdout", nil
 		},
 	}
-	extractor := NewOptionExtractor(mockValidator)
+	extractor := NewOptionExtractorImpl(mockValidator)
 
 	metadata, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
 
@@ -305,7 +305,7 @@ func TestOptionExtractor_ExtractVariableOptions_TypedNonInterface(t *testing.T) 
 	callExpr, argType := FindVariableCall(t, pkg)
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractor(mockValidator)
+	extractor := NewOptionExtractorImpl(mockValidator)
 
 	_, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
 
@@ -325,7 +325,7 @@ func TestOptionExtractor_ExtractVariableOptions_InterfaceImplValidationError(t *
 	callExpr, argType := FindVariableCall(t, pkg)
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractor(mockValidator)
+	extractor := NewOptionExtractorImpl(mockValidator)
 
 	_, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
 
@@ -352,7 +352,7 @@ func TestOptionExtractor_ExtractInjectOptions_InterfaceImplValidationError(t *te
 	concreteType := types.NewPointer(obj.Type())
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractor(mockValidator)
+	extractor := NewOptionExtractorImpl(mockValidator)
 
 	_, err := extractor.ExtractInjectOptions(pass, injectableExpr, concreteType)
 

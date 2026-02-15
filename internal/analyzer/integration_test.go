@@ -41,8 +41,8 @@ func buildIntegrationDeps() (
 
 	// Detection components (all real)
 	packageLoader := &mockPackageLoader{}
-	namerValidator := detect.NewNamerValidator(packageLoader)
-	optionExtractor := detect.NewOptionExtractor(namerValidator)
+	namerValidator := detect.NewNamerValidatorImpl(packageLoader)
+	optionExtractor := detect.NewOptionExtractorImpl(namerValidator)
 	injectDetector := detect.NewInjectDetector()
 	fieldAnalyzer := detect.NewFieldAnalyzer()
 	constructorAnalyzer := detect.NewConstructorAnalyzer()
@@ -51,14 +51,14 @@ func buildIntegrationDeps() (
 
 	// Generation components
 	constructorGenerator := generate.NewConstructorGenerator()
-	bootstrapGenerator := generate.NewBootstrapGenerator()
+	bootstrapGenerator := generate.NewBootstrapGenerator(generate.NewCodeFormatter())
 
 	// Report components
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 
 	// Graph components
-	graphBuilder := graph.NewDependencyGraphBuilder()
+	graphBuilder := graph.NewDependencyGraphBuilder(graph.NewInterfaceRegistry())
 	sorter := graph.NewTopologicalSorter()
 
 	// App detection
@@ -68,21 +68,23 @@ func buildIntegrationDeps() (
 	variableCallDetector := detect.NewVariableCallDetector()
 	variableReg := registry.NewVariableRegistry()
 
-	depAnalyzer := DependencyAnalyzer(
+	depRunner := NewDependencyAnalyzeRunner(
 		providerReg, injectorReg, packageTracker, bootstrapCancel,
 		provideCallDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
 		variableCallDetector, variableReg,
 	)
+	depAnalyzer := (*analysis.Analyzer)(NewDependencyAnalyzer(depRunner))
 
-	appAnalyzer := AppAnalyzer(
+	appRunner := NewAppAnalyzeRunner(
 		appDetector, injectorReg, providerReg, packageLoader,
 		packageTracker, ctx,
 		graphBuilder, sorter, bootstrapGenerator,
 		suggestedFixBuilder, diagnosticEmitter,
 		variableReg,
 	)
+	appAnalyzer := (*analysis.Analyzer)(NewAppAnalyzer(appRunner))
 
 	return depAnalyzer, appAnalyzer, injectorReg, providerReg, variableReg
 }

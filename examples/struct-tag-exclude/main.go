@@ -10,13 +10,12 @@
 //
 // Run the analyzer:
 //
-//	go vet -vettool=$(which braider) -fix ./...
+//	braider -fix ./...
 package main
 
 import (
 	"github.com/miyamo2/braider/pkg/annotation"
 	"github.com/miyamo2/braider/pkg/annotation/inject"
-	"github.com/miyamo2/braider/pkg/annotation/provide"
 )
 
 // Logger is an interface for logging.
@@ -28,10 +27,7 @@ type stdLogger struct {
 	annotation.Injectable[inject.Default]
 }
 
-func NewStdLogger() *stdLogger { return &stdLogger{} }
 func (l *stdLogger) Log(msg string) {}
-
-var _ = annotation.Provide[provide.Typed[Logger]](NewStdLogger)
 
 // Metrics is an optional dependency that is excluded from DI.
 type Metrics interface {

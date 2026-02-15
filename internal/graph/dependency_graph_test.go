@@ -201,7 +201,7 @@ func TestDependencyGraph_BuildGraph(t *testing.T) {
 			pass := createMockPassForGraph(t)
 
 			// Build graph
-			builder := NewDependencyGraphBuilder()
+			builder := NewDependencyGraphBuilder(NewInterfaceRegistry())
 			graph, err := builder.BuildGraph(pass, tt.providers, tt.injectors, nil)
 
 			if (err != nil) != tt.wantErr {
@@ -322,7 +322,7 @@ func TestDependencyGraph_IsField(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			pass := createMockPassForGraph(t)
 
-			builder := NewDependencyGraphBuilder()
+			builder := NewDependencyGraphBuilder(NewInterfaceRegistry())
 			graph, err := builder.BuildGraph(pass, tt.providers, tt.injectors, nil)
 			if err != nil {
 				t.Fatalf("BuildGraph() error = %v", err)
@@ -414,7 +414,7 @@ func TestDependencyGraph_InterfaceResolution(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			pass := createMockPassForGraph(t)
 
-			builder := NewDependencyGraphBuilder()
+			builder := NewDependencyGraphBuilder(NewInterfaceRegistry())
 			graph, err := builder.BuildGraph(pass, tt.providers, tt.injectors, nil)
 
 			if (err != nil) != tt.wantErr {
@@ -561,7 +561,7 @@ func TestDependencyGraph_BuildGraph_PointerDependencies(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pass := createMockPassForGraph(t)
-			builder := NewDependencyGraphBuilder()
+			builder := NewDependencyGraphBuilder(NewInterfaceRegistry())
 			graph, err := builder.BuildGraph(pass, tt.providers, tt.injectors, nil)
 
 			if (err != nil) != tt.wantErr {
@@ -628,7 +628,7 @@ func TestDependencyGraph_BuildGraph_NamedDependencies(t *testing.T) {
 		},
 	}
 
-	builder := NewDependencyGraphBuilder()
+	builder := NewDependencyGraphBuilder(NewInterfaceRegistry())
 	pass := createMockPassForGraph(t)
 
 	graph, err := builder.BuildGraph(pass, providers, injectors, nil)
@@ -729,7 +729,7 @@ func TestNode_VariableMetadataFields(t *testing.T) {
 func TestDependencyGraph_BuildGraph_VariableNodes(t *testing.T) {
 	t.Run("single variable with no dependencies creates node", func(t *testing.T) {
 		pass := createMockPassForGraph(t)
-		builder := NewDependencyGraphBuilder()
+		builder := NewDependencyGraphBuilder(NewInterfaceRegistry())
 
 		variables := []*registry.VariableInfo{
 			{
@@ -790,7 +790,7 @@ func TestDependencyGraph_BuildGraph_VariableNodes(t *testing.T) {
 
 	t.Run("named variable uses composite key", func(t *testing.T) {
 		pass := createMockPassForGraph(t)
-		builder := NewDependencyGraphBuilder()
+		builder := NewDependencyGraphBuilder(NewInterfaceRegistry())
 
 		variables := []*registry.VariableInfo{
 			{
@@ -823,7 +823,7 @@ func TestDependencyGraph_BuildGraph_VariableNodes(t *testing.T) {
 
 	t.Run("variable coexists with provider and injector nodes", func(t *testing.T) {
 		pass := createMockPassForGraph(t)
-		builder := NewDependencyGraphBuilder()
+		builder := NewDependencyGraphBuilder(NewInterfaceRegistry())
 
 		providers := []*registry.ProviderInfo{
 			{
@@ -892,7 +892,7 @@ func TestDependencyGraph_BuildGraph_VariableNodes(t *testing.T) {
 
 	t.Run("variable with RegisteredType preserves the field", func(t *testing.T) {
 		pass := createMockPassForGraph(t)
-		builder := NewDependencyGraphBuilder()
+		builder := NewDependencyGraphBuilder(NewInterfaceRegistry())
 
 		variables := []*registry.VariableInfo{
 			{
@@ -923,7 +923,7 @@ func TestDependencyGraph_BuildGraph_VariableNodes(t *testing.T) {
 
 	t.Run("backward compatibility: nil variables parameter works", func(t *testing.T) {
 		pass := createMockPassForGraph(t)
-		builder := NewDependencyGraphBuilder()
+		builder := NewDependencyGraphBuilder(NewInterfaceRegistry())
 
 		providers := []*registry.ProviderInfo{
 			{
@@ -948,7 +948,7 @@ func TestDependencyGraph_BuildGraph_VariableNodes(t *testing.T) {
 
 	t.Run("variable node has zero edges", func(t *testing.T) {
 		pass := createMockPassForGraph(t)
-		builder := NewDependencyGraphBuilder()
+		builder := NewDependencyGraphBuilder(NewInterfaceRegistry())
 
 		variables := []*registry.VariableInfo{
 			{
@@ -974,7 +974,7 @@ func TestDependencyGraph_BuildGraph_VariableNodes(t *testing.T) {
 
 	t.Run("injector depends on variable node", func(t *testing.T) {
 		pass := createMockPassForGraph(t)
-		builder := NewDependencyGraphBuilder()
+		builder := NewDependencyGraphBuilder(NewInterfaceRegistry())
 
 		variables := []*registry.VariableInfo{
 			{

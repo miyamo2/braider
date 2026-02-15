@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/miyamo2/braider/internal/registry"
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/provide"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -17,6 +19,8 @@ type InterfaceRegistry struct {
 	// interfaces maps interface type name to list of implementing type names
 	interfaces map[string][]string
 }
+
+var _ = annotation.Provide[provide.Default](NewInterfaceRegistry)
 
 // NewInterfaceRegistry creates a new empty interface registry.
 func NewInterfaceRegistry() *InterfaceRegistry {
