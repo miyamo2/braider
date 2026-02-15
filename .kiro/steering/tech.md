@@ -69,7 +69,8 @@ Code generation is implemented via `analysis.SuggestedFix` rather than separate 
 - Atomic application of related changes
 
 ### Component-Based Architecture
-The analyzer uses composable components (detectors, generators, reporters) instantiated in `main.go` and passed to analyzer constructors. Each component has a single responsibility and is testable in isolation. Components are organized by concern:
+The analyzer uses composable components (detectors, generators, reporters) wired via braider's own DI annotations in `cmd/braider/main.go` (dogfooding). Each component has a single responsibility and is testable in isolation. Components are organized by concern:
+- **Annotation markers** (`internal/annotation/`): Marker interfaces (`Injectable`, `Provider`, `Variable`, `App`) embedded by public `pkg/annotation/` types; defines the type-level contracts that detectors match against
 - **Detectors** (`internal/detect/`): Pattern matching (inject, provide call, variable call, app, struct, field, constructor, option extraction, namer validation)
 - **Generators** (`internal/generate/`): Code generation (constructors, bootstrap IIFE), utilities (imports, formatting, naming, keyword checking, hash markers for idempotency, AST utilities)
 - **Reporters** (`internal/report/`): Diagnostic and suggested fix building
@@ -101,6 +102,9 @@ Fields in `Injectable[T]` structs can use `braider` struct tags for field-level 
 ### Idempotent Code Generation
 Bootstrap code generation uses hash markers (`// braider:hash:<hash>`) to track dependency graph state. The generator compares current graph hash against existing hash comments to determine if regeneration is needed. This prevents unnecessary rewrites and preserves manual edits in unrelated code sections.
 
+### Dogfooding (Self-Hosting)
+braider uses its own annotations in `cmd/braider/main.go` to wire its internal components. The entry point declares `annotation.Variable` for shared values (e.g., `bootstrapCtx`, `bootstrapCancel`) and `annotation.App(main)` to trigger bootstrap generation. braider then generates the `dependency` IIFE that constructs and wires all detectors, generators, reporters, registries, graph builders, and analyzers. This ensures braider validates its own code generation against a real, non-trivial dependency graph.
+
 ### Conventional Commits
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/v1.0.0/) specification:
 - `feat`: New feature
@@ -117,3 +121,4 @@ _Updated: 2026-02-02 - Added loader component, expanded generator utilities to i
 _Updated: 2026-02-11 - Sync: Corrected annotation names to current API; added OptionExtractor, NamerValidator to detect components; added AST utilities to generate components_
 _Updated: 2026-02-12 - Sync: Added Variable annotation support (VariableCallDetector, VariableRegistry, Variable expression handling, blank assignment for unused Variable nodes)_
 _Updated: 2026-02-15 - Sync: Added Bootstrap struct field vs local variable pattern (Provide now IsField=true); added struct tag field control pattern (braider:"name", braider:"-")_
+_Updated: 2026-02-15 - Sync: Added internal/annotation marker interface layer; added dogfooding (self-hosting) pattern for cmd/braider/main.go_

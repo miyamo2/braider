@@ -9,11 +9,13 @@ braider follows a **standard Go project layout** with clear separation between p
 ### CLI Entry Point
 **Location**: `cmd/braider/`
 **Purpose**: CLI wrapper that instantiates components and invokes multiple analyzers
-**Pattern**: Single `main.go` that:
-1. Creates shared registries (provider, injector, package tracker)
-2. Instantiates detectors, generators, and reporters
-3. Constructs `DependencyAnalyzer` and `AppAnalyzer` with dependencies
-4. Calls `multichecker.Main()` with both analyzers
+**Pattern**: Single `main.go` that uses braider's own annotations (dogfooding):
+1. Declares `annotation.Variable` for shared context values (`bootstrapCtx`, `bootstrapCancel`)
+2. Declares `annotation.App(main)` to trigger bootstrap generation
+3. braider generates the `dependency` IIFE that wires all internal components (detectors, generators, reporters, registries, graph builders, analyzers)
+4. `main()` calls `multichecker.Main()` with both analyzers extracted from the generated struct
+
+This self-hosting pattern means braider's own `cmd/braider/main.go` contains braider-generated bootstrap code, validating the tool against its own codebase.
 
 ### Internal Implementation
 **Location**: `internal/`
@@ -26,7 +28,7 @@ braider follows a **standard Go project layout** with clear separation between p
 **Pattern**: Organized by test category and analyzer:
 - `testdata/bootstrapgen/` - App annotation scenarios (~61 cases: basic, typed_inject, named_inject, provide_typed, provide_named, struct_tag_*, circular, crosspackage, idempotent, without_constructor, error cases, etc.)
 - `testdata/dependency/` - Dependency analysis scenarios (basic, abstrct, cross_package, missing_constructor)
-- `testdata/constructorgen/` - Constructor generation scenarios (simple, multifield, pointer, imported, aliasedimport, definedtypes, typealias, existing)
+- `testdata/constructorgen/` - Constructor generation scenarios (per-file test cases: simple, multifield, pointer, imported, aliasedimport, definedtypes, typealias, existing, struct_tag_*, uppercamel)
 - `testdata/providefunc/` - Provider function detection scenarios (legacy, directories may be empty)
 
 
@@ -69,7 +71,7 @@ The analyzer is built from composable components with clear responsibilities:
 - **Reporters**: Emit diagnostics (`SuggestedFixBuilder`, `DiagnosticEmitter`)
 - **Registries**: Track state (`ProviderRegistry`, `InjectorRegistry`, `VariableRegistry`, `PackageTracker`)
 
-Components are instantiated in `main.go` and passed to analyzer constructors via dependency injection.
+Components are wired in `cmd/braider/main.go` via braider's own DI annotations (dogfooding) and passed to analyzer constructors.
 
 ### Multi-Analyzer Pattern
 The project exposes two coordinated analyzers from `internal/analyzer/`:
@@ -87,6 +89,7 @@ Test fixtures live in `testdata/bootstrapgen/` following analysistest convention
 ### Internal Package Organization
 The internal package is split into focused subpackages:
 - `internal/analyzer/` - Analyzer definitions (`DependencyAnalyzer`, `AppAnalyzer`) and orchestration
+- `internal/annotation/` - Marker interfaces (e.g., `Injectable`, `Provider`, `Variable`, `App`) embedded by the public `pkg/annotation/` types; provides the type-level contracts that detectors match against
 - `internal/detect/` - Detection logic for DI patterns (inject, provide call, variable call, app annotations, struct analysis, field analysis, constructor detection, option extraction, namer validation)
 - `internal/generate/` - Code generation logic (constructors, bootstrap IIFE) and utilities (AST utilities, code formatting, import management, naming conventions, keyword checking, hash generation)
 - `internal/report/` - Diagnostic and suggested fix building
@@ -97,6 +100,7 @@ The internal package is split into focused subpackages:
 ### Public API (`pkg/`)
 **Location**: `pkg/annotation/` with subpackages `inject/`, `provide/`, `variable/`, `namer/`
 **Purpose**: Public annotation types and functions for users to mark DI targets
+**Dependency**: Public types embed marker interfaces from `internal/annotation/` (e.g., `annotation.Injectable` embeds `internal/annotation.Injectable`), establishing the type-level contracts that detectors match against
 **Pattern**: Four annotation mechanisms with generic option types:
 - `Injectable[T inject.Option]` interface - Embed in structs to mark for constructor generation and DI registration
 - `Provide[T provide.Option](fn)` function - Register provider functions via `var _ = annotation.Provide[T](fn)` (struct fields in bootstrap dependency struct)
@@ -117,3 +121,4 @@ _Updated: 2026-02-11 - Sync: Updated annotation API to current generics-based de
 _Updated: 2026-02-12 - Sync: Added Variable[T](value) annotation and variable/ option subpackage; added VariableCallDetector, VariableRegistry to component lists; added variable test case categories_
 _Updated: 2026-02-14 - Sync: Updated bootstrapgen case count (~52); removed negative from constructorgen (constructor gen now covers zero-dependency structs)_
 _Updated: 2026-02-15 - Sync: Provide annotations are now struct fields in bootstrap dependency struct (not local variables); only Variable nodes remain as local variables_
+_Updated: 2026-02-15 - Sync: Added internal/annotation marker interface layer; updated CLI entry point to document dogfooding pattern; added constructorgen struct_tag/uppercamel cases_
