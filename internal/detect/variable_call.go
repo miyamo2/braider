@@ -194,12 +194,21 @@ func (d *variableCallDetector) isVariableCall(pass *analysis.Pass, callExpr *ast
 		return false
 	}
 
-	// Check the call's return type is from the annotation package
+	// Check the call's return type implements the Variable marker interface
 	typ := pass.TypesInfo.TypeOf(callExpr)
 	if typ == nil {
 		return false
 	}
 
+	if markers := resolveMarkers(pass); markers != nil && markers.Variable != nil {
+		return types.Implements(typ, markers.Variable)
+	}
+	return d.isVariableCallFallback(typ)
+}
+
+// isVariableCallFallback checks using name+path comparison.
+// Used when marker interfaces cannot be resolved (e.g., synthetic test packages).
+func (d *variableCallDetector) isVariableCallFallback(typ types.Type) bool {
 	named, ok := typ.(*types.Named)
 	if !ok {
 		return false
