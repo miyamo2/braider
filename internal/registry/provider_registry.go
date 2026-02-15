@@ -31,7 +31,7 @@ type ProviderInfo struct {
 	// Implements contains fully qualified interface types this struct implements
 	Implements []string
 	// IsPending indicates whether the constructor is being generated in the current pass (true)
-	// or already exists on disk (false). Typically false for Provide structs as they require
+	// or already exists on disk (false). Typically false for Provide annotations as they require
 	// existing constructors, but included for consistency with InjectorInfo.
 	IsPending bool
 
