@@ -11,12 +11,25 @@ import (
 
 // createAnnotationPackageWithProvide creates a fake annotation package with a non-generic Provide function.
 // The function signature is: func Provide(any) Provider
-// where Provider is a named type in the annotation package.
+// where Provider is a named type in the annotation package embedding the internal marker interface.
 func createAnnotationPackageWithProvide() *types.Package {
+	// Create synthetic internal/annotation marker interface for Provider
+	internalPkg := types.NewPackage("github.com/miyamo2/braider/internal/annotation", "annotation")
+	markerSig := types.NewSignatureType(nil, nil, nil, nil, nil, false)
+	markerMethod := types.NewFunc(token.NoPos, internalPkg, "_IsProvider", markerSig)
+	markerIface := types.NewInterfaceType([]*types.Func{markerMethod}, nil)
+	markerIface.Complete()
+	markerTypeName := types.NewTypeName(token.NoPos, internalPkg, "Provider", nil)
+	markerNamed := types.NewNamed(markerTypeName, markerIface, nil)
+	internalPkg.Scope().Insert(markerNamed.Obj())
+	internalPkg.MarkComplete()
+
+	// Create pkg/annotation package
 	annotationPkg := types.NewPackage(detect.AnnotationPath, "annotation")
 
-	// Create the Provider named type (returned by Provide)
-	providerStruct := types.NewStruct(nil, nil)
+	// Create the Provider named type embedding the internal marker interface
+	embeddedField := types.NewField(token.NoPos, nil, "", markerNamed, true)
+	providerStruct := types.NewStruct([]*types.Var{embeddedField}, nil)
 	providerNamed := types.NewNamed(
 		types.NewTypeName(token.NoPos, annotationPkg, "Provider", nil),
 		providerStruct,

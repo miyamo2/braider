@@ -85,34 +85,9 @@ func (d *injectDetector) isInjectType(pass *analysis.Pass, expr ast.Expr) bool {
 
 // isNamedInjectType checks if the type is the annotation.Injectable[T] named type
 // using types.Implements with the sealed marker interface.
-func (d *injectDetector) isNamedInjectType(pass *analysis.Pass, t types.Type) bool {
-	if markers := resolveMarkers(pass); markers != nil && markers.Injectable != nil {
+func (d *injectDetector) isNamedInjectType(_ *analysis.Pass, t types.Type) bool {
+	if markers := resolveMarkers(); markers != nil && markers.Injectable != nil {
 		return types.Implements(t, markers.Injectable)
 	}
-	return d.isNamedInjectTypeFallback(t)
-}
-
-// isNamedInjectTypeFallback checks using name+path comparison.
-// Used when marker interfaces cannot be resolved (e.g., synthetic test packages).
-func (d *injectDetector) isNamedInjectTypeFallback(t types.Type) bool {
-	named, ok := t.(*types.Named)
-	if !ok {
-		return false
-	}
-
-	obj := named.Obj()
-	if obj == nil {
-		return false
-	}
-
-	if obj.Name() != InjectableTypeName {
-		return false
-	}
-
-	pkg := obj.Pkg()
-	if pkg == nil {
-		return false
-	}
-
-	return pkg.Path() == AnnotationPath
+	return false
 }

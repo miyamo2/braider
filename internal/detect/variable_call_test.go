@@ -11,12 +11,25 @@ import (
 
 // createAnnotationPackageWithVariable creates a fake annotation package with a non-generic Variable function.
 // The function signature is: func Variable(any) _variable
-// where _variable is a named type in the annotation package.
+// where _variable is a named type in the annotation package embedding the internal marker interface.
 func createAnnotationPackageWithVariable() *types.Package {
+	// Create synthetic internal/annotation marker interface for Variable
+	internalPkg := types.NewPackage("github.com/miyamo2/braider/internal/annotation", "annotation")
+	markerSig := types.NewSignatureType(nil, nil, nil, nil, nil, false)
+	markerMethod := types.NewFunc(token.NoPos, internalPkg, "_IsVariable", markerSig)
+	markerIface := types.NewInterfaceType([]*types.Func{markerMethod}, nil)
+	markerIface.Complete()
+	markerTypeName := types.NewTypeName(token.NoPos, internalPkg, "Variable", nil)
+	markerNamed := types.NewNamed(markerTypeName, markerIface, nil)
+	internalPkg.Scope().Insert(markerNamed.Obj())
+	internalPkg.MarkComplete()
+
+	// Create pkg/annotation package
 	annotationPkg := types.NewPackage(detect.AnnotationPath, "annotation")
 
-	// Create the _variable named type (returned by Variable)
-	variableStruct := types.NewStruct(nil, nil)
+	// Create the _variable named type embedding the internal marker interface
+	embeddedField := types.NewField(token.NoPos, nil, "", markerNamed, true)
+	variableStruct := types.NewStruct([]*types.Var{embeddedField}, nil)
 	variableNamed := types.NewNamed(
 		types.NewTypeName(token.NoPos, annotationPkg, "_variable", nil),
 		variableStruct,

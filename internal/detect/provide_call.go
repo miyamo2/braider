@@ -159,31 +159,10 @@ func (d *provideCallDetector) isProvideCall(pass *analysis.Pass, callExpr *ast.C
 		return false
 	}
 
-	if markers := resolveMarkers(pass); markers != nil && markers.Provider != nil {
+	if markers := resolveMarkers(); markers != nil && markers.Provider != nil {
 		return types.Implements(typ, markers.Provider)
 	}
-	return d.isProvideCallFallback(typ)
-}
-
-// isProvideCallFallback checks using name+path comparison.
-// Used when marker interfaces cannot be resolved (e.g., synthetic test packages).
-func (d *provideCallDetector) isProvideCallFallback(typ types.Type) bool {
-	named, ok := typ.(*types.Named)
-	if !ok {
-		return false
-	}
-
-	obj := named.Obj()
-	if obj == nil {
-		return false
-	}
-
-	pkg := obj.Pkg()
-	if pkg == nil {
-		return false
-	}
-
-	return pkg.Path() == AnnotationPath
+	return false
 }
 
 // extractCandidate extracts a ProviderCandidate from a validated Provide[T](fn) call.

@@ -131,10 +131,24 @@ func (i *fakeImporter) Import(path string) (*types.Package, error) {
 }
 
 // createAnnotationPackage creates a fake annotation package for testing.
+// The synthetic Injectable type embeds the internal/annotation.Injectable marker interface
+// so that types.Implements works via samePkg path comparison.
 func createAnnotationPackage() *types.Package {
+	// Create synthetic internal/annotation marker interface
+	internalPkg := types.NewPackage("github.com/miyamo2/braider/internal/annotation", "annotation")
+	markerSig := types.NewSignatureType(nil, nil, nil, nil, nil, false)
+	markerMethod := types.NewFunc(token.NoPos, internalPkg, "_IsInjectable", markerSig)
+	markerIface := types.NewInterfaceType([]*types.Func{markerMethod}, nil)
+	markerIface.Complete()
+	markerTypeName := types.NewTypeName(token.NoPos, internalPkg, "Injectable", nil)
+	markerNamed := types.NewNamed(markerTypeName, markerIface, nil)
+	internalPkg.Scope().Insert(markerNamed.Obj())
+	internalPkg.MarkComplete()
+
+	// Create pkg/annotation package with Injectable embedding the marker
 	annotationPkg := types.NewPackage(detect.AnnotationPath, "annotation")
-	// Create the Injectable struct type - pass nil for underlying, NewNamed will set it
-	injectStruct := types.NewStruct(nil, nil)
+	embeddedField := types.NewField(token.NoPos, nil, "", markerNamed, true)
+	injectStruct := types.NewStruct([]*types.Var{embeddedField}, nil)
 	injectNamed := types.NewNamed(
 		types.NewTypeName(token.NoPos, annotationPkg, detect.InjectableTypeName, nil),
 		injectStruct,

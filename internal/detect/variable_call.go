@@ -200,31 +200,10 @@ func (d *variableCallDetector) isVariableCall(pass *analysis.Pass, callExpr *ast
 		return false
 	}
 
-	if markers := resolveMarkers(pass); markers != nil && markers.Variable != nil {
+	if markers := resolveMarkers(); markers != nil && markers.Variable != nil {
 		return types.Implements(typ, markers.Variable)
 	}
-	return d.isVariableCallFallback(typ)
-}
-
-// isVariableCallFallback checks using name+path comparison.
-// Used when marker interfaces cannot be resolved (e.g., synthetic test packages).
-func (d *variableCallDetector) isVariableCallFallback(typ types.Type) bool {
-	named, ok := typ.(*types.Named)
-	if !ok {
-		return false
-	}
-
-	obj := named.Obj()
-	if obj == nil {
-		return false
-	}
-
-	pkg := obj.Pkg()
-	if pkg == nil {
-		return false
-	}
-
-	return pkg.Path() == AnnotationPath
+	return false
 }
 
 // extractCandidate extracts a VariableCandidate from a validated Variable[T](value) call.

@@ -196,75 +196,29 @@ func (e *optionExtractorImpl) extractMetadataFromOptionType(
 }
 
 // isDefaultOption checks if the type is inject.Default, provide.Default, or variable.Default.
-// Uses types.Implements with sealed marker interfaces; falls back to name+path comparison
-// when marker interfaces cannot be resolved.
+// Uses types.Implements with sealed marker interfaces.
 // types.Implements inherently handles embedded method sets, so mixed-in options are supported
 // without explicit recursion into embedded interfaces.
-func (e *optionExtractorImpl) isDefaultOption(pass *analysis.Pass, typ types.Type) bool {
-	if markers := resolveMarkers(pass); markers != nil {
-		return (markers.InjectableDefault != nil && types.Implements(typ, markers.InjectableDefault)) ||
-			(markers.ProviderDefault != nil && types.Implements(typ, markers.ProviderDefault)) ||
-			(markers.VariableDefault != nil && types.Implements(typ, markers.VariableDefault))
-	}
-	// Fallback: name+path comparison with embedded interface search
-	if e.isDefaultOptionDirect(typ) {
-		return true
-	}
-	return e.searchEmbeddedInterfaces(typ, e.isDefaultOptionDirect)
-}
-
-func (e *optionExtractorImpl) isDefaultOptionDirect(typ types.Type) bool {
-	named, ok := typ.(*types.Named)
-	if !ok {
+func (e *optionExtractorImpl) isDefaultOption(_ *analysis.Pass, typ types.Type) bool {
+	markers := resolveMarkers()
+	if markers == nil {
 		return false
 	}
-
-	obj := named.Obj()
-	if obj == nil {
-		return false
-	}
-
-	pkg := obj.Pkg()
-	if pkg == nil {
-		return obj.Name() == "Default"
-	}
-
-	return obj.Name() == "Default" && (pkg.Path() == injectOptionsPath || pkg.Path() == provideOptionsPath || pkg.Path() == variableOptionsPath)
+	return (markers.InjectableDefault != nil && types.Implements(typ, markers.InjectableDefault)) ||
+		(markers.ProviderDefault != nil && types.Implements(typ, markers.ProviderDefault)) ||
+		(markers.VariableDefault != nil && types.Implements(typ, markers.VariableDefault))
 }
 
 // isWithoutConstructorOption checks if the type is inject.WithoutConstructor.
-// Uses types.Implements with sealed marker interface; falls back to name+path comparison
-// when marker interfaces cannot be resolved.
+// Uses types.Implements with sealed marker interface.
 // types.Implements inherently handles embedded method sets, so mixed-in options are supported
 // without explicit recursion into embedded interfaces.
-func (e *optionExtractorImpl) isWithoutConstructorOption(pass *analysis.Pass, typ types.Type) bool {
-	if markers := resolveMarkers(pass); markers != nil && markers.InjectableWithoutCtor != nil {
-		return types.Implements(typ, markers.InjectableWithoutCtor)
-	}
-	// Fallback: name+path comparison with embedded interface search
-	if e.isWithoutConstructorOptionDirect(typ) {
-		return true
-	}
-	return e.searchEmbeddedInterfaces(typ, e.isWithoutConstructorOptionDirect)
-}
-
-func (e *optionExtractorImpl) isWithoutConstructorOptionDirect(typ types.Type) bool {
-	named, ok := typ.(*types.Named)
-	if !ok {
+func (e *optionExtractorImpl) isWithoutConstructorOption(_ *analysis.Pass, typ types.Type) bool {
+	markers := resolveMarkers()
+	if markers == nil {
 		return false
 	}
-
-	obj := named.Obj()
-	if obj == nil {
-		return false
-	}
-
-	pkg := obj.Pkg()
-	if pkg == nil {
-		return obj.Name() == "WithoutConstructor"
-	}
-
-	return obj.Name() == "WithoutConstructor" && pkg.Path() == injectOptionsPath
+	return markers.InjectableWithoutCtor != nil && types.Implements(typ, markers.InjectableWithoutCtor)
 }
 
 // extractTypedInterface extracts the interface type from Typed[I] option.
@@ -279,31 +233,23 @@ func (e *optionExtractorImpl) extractTypedInterface(pass *analysis.Pass, typ typ
 }
 
 // extractTypedInterfaceDirect extracts Typed[I] from a direct named type.
-// Uses types.Implements with sealed marker interfaces; falls back to name+path comparison.
-func (e *optionExtractorImpl) extractTypedInterfaceDirect(pass *analysis.Pass, typ types.Type) types.Type {
+// Uses types.Implements with sealed marker interfaces.
+func (e *optionExtractorImpl) extractTypedInterfaceDirect(_ *analysis.Pass, typ types.Type) types.Type {
 	named, ok := typ.(*types.Named)
 	if !ok {
 		return nil
 	}
 
-	if markers := resolveMarkers(pass); markers != nil {
-		isTyped := (markers.InjectableTyped != nil && types.Implements(typ, markers.InjectableTyped)) ||
-			(markers.ProviderTyped != nil && types.Implements(typ, markers.ProviderTyped)) ||
-			(markers.VariableTyped != nil && types.Implements(typ, markers.VariableTyped))
-		if !isTyped {
-			return nil
-		}
-	} else {
-		// Fallback: name+path comparison
-		obj := named.Obj()
-		if obj == nil || obj.Name() != "Typed" {
-			return nil
-		}
-		if pkg := obj.Pkg(); pkg != nil {
-			if pkg.Path() != injectOptionsPath && pkg.Path() != provideOptionsPath && pkg.Path() != variableOptionsPath {
-				return nil
-			}
-		}
+	markers := resolveMarkers()
+	if markers == nil {
+		return nil
+	}
+
+	isTyped := (markers.InjectableTyped != nil && types.Implements(typ, markers.InjectableTyped)) ||
+		(markers.ProviderTyped != nil && types.Implements(typ, markers.ProviderTyped)) ||
+		(markers.VariableTyped != nil && types.Implements(typ, markers.VariableTyped))
+	if !isTyped {
+		return nil
 	}
 
 	typeArgs := named.TypeArgs()
@@ -326,31 +272,23 @@ func (e *optionExtractorImpl) extractNamerType(pass *analysis.Pass, typ types.Ty
 }
 
 // extractNamerTypeDirect extracts Named[N] from a direct named type.
-// Uses types.Implements with sealed marker interfaces; falls back to name+path comparison.
-func (e *optionExtractorImpl) extractNamerTypeDirect(pass *analysis.Pass, typ types.Type) types.Type {
+// Uses types.Implements with sealed marker interfaces.
+func (e *optionExtractorImpl) extractNamerTypeDirect(_ *analysis.Pass, typ types.Type) types.Type {
 	named, ok := typ.(*types.Named)
 	if !ok {
 		return nil
 	}
 
-	if markers := resolveMarkers(pass); markers != nil {
-		isNamed := (markers.InjectableNamed != nil && types.Implements(typ, markers.InjectableNamed)) ||
-			(markers.ProviderNamed != nil && types.Implements(typ, markers.ProviderNamed)) ||
-			(markers.VariableNamed != nil && types.Implements(typ, markers.VariableNamed))
-		if !isNamed {
-			return nil
-		}
-	} else {
-		// Fallback: name+path comparison
-		obj := named.Obj()
-		if obj == nil || obj.Name() != "Named" {
-			return nil
-		}
-		if pkg := obj.Pkg(); pkg != nil {
-			if pkg.Path() != injectOptionsPath && pkg.Path() != provideOptionsPath && pkg.Path() != variableOptionsPath {
-				return nil
-			}
-		}
+	markers := resolveMarkers()
+	if markers == nil {
+		return nil
+	}
+
+	isNamed := (markers.InjectableNamed != nil && types.Implements(typ, markers.InjectableNamed)) ||
+		(markers.ProviderNamed != nil && types.Implements(typ, markers.ProviderNamed)) ||
+		(markers.VariableNamed != nil && types.Implements(typ, markers.VariableNamed))
+	if !isNamed {
+		return nil
 	}
 
 	typeArgs := named.TypeArgs()
@@ -359,26 +297,6 @@ func (e *optionExtractorImpl) extractNamerTypeDirect(pass *analysis.Pass, typ ty
 	}
 
 	return typeArgs.At(0)
-}
-
-// searchEmbeddedInterfaces recursively searches embedded interfaces for a matching predicate.
-func (e *optionExtractorImpl) searchEmbeddedInterfaces(typ types.Type, predicate func(types.Type) bool) bool {
-	iface, ok := typ.Underlying().(*types.Interface)
-	if !ok {
-		return false
-	}
-
-	for i := 0; i < iface.NumEmbeddeds(); i++ {
-		embedded := iface.EmbeddedType(i)
-		if predicate(embedded) {
-			return true
-		}
-		// Recurse into embedded interfaces
-		if e.searchEmbeddedInterfaces(embedded, predicate) {
-			return true
-		}
-	}
-	return false
 }
 
 // searchEmbeddedInterfacesTyped recursively searches embedded interfaces for a type-returning match.
