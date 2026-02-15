@@ -1,6 +1,6 @@
 module outdated
 
-go 1.24
+go 1.25
 
 replace github.com/miyamo2/braider => ./../../../../..
 

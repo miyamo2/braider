@@ -20,7 +20,7 @@ func TestPackageLoader_FindModuleRoot(t *testing.T) {
 
 	// Create a go.mod file in the temp directory
 	goModPath := filepath.Join(tmpDir, "go.mod")
-	if err := os.WriteFile(goModPath, []byte("module test\n\ngo 1.24\n"), 0644); err != nil {
+	if err := os.WriteFile(goModPath, []byte("module test\n\ngo 1.25\n"), 0644); err != nil {
 		t.Fatalf("failed to create go.mod: %v", err)
 	}
 

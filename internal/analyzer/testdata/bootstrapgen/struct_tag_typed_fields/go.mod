@@ -1,6 +1,6 @@
 module struct_tag_typed_fields
 
-go 1.24
+go 1.25
 
 replace github.com/miyamo2/braider => ./../../../../..
 
