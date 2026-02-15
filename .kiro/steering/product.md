@@ -10,6 +10,7 @@
 - **Dependency Graph Resolution**: Analyzes dependency relationships and generates initialization code in topological order
 - **Variable Registration**: Register existing variables/values as dependencies via `Variable[T](value)` (e.g., `annotation.Variable[variable.Default](os.Stdout)`)
 - **Interface Support**: Automatic resolution of interface dependencies to concrete implementations via `Provide[provide.Typed[I]](fn)`, `Injectable[inject.Typed[I]]`, and `Variable[variable.Typed[I]](value)`
+- **Struct Tag Control**: Field-level DI customization via `braider` struct tags (`braider:"name"` for named resolution, `braider:"-"` to exclude fields from DI)
 - **Go Vet Integration**: Works as a standard go vet tool, enabling `go vet -fix` workflow for applying suggested fixes
 
 ## Target Use Cases
@@ -33,3 +34,4 @@ _Updated: 2026-02-02 - Added ProvideFunc annotation support for function-based d
 _Updated: 2026-02-11 - Sync: Corrected annotation names to match current API (Injectable[T], Provide[T](fn)); removed obsolete ProvideFunc references_
 _Updated: 2026-02-12 - Sync: Added Variable[T](value) annotation as a core capability for registering existing variables as dependencies_
 _Updated: 2026-02-14 - Sync: Constructor generation now applies to all Injectable[T] structs, including zero-dependency structs (no HasInjectableFields guard)_
+_Updated: 2026-02-15 - Sync: Added struct tag support for field-level DI control; Provide annotations now included as bootstrap struct fields_

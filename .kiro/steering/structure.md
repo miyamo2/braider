@@ -24,14 +24,14 @@ braider follows a **standard Go project layout** with clear separation between p
 **Location**: `internal/analyzer/testdata/`
 **Purpose**: Go source files used as test inputs for analysistest
 **Pattern**: Organized by test category and analyzer:
-- `testdata/bootstrapgen/` - App annotation scenarios (~52 cases: basic, typed_inject, named_inject, provide_typed, provide_named, circular, crosspackage, idempotent, without_constructor, error cases, etc.)
+- `testdata/bootstrapgen/` - App annotation scenarios (~61 cases: basic, typed_inject, named_inject, provide_typed, provide_named, struct_tag_*, circular, crosspackage, idempotent, without_constructor, error cases, etc.)
 - `testdata/dependency/` - Dependency analysis scenarios (basic, abstrct, cross_package, missing_constructor)
 - `testdata/constructorgen/` - Constructor generation scenarios (simple, multifield, pointer, imported, aliasedimport, definedtypes, typealias, existing)
 - `testdata/providefunc/` - Provider function detection scenarios (legacy, directories may be empty)
 
 
 
-Variable-related test cases follow the same pattern with `variable_` prefix (variable_basic, variable_typed, variable_named, variable_mixed, variable_cross_package, variable_alias_import, variable_pkg_collision, variable_idempotent, variable_outdated) and `error_variable_` prefix for error scenarios.
+Variable-related test cases follow the same pattern with `variable_` prefix (variable_basic, variable_typed, variable_named, variable_mixed, variable_cross_package, variable_alias_import, variable_pkg_collision, variable_idempotent, variable_outdated) and `error_variable_` prefix for error scenarios. Struct tag test cases use `struct_tag_` prefix (struct_tag_mixed, struct_tag_named, struct_tag_typed_fields, struct_tag_exclude, struct_tag_all_excluded, struct_tag_idempotent, struct_tag_outdated) and `error_struct_tag_` prefix for error scenarios.
 
 ## Naming Conventions
 
@@ -99,7 +99,7 @@ The internal package is split into focused subpackages:
 **Purpose**: Public annotation types and functions for users to mark DI targets
 **Pattern**: Four annotation mechanisms with generic option types:
 - `Injectable[T inject.Option]` interface - Embed in structs to mark for constructor generation and DI registration
-- `Provide[T provide.Option](fn)` function - Register provider functions via `var _ = annotation.Provide[T](fn)` (local variables in bootstrap IIFE)
+- `Provide[T provide.Option](fn)` function - Register provider functions via `var _ = annotation.Provide[T](fn)` (struct fields in bootstrap dependency struct)
 - `Variable[T variable.Option](value)` function - Register existing variables/values via `var _ = annotation.Variable[T](value)` (expression assignments in bootstrap IIFE)
 - `App(main)` function - Call in main package to mark entry point for bootstrap code generation
 
@@ -116,3 +116,4 @@ _Updated: 2026-02-02 - Added ProvideFunc annotation, expanded generate package u
 _Updated: 2026-02-11 - Sync: Updated annotation API to current generics-based design (Injectable[T], Provide[T](fn)); added inject/provide/namer subpackages; updated component lists (ProvideCallDetector, BootstrapGenerator, OptionExtractor, NamerValidator); corrected testdata categories_
 _Updated: 2026-02-12 - Sync: Added Variable[T](value) annotation and variable/ option subpackage; added VariableCallDetector, VariableRegistry to component lists; added variable test case categories_
 _Updated: 2026-02-14 - Sync: Updated bootstrapgen case count (~52); removed negative from constructorgen (constructor gen now covers zero-dependency structs)_
+_Updated: 2026-02-15 - Sync: Provide annotations are now struct fields in bootstrap dependency struct (not local variables); only Variable nodes remain as local variables_
