@@ -1,6 +1,6 @@
 module example.com/option_extractor/interface_validation_error
 
-go 1.24
+go 1.25
 
 replace github.com/miyamo2/braider => ./../../../../..
 

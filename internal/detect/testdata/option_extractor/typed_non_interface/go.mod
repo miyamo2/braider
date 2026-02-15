@@ -1,6 +1,6 @@
 module example.com/option_extractor/typed_non_interface
 
-go 1.24
+go 1.25
 
 replace github.com/miyamo2/braider => ./../../../../..
 
