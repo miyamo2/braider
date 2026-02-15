@@ -31,6 +31,7 @@ changelog:
       - "^style:"
       - "^ci:"
       - "^chore:"
+      - "^refactor:"
       - "^test:"
       - "^Update coverage badges"
 
