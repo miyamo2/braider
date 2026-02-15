@@ -72,7 +72,7 @@ func TestBootstrapGenerator_InterfaceTypedVariables(t *testing.T) {
 							PackagePath:     "example.com/repo",
 							LocalName:       "UserRepository",
 							ConstructorName: "NewUserRepository",
-							IsField:         false,
+							IsField:         true, // Provide - now in return struct
 							RegisteredType:  interfaceType,
 							Dependencies:    []string{},
 						},
@@ -99,9 +99,9 @@ func TestBootstrapGenerator_InterfaceTypedVariables(t *testing.T) {
 				return g, sortedTypes
 			},
 			expectedContains: []string{
+				"userRepository IRepository",
 				"userRepository := repo.NewUserRepository()",
 				"userService := service.NewUserService(userRepository)",
-				"userService service.UserService",
 			},
 		},
 		{
@@ -261,7 +261,7 @@ func TestBootstrapGenerator_NamedVariableNaming(t *testing.T) {
 							PackagePath:     "example.com/repo",
 							LocalName:       "Repository",
 							ConstructorName: "NewRepository",
-							IsField:         false,
+							IsField:         true, // Provide - now in return struct
 							Name:            "primaryRepo",
 							Dependencies:    []string{},
 						},
@@ -289,6 +289,7 @@ func TestBootstrapGenerator_NamedVariableNaming(t *testing.T) {
 				return g, sortedTypes
 			},
 			expectedContains: []string{
+				"primaryRepo repo.Repository",
 				"primaryRepo := repo.NewRepository()",
 				"userService := service.NewUserService(primaryRepo)",
 				"userService service.UserService",

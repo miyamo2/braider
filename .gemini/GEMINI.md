@@ -61,7 +61,7 @@ Bootstrap code includes a `// braider:hash:<hash>` comment. On subsequent runs, 
 
 Four annotation types in `pkg/annotation/`:
 - **`annotation.Injectable[T inject.Option]`** — struct embedding; marks DI targets (becomes bootstrap struct field)
-- **`annotation.Provide[T provide.Option](fn)`** — package-level `var _ =`; registers provider function (becomes local var in bootstrap IIFE)
+- **`annotation.Provide[T provide.Option](fn)`** — package-level `var _ =`; registers provider function (becomes bootstrap struct field)
 - **`annotation.Variable[T variable.Option](value)`** — package-level `var _ =`; registers a pre-existing variable/expression as a dependency (becomes direct assignment in bootstrap IIFE, no constructor invocation)
 - **`annotation.App(main)`** — triggers bootstrap generation
 

@@ -86,7 +86,7 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 	imports, aliasMap := CollectImports(g, currentPackage, currentPkgName, existingAliases)
 
 	// Build struct fields and initialization code
-	// Note: If all nodes are Provide (IsField=false), structFields will be empty
+	// Note: If all nodes are Variable (IsField=false), structFields will be empty
 	var structFields []string
 	var inits []string
 	var returnFields []string
@@ -94,11 +94,11 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 	// Track field names and their types
 	fieldNames := make(map[string]string) // typeName -> fieldName
 
-	// Phase 1: Build struct fields for Inject structs only
-	// Inject structs (IsField=true) become fields in the dependency struct that is returned
-	// to the caller. These are the components that the application can access and use.
-	// Provide structs (IsField=false) are local variables within the IIFE and are not
-	// exposed to the caller - they exist only to satisfy dependencies of Inject structs.
+	// Phase 1: Build struct fields for Inject and Provide nodes
+	// Inject and Provide nodes (IsField=true) become fields in the dependency struct
+	// that is returned to the caller. These are the components that the application can
+	// access and use. Variable nodes (IsField=false) are local variables within the IIFE
+	// and are not exposed to the caller.
 	for _, typeName := range sortedTypes {
 		node := g.Nodes[typeName]
 		if node == nil {
@@ -180,15 +180,10 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		}
 	}
 
-	// Phase 2: Generate initialization code for ALL types (both Inject and Provide)
-	// Even though Provide structs are not included in the returned dependency struct,
-	// they must still be initialized because Inject structs may depend on them.
-	// The topological sort ensures that all dependencies are initialized before
-	// the types that depend on them.
-	//
-	// Example: If UserService (Inject) depends on UserRepository (Provide),
-	// the IIFE will initialize UserRepository first, then pass it to UserService's
-	// constructor. UserRepository exists only as a local variable and is not exposed.
+	// Phase 2: Generate initialization code for ALL types (Inject, Provide, and Variable)
+	// All types must be initialized in topological order to ensure dependencies are
+	// available when needed. Inject and Provide nodes are both exposed as struct fields,
+	// while Variable nodes remain as local variables only.
 	for _, typeName := range sortedTypes {
 		node := g.Nodes[typeName]
 		if node == nil {
@@ -201,7 +196,7 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		if node.IsField {
 			varName = fieldNames[typeName]
 		} else {
-			// Provide/Variable types use local variables
+			// Variable types use local variables
 			// Use custom name if provided, otherwise derive
 			varName = node.Name
 			if varName == "" {
@@ -287,13 +282,13 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 	// Phase 3: Build IIFE code
 	// The IIFE (Immediately-Invoked Function Expression) pattern allows us to:
 	// 1. Initialize all dependencies in the correct order (via inits)
-	// 2. Keep Provide structs as local variables (not exposed)
-	// 3. Return only Inject structs as fields in the dependency struct
+	// 2. Keep Variable nodes as local variables (not exposed)
+	// 3. Return Inject and Provide nodes as fields in the dependency struct
 	//
 	// Structure:
-	//   var dependency = func() struct { <Inject fields> } {
+	//   var dependency = func() struct { <Inject/Provide fields> } {
 	//     <initialization code for all types>
-	//     return struct { <Inject fields> } { <Inject values> }
+	//     return struct { <Inject/Provide fields> } { <Inject/Provide values> }
 	//   }()
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("// braider:hash:%s\n", hash))

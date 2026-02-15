@@ -11,10 +11,14 @@ func main() {
 	_ = dependency
 }
 
-// braider:hash:4851dbf8caa8e671
+// braider:hash:a85b239d4a9d5269
 var dependency = func() struct {
+	primaryRepo *repository.UserRepository
 } {
 	primaryRepo := repository.NewUserRepository()
 	return struct {
-	}{}
+		primaryRepo *repository.UserRepository
+	}{
+		primaryRepo: primaryRepo,
+	}
 }()

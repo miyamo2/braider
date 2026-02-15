@@ -12,19 +12,22 @@ func main() {
 	_ = dependency
 }
 
-// braider:hash:6abd7b71393217ed
+// braider:hash:aac7efcf652ecc8c
 var dependency = func() struct {
-	loggerImpl *service.LoggerImpl
-	appService *service.AppService
+	primaryRepo *repository.UserRepository
+	loggerImpl  *service.LoggerImpl
+	appService  *service.AppService
 } {
 	primaryRepo := repository.NewUserRepository()
 	loggerImpl := service.NewLoggerImpl()
 	appService := service.NewAppService(primaryRepo, loggerImpl)
 	return struct {
-		loggerImpl *service.LoggerImpl
-		appService *service.AppService
+		primaryRepo *repository.UserRepository
+		loggerImpl  *service.LoggerImpl
+		appService  *service.AppService
 	}{
-		loggerImpl: loggerImpl,
-		appService: appService,
+		primaryRepo: primaryRepo,
+		loggerImpl:  loggerImpl,
+		appService:  appService,
 	}
 }()
