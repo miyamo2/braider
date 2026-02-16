@@ -40,18 +40,21 @@ func NewAppAnalyzer(
 
 type AppAnalyzeRunner struct {
 	annotation.Injectable[inject.Default]
-	appDetector       detect.AppDetector
-	injectRegistry    *registry.InjectorRegistry
-	provideRegistry   *registry.ProviderRegistry
-	packageLoader     loader.PackageLoader
-	packageTracker    *registry.PackageTracker
-	bootstrapCtx      context.Context
-	graphBuilder      *graph.DependencyGraphBuilder
-	sorter            *graph.TopologicalSorter
-	bootstrapGen      generate.BootstrapGenerator
-	fixBuilder        report.SuggestedFixBuilder
-	diagnosticEmitter report.DiagnosticEmitter
-	variableRegistry  *registry.VariableRegistry
+	appDetector        detect.AppDetector
+	injectRegistry     *registry.InjectorRegistry
+	provideRegistry    *registry.ProviderRegistry
+	packageLoader      loader.PackageLoader
+	packageTracker     *registry.PackageTracker
+	bootstrapCtx       context.Context
+	graphBuilder       *graph.DependencyGraphBuilder
+	sorter             *graph.TopologicalSorter
+	bootstrapGen       generate.BootstrapGenerator
+	fixBuilder         report.SuggestedFixBuilder
+	diagnosticEmitter  report.DiagnosticEmitter
+	variableRegistry   *registry.VariableRegistry
+	appOptionExtractor detect.AppOptionExtractor
+	containerValidator graph.ContainerValidator
+	containerResolver  graph.ContainerResolver
 }
 
 // NewAppAnalyzeRunner is a constructor for AppAnalyzeRunner.
@@ -63,20 +66,25 @@ func NewAppAnalyzeRunner(
 	packageTracker *registry.PackageTracker, bootstrapCtx context.Context, graphBuilder *graph.DependencyGraphBuilder,
 	sorter *graph.TopologicalSorter, bootstrapGen generate.BootstrapGenerator, fixBuilder report.SuggestedFixBuilder,
 	diagnosticEmitter report.DiagnosticEmitter, variableRegistry *registry.VariableRegistry,
+	appOptionExtractor detect.AppOptionExtractor, containerValidator graph.ContainerValidator,
+	containerResolver graph.ContainerResolver,
 ) *AppAnalyzeRunner {
 	return &AppAnalyzeRunner{
-		appDetector:       appDetector,
-		injectRegistry:    injectRegistry,
-		provideRegistry:   provideRegistry,
-		packageLoader:     packageLoader,
-		packageTracker:    packageTracker,
-		bootstrapCtx:      bootstrapCtx,
-		graphBuilder:      graphBuilder,
-		sorter:            sorter,
-		bootstrapGen:      bootstrapGen,
-		fixBuilder:        fixBuilder,
-		diagnosticEmitter: diagnosticEmitter,
-		variableRegistry:  variableRegistry,
+		appDetector:        appDetector,
+		injectRegistry:     injectRegistry,
+		provideRegistry:    provideRegistry,
+		packageLoader:      packageLoader,
+		packageTracker:     packageTracker,
+		bootstrapCtx:       bootstrapCtx,
+		graphBuilder:       graphBuilder,
+		sorter:             sorter,
+		bootstrapGen:       bootstrapGen,
+		fixBuilder:         fixBuilder,
+		diagnosticEmitter:  diagnosticEmitter,
+		variableRegistry:   variableRegistry,
+		appOptionExtractor: appOptionExtractor,
+		containerValidator: containerValidator,
+		containerResolver:  containerResolver,
 	}
 }
 
@@ -192,38 +200,92 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) (interf
 		return nil, nil
 	}
 
-	// Phase 5: Generate bootstrap code
-	// Check if bootstrap exists and is current
-	existingBootstrap := r.bootstrapGen.DetectExistingBootstrap(pass)
-	if existingBootstrap != nil {
-		if r.bootstrapGen.CheckBootstrapCurrent(pass, existingBootstrap, depGraph) {
-			// Bootstrap is up-to-date (idempotent)
-			return nil, nil
-		}
-	}
+	// Phase 5: Extract app option to determine mode (default vs container)
+	optionMeta, optionErr := r.appOptionExtractor.ExtractAppOption(pass, apps[0])
 
-	// Generate bootstrap
-	bootstrap, err := r.bootstrapGen.GenerateBootstrap(pass, depGraph, sortedTypes)
-	if err != nil {
-		r.diagnosticEmitter.EmitGenerationError(reporter, apps[0].Pos, "bootstrap", err.Error())
+	// Handle container-related option extraction errors (e.g. non-struct type parameter)
+	if optionErr != nil && !optionMeta.IsDefault {
+		r.diagnosticEmitter.EmitGraphBuildError(reporter, apps[0].Pos, optionErr.Error())
 		return nil, nil
 	}
 
-	// Find main function
+	// Find main function (needed for both modes)
 	mainFunc := findMainFunction(pass)
 	if mainFunc == nil {
 		return nil, nil
 	}
 
-	// Build and emit fix
-	var fix analysis.SuggestedFix
+	existingBootstrap := r.bootstrapGen.DetectExistingBootstrap(pass)
 
-	if existingBootstrap != nil {
-		fix = r.fixBuilder.BuildBootstrapReplacementFix(pass, existingBootstrap, bootstrap, mainFunc)
-		r.diagnosticEmitter.EmitBootstrapUpdateFix(reporter, apps[0].Pos, fix)
+	if optionErr == nil && optionMeta.ContainerDef != nil {
+		// Container mode
+		containerDef := optionMeta.ContainerDef
+
+		// 1. Validate container fields
+		validationErrors := r.containerValidator.Validate(containerDef, depGraph)
+		if len(validationErrors) > 0 {
+			for _, verr := range validationErrors {
+				if verr.FieldName != "" {
+					r.diagnosticEmitter.EmitContainerFieldError(reporter, verr.Pos, verr.FieldName, "", verr.Message)
+				} else {
+					r.diagnosticEmitter.EmitContainerTypeError(reporter, verr.Pos, verr.Message)
+				}
+			}
+			return nil, nil
+		}
+
+		// 2. Resolve container fields
+		resolvedFields, resolveErr := r.containerResolver.ResolveFields(containerDef, depGraph)
+		if resolveErr != nil {
+			r.diagnosticEmitter.EmitGraphBuildError(reporter, apps[0].Pos, resolveErr.Error())
+			return nil, nil
+		}
+
+		// 3. Check idempotency
+		if existingBootstrap != nil {
+			if r.bootstrapGen.CheckContainerBootstrapCurrent(pass, existingBootstrap, depGraph, containerDef) {
+				return nil, nil
+			}
+		}
+
+		// 4. Generate container bootstrap
+		bootstrap, genErr := r.bootstrapGen.GenerateContainerBootstrap(pass, depGraph, sortedTypes, containerDef, resolvedFields)
+		if genErr != nil {
+			r.diagnosticEmitter.EmitGenerationError(reporter, apps[0].Pos, "container bootstrap", genErr.Error())
+			return nil, nil
+		}
+
+		// 5. Build and emit fix
+		var fix analysis.SuggestedFix
+		if existingBootstrap != nil {
+			fix = r.fixBuilder.BuildBootstrapReplacementFix(pass, existingBootstrap, bootstrap, mainFunc)
+			r.diagnosticEmitter.EmitBootstrapUpdateFix(reporter, apps[0].Pos, fix)
+		} else {
+			fix = r.fixBuilder.BuildBootstrapFix(pass, apps[0], bootstrap, mainFunc)
+			r.diagnosticEmitter.EmitBootstrapFix(reporter, apps[0].Pos, fix)
+		}
 	} else {
-		fix = r.fixBuilder.BuildBootstrapFix(pass, apps[0], bootstrap, mainFunc)
-		r.diagnosticEmitter.EmitBootstrapFix(reporter, apps[0].Pos, fix)
+		// Default mode (existing behavior)
+		if existingBootstrap != nil {
+			if r.bootstrapGen.CheckBootstrapCurrent(pass, existingBootstrap, depGraph) {
+				return nil, nil
+			}
+		}
+
+		bootstrap, genErr := r.bootstrapGen.GenerateBootstrap(pass, depGraph, sortedTypes)
+		if genErr != nil {
+			r.diagnosticEmitter.EmitGenerationError(reporter, apps[0].Pos, "bootstrap", genErr.Error())
+			return nil, nil
+		}
+
+		var fix analysis.SuggestedFix
+		if existingBootstrap != nil {
+			fix = r.fixBuilder.BuildBootstrapReplacementFix(pass, existingBootstrap, bootstrap, mainFunc)
+			r.diagnosticEmitter.EmitBootstrapUpdateFix(reporter, apps[0].Pos, fix)
+		} else {
+			fix = r.fixBuilder.BuildBootstrapFix(pass, apps[0], bootstrap, mainFunc)
+			r.diagnosticEmitter.EmitBootstrapFix(reporter, apps[0].Pos, fix)
+		}
 	}
 
 	return nil, nil

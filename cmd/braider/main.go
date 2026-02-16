@@ -28,9 +28,10 @@ func main() {
 	multichecker.Main((*analysis.Analyzer)(dependency.dependencyAnalyzer), (*analysis.Analyzer)(dependency.appAnalyzer))
 }
 
-// braider:hash:5a2cbcb944ab64e7
+// braider:hash:28e50522e211b118
 var dependency = func() struct {
 	appDetector             detect.AppDetector
+	appOptionExtractor      detect.AppOptionExtractor
 	constructorAnalyzer     detect.ConstructorAnalyzer
 	fieldAnalyzer           detect.FieldAnalyzer
 	injectDetector          detect.InjectDetector
@@ -41,6 +42,8 @@ var dependency = func() struct {
 	bootstrapGenerator      generate.BootstrapGenerator
 	constructorGenerator    generate.ConstructorGenerator
 	interfaceRegistry       *graph.InterfaceRegistry
+	containerValidator      graph.ContainerValidator
+	containerResolver       graph.ContainerResolver
 	dependencyGraphBuilder  *graph.DependencyGraphBuilder
 	topologicalSorter       *graph.TopologicalSorter
 	packageLoader           loader.PackageLoader
@@ -60,6 +63,7 @@ var dependency = func() struct {
 	cancelCauseFunc := bootstrapCancel
 	context := bootstrapCtx
 	appDetector := detect.NewAppDetector()
+	appOptionExtractor := detect.NewAppOptionExtractorImpl()
 	constructorAnalyzer := detect.NewConstructorAnalyzer()
 	fieldAnalyzer := detect.NewFieldAnalyzer()
 	injectDetector := detect.NewInjectDetector()
@@ -70,6 +74,8 @@ var dependency = func() struct {
 	bootstrapGenerator := generate.NewBootstrapGenerator(codeFormatter)
 	constructorGenerator := generate.NewConstructorGenerator()
 	interfaceRegistry := graph.NewInterfaceRegistry()
+	containerValidator := graph.NewContainerValidatorImpl(interfaceRegistry)
+	containerResolver := graph.NewContainerResolverImpl(interfaceRegistry)
 	dependencyGraphBuilder := graph.NewDependencyGraphBuilder(interfaceRegistry)
 	topologicalSorter := graph.NewTopologicalSorter()
 	packageLoader := loader.NewPackageLoader()
@@ -94,6 +100,9 @@ var dependency = func() struct {
 		suggestedFixBuilder,
 		diagnosticEmitter,
 		variableRegistry,
+		appOptionExtractor,
+		containerValidator,
+		containerResolver,
 	)
 	appAnalyzer := analyzer.NewAppAnalyzer(appAnalyzeRunner)
 	dependencyAnalyzeRunner := analyzer.NewDependencyAnalyzeRunner(
@@ -116,6 +125,7 @@ var dependency = func() struct {
 	dependencyAnalyzer := analyzer.NewDependencyAnalyzer(dependencyAnalyzeRunner)
 	return struct {
 		appDetector             detect.AppDetector
+		appOptionExtractor      detect.AppOptionExtractor
 		constructorAnalyzer     detect.ConstructorAnalyzer
 		fieldAnalyzer           detect.FieldAnalyzer
 		injectDetector          detect.InjectDetector
@@ -126,6 +136,8 @@ var dependency = func() struct {
 		bootstrapGenerator      generate.BootstrapGenerator
 		constructorGenerator    generate.ConstructorGenerator
 		interfaceRegistry       *graph.InterfaceRegistry
+		containerValidator      graph.ContainerValidator
+		containerResolver       graph.ContainerResolver
 		dependencyGraphBuilder  *graph.DependencyGraphBuilder
 		topologicalSorter       *graph.TopologicalSorter
 		packageLoader           loader.PackageLoader
@@ -143,6 +155,7 @@ var dependency = func() struct {
 		dependencyAnalyzer      *analyzer.DependencyAnalyzer
 	}{
 		appDetector:             appDetector,
+		appOptionExtractor:      appOptionExtractor,
 		constructorAnalyzer:     constructorAnalyzer,
 		fieldAnalyzer:           fieldAnalyzer,
 		injectDetector:          injectDetector,
@@ -153,6 +166,8 @@ var dependency = func() struct {
 		bootstrapGenerator:      bootstrapGenerator,
 		constructorGenerator:    constructorGenerator,
 		interfaceRegistry:       interfaceRegistry,
+		containerValidator:      containerValidator,
+		containerResolver:       containerResolver,
 		dependencyGraphBuilder:  dependencyGraphBuilder,
 		topologicalSorter:       topologicalSorter,
 		packageLoader:           packageLoader,

@@ -80,6 +80,18 @@ type DiagnosticEmitter interface {
 
 	// EmitStructTagConflictError reports a braider struct tag conflict with WithoutConstructor.
 	EmitStructTagConflictError(reporter Reporter, pos token.Pos, fieldName string, reason string)
+
+	// EmitContainerTypeError reports a non-struct container type parameter.
+	EmitContainerTypeError(reporter Reporter, pos token.Pos, typeName string)
+
+	// EmitContainerFieldError reports an unresolvable container field.
+	EmitContainerFieldError(reporter Reporter, pos token.Pos, fieldName string, fieldType string, reason string)
+
+	// EmitContainerFieldAmbiguousError reports an ambiguous container field resolution.
+	EmitContainerFieldAmbiguousError(reporter Reporter, pos token.Pos, fieldName string, fieldType string, candidates []string)
+
+	// EmitContainerStructTagError reports a forbidden or invalid struct tag in container.
+	EmitContainerStructTagError(reporter Reporter, pos token.Pos, fieldName string, reason string)
 }
 
 // diagnosticEmitter is the default implementation of DiagnosticEmitter.
@@ -284,5 +296,37 @@ func (e *diagnosticEmitter) EmitStructTagConflictError(reporter Reporter, pos to
 	reporter.Report(analysis.Diagnostic{
 		Pos:     pos,
 		Message: fmt.Sprintf("braider struct tag conflict on field %s: %s", fieldName, reason),
+	})
+}
+
+// EmitContainerTypeError reports a non-struct container type parameter.
+func (e *diagnosticEmitter) EmitContainerTypeError(reporter Reporter, pos token.Pos, typeName string) {
+	reporter.Report(analysis.Diagnostic{
+		Pos:     pos,
+		Message: fmt.Sprintf("container type parameter must be a struct type, got %s", typeName),
+	})
+}
+
+// EmitContainerFieldError reports an unresolvable container field.
+func (e *diagnosticEmitter) EmitContainerFieldError(reporter Reporter, pos token.Pos, fieldName string, fieldType string, reason string) {
+	reporter.Report(analysis.Diagnostic{
+		Pos:     pos,
+		Message: fmt.Sprintf("container field %q (type %s): %s", fieldName, fieldType, reason),
+	})
+}
+
+// EmitContainerFieldAmbiguousError reports an ambiguous container field resolution.
+func (e *diagnosticEmitter) EmitContainerFieldAmbiguousError(reporter Reporter, pos token.Pos, fieldName string, fieldType string, candidates []string) {
+	reporter.Report(analysis.Diagnostic{
+		Pos:     pos,
+		Message: fmt.Sprintf("container field %q (type %s) is ambiguous: multiple candidates [%s]", fieldName, fieldType, strings.Join(candidates, ", ")),
+	})
+}
+
+// EmitContainerStructTagError reports a forbidden or invalid struct tag in container.
+func (e *diagnosticEmitter) EmitContainerStructTagError(reporter Reporter, pos token.Pos, fieldName string, reason string) {
+	reporter.Report(analysis.Diagnostic{
+		Pos:     pos,
+		Message: fmt.Sprintf("container field %q: %s", fieldName, reason),
 	})
 }

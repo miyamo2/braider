@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/graph"
 	"github.com/miyamo2/braider/pkg/annotation"
 	"github.com/miyamo2/braider/pkg/annotation/inject"
@@ -29,7 +30,9 @@ type GeneratedBootstrap struct {
 // BootstrapGenerator generates bootstrap code for the DI system.
 type BootstrapGenerator interface {
 	GenerateBootstrap(pass *analysis.Pass, g *graph.Graph, sortedTypes []string) (*GeneratedBootstrap, error)
+	GenerateContainerBootstrap(pass *analysis.Pass, g *graph.Graph, sortedTypes []string, containerDef *detect.ContainerDefinition, resolvedFields []detect.ResolvedContainerField) (*GeneratedBootstrap, error)
 	CheckBootstrapCurrent(pass *analysis.Pass, existing *ast.GenDecl, g *graph.Graph) bool
+	CheckContainerBootstrapCurrent(pass *analysis.Pass, existing *ast.GenDecl, g *graph.Graph, containerDef *detect.ContainerDefinition) bool
 	DetectExistingBootstrap(pass *analysis.Pass) *ast.GenDecl
 }
 
@@ -378,6 +381,242 @@ func (bg *bootstrapGenerator) CheckBootstrapCurrent(
 
 	// Compute current hash
 	currentHash := ComputeGraphHash(g)
+
+	return existingHash == currentHash
+}
+
+// GenerateContainerBootstrap generates container-aware bootstrap code.
+// Instead of returning an anonymous struct, it returns the user-defined container struct
+// with fields mapped from resolved dependencies.
+func (bg *bootstrapGenerator) GenerateContainerBootstrap(
+	pass *analysis.Pass,
+	g *graph.Graph,
+	sortedTypes []string,
+	containerDef *detect.ContainerDefinition,
+	resolvedFields []detect.ResolvedContainerField,
+) (*GeneratedBootstrap, error) {
+	if g == nil {
+		return nil, fmt.Errorf("nil dependency graph")
+	}
+	if containerDef == nil {
+		return nil, fmt.Errorf("nil container definition")
+	}
+
+	// Compute container hash for idempotency
+	hash := ComputeContainerHash(g, containerDef)
+
+	// Detect existing aliases from the target file
+	var targetFile *ast.File
+	existingBootstrap := bg.DetectExistingBootstrap(pass)
+	if existingBootstrap != nil {
+		for _, file := range pass.Files {
+			for _, decl := range file.Decls {
+				if decl == existingBootstrap {
+					targetFile = file
+					break
+				}
+			}
+			if targetFile != nil {
+				break
+			}
+		}
+	}
+	if targetFile == nil && len(pass.Files) > 0 {
+		targetFile = pass.Files[0]
+	}
+	existingAliases := detectExistingAliases(targetFile)
+
+	// Collect imports (including container type imports)
+	currentPackage := pass.Pkg.Path()
+	currentPkgName := pass.Pkg.Name()
+	imports, aliasMap := CollectContainerImports(g, containerDef, currentPackage, currentPkgName, existingAliases)
+
+	// Build a map from node key to variable name (all nodes become local vars in container mode)
+	varNames := make(map[string]string) // nodeKey -> varName
+
+	for _, typeName := range sortedTypes {
+		node := g.Nodes[typeName]
+		if node == nil {
+			continue
+		}
+		varName := node.Name
+		if varName == "" {
+			varName = DeriveFieldName(typeName)
+		}
+		varNames[typeName] = varName
+	}
+
+	// Build a set of node keys that are depended upon by other nodes or referenced by container fields.
+	dependedUpon := make(map[string]struct{})
+	for _, node := range g.Nodes {
+		for _, dep := range node.Dependencies {
+			dependedUpon[dep] = struct{}{}
+		}
+	}
+	// Container fields reference their resolved nodes
+	for _, rf := range resolvedFields {
+		dependedUpon[rf.NodeKey] = struct{}{}
+	}
+
+	// Generate initialization code for ALL types as local variables
+	var inits []string
+	for _, typeName := range sortedTypes {
+		node := g.Nodes[typeName]
+		if node == nil {
+			continue
+		}
+
+		varName := varNames[typeName]
+
+		// Variable node: emit expression assignment
+		if node.ExpressionText != "" {
+			expressionText := node.ExpressionText
+			if !node.IsQualified && node.PackagePath != currentPackage {
+				qualifier := node.PackageAlias
+				if qualifier == "" {
+					qualifier = node.PackageName
+				}
+				expressionText = qualifier + "." + expressionText
+			} else if node.IsQualified {
+				expressionText = rewriteExpressionAliases(
+					expressionText,
+					node.ExpressionPkgs,
+					node.ExpressionPkgNames,
+					aliasMap,
+				)
+			}
+			if _, ok := dependedUpon[typeName]; ok {
+				inits = append(inits, fmt.Sprintf("\t%s := %s", varName, expressionText))
+			} else {
+				inits = append(inits, fmt.Sprintf("\t_ = %s", expressionText))
+			}
+			continue
+		}
+
+		// Provider/Injector node: constructor call
+		if len(node.ConstructorName) == 0 {
+			return nil, fmt.Errorf("injectable struct %s requires a constructor", typeName)
+		}
+
+		var args []string
+		for _, depTypeName := range node.Dependencies {
+			depVarName := varNames[depTypeName]
+			if depVarName == "" {
+				depNode := g.Nodes[depTypeName]
+				if depNode != nil {
+					depVarName = depNode.Name
+					if depVarName == "" {
+						depVarName = DeriveFieldName(depTypeName)
+					}
+				}
+			}
+			args = append(args, depVarName)
+		}
+
+		qualifier := node.PackageAlias
+		if qualifier == "" {
+			qualifier = node.PackageName
+		}
+
+		var pkgQualifier string
+		if node.PackageName == "main" && currentPkgName == "main" {
+			pkgQualifier = ""
+		} else if node.PackageName != currentPkgName {
+			pkgQualifier = qualifier + "."
+		}
+		constructorCall := fmt.Sprintf("%s%s(%s)", pkgQualifier, node.ConstructorName, strings.Join(args, ", "))
+		inits = append(inits, fmt.Sprintf("\t%s := %s", varName, constructorCall))
+	}
+
+	// Build the IIFE return type string
+	var returnType string
+	if containerDef.IsNamed {
+		// Named container type
+		if containerDef.PackagePath == currentPackage || containerDef.PackageName == currentPkgName {
+			returnType = containerDef.LocalName
+		} else {
+			containerQualifier := containerDef.PackageName
+			if alias, ok := aliasMap[containerDef.PackagePath]; ok && alias != "" {
+				containerQualifier = alias
+			}
+			returnType = containerQualifier + "." + containerDef.LocalName
+		}
+	} else {
+		// Anonymous struct type: build inline struct literal
+		var anonymousFields []string
+		for _, field := range containerDef.Fields {
+			fieldTypeStr := types.TypeString(field.Type, func(p *types.Package) string {
+				if p == nil {
+					return ""
+				}
+				if p.Path() == currentPackage {
+					return ""
+				}
+				if alias, ok := aliasMap[p.Path()]; ok && alias != "" {
+					return alias
+				}
+				return p.Name()
+			})
+			anonymousFields = append(anonymousFields, fmt.Sprintf("\t%s %s", field.Name, fieldTypeStr))
+		}
+		returnType = "struct {\n" + strings.Join(anonymousFields, "\n") + "\n}"
+	}
+
+	// Build return statement with container field assignments
+	var returnAssignments []string
+	for _, rf := range resolvedFields {
+		returnAssignments = append(returnAssignments, fmt.Sprintf("\t\t%s: %s,", rf.FieldName, rf.VarName))
+	}
+
+	// Build IIFE code
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("// braider:hash:%s\n", hash))
+	sb.WriteString(fmt.Sprintf("var dependency = func() %s {\n", returnType))
+	if len(inits) > 0 {
+		sb.WriteString(strings.Join(inits, "\n"))
+		sb.WriteString("\n")
+	}
+	sb.WriteString(fmt.Sprintf("\treturn %s{\n", returnType))
+	if len(returnAssignments) > 0 {
+		sb.WriteString(strings.Join(returnAssignments, "\n"))
+		sb.WriteString("\n")
+	}
+	sb.WriteString("\t}\n")
+	sb.WriteString("}()")
+
+	dependencyVar := sb.String()
+
+	// Format the code
+	formatted, err := bg.formatter.FormatCode(dependencyVar)
+	if err != nil {
+		return nil, fmt.Errorf("failed to format container bootstrap code: %w", err)
+	}
+
+	return &GeneratedBootstrap{
+		DependencyVar: formatted,
+		MainReference: "_ = dependency",
+		Imports:       imports,
+		Hash:          hash,
+	}, nil
+}
+
+// CheckContainerBootstrapCurrent checks if the existing container bootstrap code is up-to-date.
+func (bg *bootstrapGenerator) CheckContainerBootstrapCurrent(
+	pass *analysis.Pass,
+	existing *ast.GenDecl,
+	g *graph.Graph,
+	containerDef *detect.ContainerDefinition,
+) bool {
+	if existing == nil || g == nil {
+		return false
+	}
+
+	existingHash := extractHashFromComments(existing.Doc)
+	if existingHash == "" {
+		return false
+	}
+
+	currentHash := ComputeContainerHash(g, containerDef)
 
 	return existingHash == currentHash
 }

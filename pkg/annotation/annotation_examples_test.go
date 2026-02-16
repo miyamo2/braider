@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/app"
 	"github.com/miyamo2/braider/pkg/annotation/inject"
 	"github.com/miyamo2/braider/pkg/annotation/provide"
 	"github.com/miyamo2/braider/pkg/annotation/variable"
@@ -135,5 +136,5 @@ func ExampleVariable_named() {
 // all registered dependencies in topological order.
 func ExampleApp() {
 	main := func() {}
-	_ = annotation.App(main)
+	_ = annotation.App[app.Default](main)
 }

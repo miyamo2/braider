@@ -4,13 +4,14 @@ import (
 	"os"
 
 	"github.com/miyamo2/braider/pkg/annotation"
+	app "github.com/miyamo2/braider/pkg/annotation/app"
 	"github.com/miyamo2/braider/pkg/annotation/inject"
 	"github.com/miyamo2/braider/pkg/annotation/variable"
 )
 
 var _ = annotation.Variable[variable.Default](os.Stdout)
 
-var _ = annotation.App(main)
+var _ = annotation.App[app.Default](main)
 
 func main() {
 	_ = dependency

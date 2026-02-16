@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 
+	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/graph"
 )
 
@@ -67,6 +68,75 @@ func ComputeGraphHash(g *graph.Graph) string {
 		for _, dep := range sortedDeps {
 			h.Write([]byte(dep))
 			h.Write([]byte{0}) // separator
+		}
+	}
+
+	// Return first hashLength hex characters (64-bit)
+	fullHash := hex.EncodeToString(h.Sum(nil))
+	if len(fullHash) >= hashLength {
+		return fullHash[:hashLength]
+	}
+	return fullHash
+}
+
+// ComputeContainerHash computes a deterministic hash from the dependency graph
+// and optional container field definitions. When containerDef is nil, it behaves
+// identically to ComputeGraphHash.
+func ComputeContainerHash(g *graph.Graph, containerDef *detect.ContainerDefinition) string {
+	if g == nil {
+		return "0000000000000000"
+	}
+
+	// Collect all type names and sort them for determinism
+	types := slices.Sorted(maps.Keys(g.Nodes))
+
+	// Build a deterministic string representation (same as ComputeGraphHash)
+	h := sha256.New()
+	for _, typeName := range types {
+		node := g.Nodes[typeName]
+
+		// Type name
+		h.Write([]byte(typeName))
+		h.Write([]byte{0}) // separator
+
+		// Constructor name (affects generated code)
+		h.Write([]byte(node.ConstructorName))
+		h.Write([]byte{0})
+
+		// IsField flag (affects field vs local variable placement)
+		if node.IsField {
+			h.Write([]byte{1})
+		} else {
+			h.Write([]byte{0})
+		}
+		h.Write([]byte{0})
+
+		// ExpressionText (for Variable nodes — affects generated code)
+		if node.ExpressionText != "" {
+			h.Write([]byte(node.ExpressionText))
+			h.Write([]byte{0})
+		}
+
+		// Add dependencies in sorted order
+		sortedDeps := make([]string, len(node.Dependencies))
+		copy(sortedDeps, node.Dependencies)
+		sort.Strings(sortedDeps)
+
+		for _, dep := range sortedDeps {
+			h.Write([]byte(dep))
+			h.Write([]byte{0}) // separator
+		}
+	}
+
+	// Append container field data if present
+	if containerDef != nil {
+		for _, field := range containerDef.Fields {
+			h.Write([]byte(field.Name))
+			h.Write([]byte{0})
+			h.Write([]byte(field.TypeString))
+			h.Write([]byte{0})
+			h.Write([]byte(field.Tag))
+			h.Write([]byte{0})
 		}
 	}
 

@@ -1,9 +1,12 @@
 package main
 
-import "github.com/miyamo2/braider/pkg/annotation"
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/app"
+)
 
 // App annotation referencing non-main function - should report error
-var _ = annotation.App(setup) // want "annotation.App must reference main function"
+var _ = annotation.App[app.Default](setup) // want "annotation.App must reference main function"
 
 func setup() {
 }

@@ -775,3 +775,224 @@ func TestDiagnosticEmitter_EmitStructTagConflictError(t *testing.T) {
 		})
 	}
 }
+
+func TestDiagnosticEmitter_EmitContainerTypeError(t *testing.T) {
+	tests := []struct {
+		name     string
+		typeName string
+		wantMsg  string
+	}{
+		{
+			name:     "interface type",
+			typeName: "io.Reader",
+			wantMsg:  "container type parameter must be a struct type, got io.Reader",
+		},
+		{
+			name:     "map type",
+			typeName: "map[string]int",
+			wantMsg:  "container type parameter must be a struct type, got map[string]int",
+		},
+		{
+			name:     "empty type name",
+			typeName: "",
+			wantMsg:  "container type parameter must be a struct type, got ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			emitter := report.NewDiagnosticEmitter()
+			reporter := &mockReporter{}
+			pos := token.Pos(800)
+
+			emitter.EmitContainerTypeError(reporter, pos, tt.typeName)
+
+			if len(reporter.diagnostics) != 1 {
+				t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+			}
+
+			d := reporter.diagnostics[0]
+
+			if d.Pos != pos {
+				t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+			}
+
+			if d.Message != tt.wantMsg {
+				t.Errorf("diagnostic.Message = %q, want %q", d.Message, tt.wantMsg)
+			}
+
+			if len(d.SuggestedFixes) != 0 {
+				t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
+			}
+		})
+	}
+}
+
+func TestDiagnosticEmitter_EmitContainerFieldError(t *testing.T) {
+	tests := []struct {
+		name      string
+		fieldName string
+		fieldType string
+		reason    string
+		wantMsg   string
+	}{
+		{
+			name:      "unresolvable field",
+			fieldName: "Logger",
+			fieldType: "*log.Logger",
+			reason:    "no registered dependency matches this type",
+			wantMsg:   `container field "Logger" (type *log.Logger): no registered dependency matches this type`,
+		},
+		{
+			name:      "empty field name",
+			fieldName: "",
+			fieldType: "int",
+			reason:    "primitive types are not supported",
+			wantMsg:   `container field "" (type int): primitive types are not supported`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			emitter := report.NewDiagnosticEmitter()
+			reporter := &mockReporter{}
+			pos := token.Pos(900)
+
+			emitter.EmitContainerFieldError(reporter, pos, tt.fieldName, tt.fieldType, tt.reason)
+
+			if len(reporter.diagnostics) != 1 {
+				t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+			}
+
+			d := reporter.diagnostics[0]
+
+			if d.Pos != pos {
+				t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+			}
+
+			if d.Message != tt.wantMsg {
+				t.Errorf("diagnostic.Message = %q, want %q", d.Message, tt.wantMsg)
+			}
+
+			if len(d.SuggestedFixes) != 0 {
+				t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
+			}
+		})
+	}
+}
+
+func TestDiagnosticEmitter_EmitContainerFieldAmbiguousError(t *testing.T) {
+	tests := []struct {
+		name       string
+		fieldName  string
+		fieldType  string
+		candidates []string
+		wantMsg    string
+	}{
+		{
+			name:       "two candidates",
+			fieldName:  "Repo",
+			fieldType:  "Repository",
+			candidates: []string{"pkg1.Repository", "pkg2.Repository"},
+			wantMsg:    `container field "Repo" (type Repository) is ambiguous: multiple candidates [pkg1.Repository, pkg2.Repository]`,
+		},
+		{
+			name:       "three candidates",
+			fieldName:  "DB",
+			fieldType:  "Database",
+			candidates: []string{"a.Database", "b.Database", "c.Database"},
+			wantMsg:    `container field "DB" (type Database) is ambiguous: multiple candidates [a.Database, b.Database, c.Database]`,
+		},
+		{
+			name:       "empty candidates",
+			fieldName:  "Svc",
+			fieldType:  "Service",
+			candidates: []string{},
+			wantMsg:    `container field "Svc" (type Service) is ambiguous: multiple candidates []`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			emitter := report.NewDiagnosticEmitter()
+			reporter := &mockReporter{}
+			pos := token.Pos(1000)
+
+			emitter.EmitContainerFieldAmbiguousError(reporter, pos, tt.fieldName, tt.fieldType, tt.candidates)
+
+			if len(reporter.diagnostics) != 1 {
+				t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+			}
+
+			d := reporter.diagnostics[0]
+
+			if d.Pos != pos {
+				t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+			}
+
+			if d.Message != tt.wantMsg {
+				t.Errorf("diagnostic.Message = %q, want %q", d.Message, tt.wantMsg)
+			}
+
+			if len(d.SuggestedFixes) != 0 {
+				t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
+			}
+		})
+	}
+}
+
+func TestDiagnosticEmitter_EmitContainerStructTagError(t *testing.T) {
+	tests := []struct {
+		name      string
+		fieldName string
+		reason    string
+		wantMsg   string
+	}{
+		{
+			name:      "forbidden tag",
+			fieldName: "Logger",
+			reason:    "struct tags are not allowed on container fields",
+			wantMsg:   `container field "Logger": struct tags are not allowed on container fields`,
+		},
+		{
+			name:      "invalid tag value",
+			fieldName: "DB",
+			reason:    "braider tag value must be a valid dependency name",
+			wantMsg:   `container field "DB": braider tag value must be a valid dependency name`,
+		},
+		{
+			name:      "empty field name",
+			fieldName: "",
+			reason:    "some reason",
+			wantMsg:   `container field "": some reason`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			emitter := report.NewDiagnosticEmitter()
+			reporter := &mockReporter{}
+			pos := token.Pos(1100)
+
+			emitter.EmitContainerStructTagError(reporter, pos, tt.fieldName, tt.reason)
+
+			if len(reporter.diagnostics) != 1 {
+				t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+			}
+
+			d := reporter.diagnostics[0]
+
+			if d.Pos != pos {
+				t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+			}
+
+			if d.Message != tt.wantMsg {
+				t.Errorf("diagnostic.Message = %q, want %q", d.Message, tt.wantMsg)
+			}
+
+			if len(d.SuggestedFixes) != 0 {
+				t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
+			}
+		})
+	}
+}

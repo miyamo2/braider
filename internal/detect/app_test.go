@@ -786,6 +786,218 @@ func main() {}
 	}
 }
 
+func TestAppDetector_DetectAppAnnotations_GenericForm(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithApp()
+
+	// Create a fake app options package for type arguments
+	appOptionsPkg := types.NewPackage("github.com/miyamo2/braider/pkg/annotation/app", "app")
+	// Add Default type
+	defaultIface := types.NewInterfaceType(nil, nil)
+	defaultIface.Complete()
+	defaultType := types.NewTypeName(token.NoPos, appOptionsPkg, "Default", defaultIface)
+	appOptionsPkg.Scope().Insert(defaultType)
+	appOptionsPkg.MarkComplete()
+
+	tests := []struct {
+		name               string
+		src                string
+		pkgs               map[string]*types.Package
+		expectedCount      int
+		expectTypeArgExpr  bool // whether TypeArgExpr should be non-nil
+		description        string
+	}{
+		{
+			name: "generic App with app.Default",
+			src: `package main
+
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/app"
+)
+
+var _ = annotation.App[app.Default](main)
+
+func main() {}
+`,
+			pkgs: map[string]*types.Package{
+				detect.AnnotationPath: annotationPkg,
+				"github.com/miyamo2/braider/pkg/annotation/app": appOptionsPkg,
+			},
+			expectedCount:     1,
+			expectTypeArgExpr: true,
+			description:       "Generic App[app.Default](main) should be detected with TypeArgExpr",
+		},
+		{
+			name: "non-generic App continues to work",
+			src: `package main
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+var _ = annotation.App(main)
+
+func main() {}
+`,
+			pkgs: map[string]*types.Package{
+				detect.AnnotationPath: annotationPkg,
+			},
+			expectedCount:     1,
+			expectTypeArgExpr: false,
+			description:       "Non-generic App(main) should have nil TypeArgExpr",
+		},
+		{
+			name: "generic App with arbitrary type arg",
+			src: `package main
+
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/app"
+)
+
+var _ = annotation.App[app.Default](main)
+var _ = annotation.App(main)
+
+func main() {}
+`,
+			pkgs: map[string]*types.Package{
+				detect.AnnotationPath: annotationPkg,
+				"github.com/miyamo2/braider/pkg/annotation/app": appOptionsPkg,
+			},
+			expectedCount:     2,
+			expectTypeArgExpr: true, // At least the first one has TypeArgExpr
+			description:       "Mix of generic and non-generic forms",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass, _ := mockPassForApp(t, tt.src, tt.pkgs)
+
+			detector := detect.NewAppDetector()
+			apps := detector.DetectAppAnnotations(pass)
+
+			if len(apps) != tt.expectedCount {
+				t.Errorf("DetectAppAnnotations() returned %d annotations, want %d (%s)", len(apps), tt.expectedCount, tt.description)
+				return
+			}
+
+			if tt.expectedCount > 0 && tt.expectTypeArgExpr {
+				if apps[0].TypeArgExpr == nil {
+					t.Error("Expected TypeArgExpr to be non-nil for generic form")
+				}
+			}
+
+			if tt.expectedCount > 0 && !tt.expectTypeArgExpr {
+				if apps[0].TypeArgExpr != nil {
+					t.Error("Expected TypeArgExpr to be nil for non-generic form")
+				}
+			}
+		})
+	}
+}
+
+func TestAppDetector_DetectAppAnnotations_GenericForm_WithInspector(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithApp()
+
+	appOptionsPkg := types.NewPackage("github.com/miyamo2/braider/pkg/annotation/app", "app")
+	defaultIface := types.NewInterfaceType(nil, nil)
+	defaultIface.Complete()
+	defaultType := types.NewTypeName(token.NoPos, appOptionsPkg, "Default", defaultIface)
+	appOptionsPkg.Scope().Insert(defaultType)
+	appOptionsPkg.MarkComplete()
+
+	src := `package main
+
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/app"
+)
+
+var _ = annotation.App[app.Default](main)
+
+func main() {}
+`
+	pkgs := map[string]*types.Package{
+		detect.AnnotationPath: annotationPkg,
+		"github.com/miyamo2/braider/pkg/annotation/app": appOptionsPkg,
+	}
+	pass, _ := mockPassWithInspectorForApp(t, src, pkgs)
+
+	detector := detect.NewAppDetector()
+	apps := detector.DetectAppAnnotations(pass)
+
+	if len(apps) != 1 {
+		t.Fatalf("DetectAppAnnotations() with Inspector returned %d annotations, want 1", len(apps))
+	}
+
+	if apps[0].TypeArgExpr == nil {
+		t.Error("Expected TypeArgExpr to be non-nil for generic form (Inspector path)")
+	}
+}
+
+func TestAppDetector_DetectAppAnnotations_GenericForm_FieldsVerification(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithApp()
+
+	appOptionsPkg := types.NewPackage("github.com/miyamo2/braider/pkg/annotation/app", "app")
+	defaultIface := types.NewInterfaceType(nil, nil)
+	defaultIface.Complete()
+	defaultType := types.NewTypeName(token.NoPos, appOptionsPkg, "Default", defaultIface)
+	appOptionsPkg.Scope().Insert(defaultType)
+	appOptionsPkg.MarkComplete()
+
+	src := `package main
+
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/app"
+)
+
+var _ = annotation.App[app.Default](main)
+
+func main() {}
+`
+	pkgs := map[string]*types.Package{
+		detect.AnnotationPath: annotationPkg,
+		"github.com/miyamo2/braider/pkg/annotation/app": appOptionsPkg,
+	}
+	pass, _ := mockPassForApp(t, src, pkgs)
+
+	detector := detect.NewAppDetector()
+	apps := detector.DetectAppAnnotations(pass)
+
+	if len(apps) != 1 {
+		t.Fatalf("expected 1 App annotation, got %d", len(apps))
+	}
+
+	app := apps[0]
+
+	// Verify CallExpr is set
+	if app.CallExpr == nil {
+		t.Error("AppAnnotation.CallExpr should not be nil")
+	}
+
+	// Verify GenDecl is set
+	if app.GenDecl == nil {
+		t.Error("AppAnnotation.GenDecl should not be nil")
+	}
+
+	// Verify MainFunc is set (points to main function)
+	if app.MainFunc == nil {
+		t.Error("AppAnnotation.MainFunc should not be nil")
+	} else if app.MainFunc.Name != "main" {
+		t.Errorf("AppAnnotation.MainFunc.Name = %q, want %q", app.MainFunc.Name, "main")
+	}
+
+	// Verify TypeArgExpr is set for generic form
+	if app.TypeArgExpr == nil {
+		t.Error("AppAnnotation.TypeArgExpr should not be nil for generic form")
+	}
+
+	// Verify Pos is valid
+	if app.Pos == 0 {
+		t.Error("AppAnnotation.Pos should be non-zero")
+	}
+}
+
 func TestAppDetector_FindFileForNode_NoFileFound(t *testing.T) {
 	// Create a pass with no files
 	fset := token.NewFileSet()
