@@ -20,14 +20,19 @@ import (
 type ProviderInfo struct {
 	// TypeName is the fully qualified type name (e.g., "example.com/repo.UserRepository")
 	TypeName string
-	// PackagePath is the import path of the package (e.g., "example.com/repo")
+	// PackagePath is the import path of the return type's package (e.g., "example.com/repo")
 	PackagePath string
-	// PackageName is the actual package name from go/types.Package (e.g., "repo")
+	// PackageName is the actual package name of the return type from go/types.Package (e.g., "repo")
 	PackageName string
 	// LocalName is the type name without package path (e.g., "UserRepository")
 	LocalName string
 	// ConstructorName is the constructor function name (e.g., "NewUserRepository")
 	ConstructorName string
+	// ConstructorPkgPath is the import path of the package where the constructor function is defined.
+	// This may differ from PackagePath when the constructor returns a type from a different package.
+	ConstructorPkgPath string
+	// ConstructorPkgName is the package name where the constructor function is defined.
+	ConstructorPkgName string
 	// Dependencies contains fully qualified types of constructor parameters
 	Dependencies []string
 	// Implements contains fully qualified interface types this struct implements

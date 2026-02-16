@@ -1,0 +1,25 @@
+package main
+
+import (
+	"github.com/miyamo2/braider/pkg/annotation"
+	"provide_cross_type/ext"
+	"provide_cross_type/provider"
+)
+
+var _ = annotation.App(main) // want "bootstrap code is missing"
+
+func main() {
+	_ = dependency
+}
+
+// braider:hash:5a566e155363866e
+var dependency = func() struct {
+	client *ext.Client
+} {
+	client := provider.NewClient()
+	return struct {
+		client *ext.Client
+	}{
+		client: client,
+	}
+}()

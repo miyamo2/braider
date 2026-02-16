@@ -24,6 +24,10 @@ type ProviderCandidate struct {
 	ProviderFuncSig *types.Signature
 	// ProviderFuncName is the function name (e.g., "NewUserRepository")
 	ProviderFuncName string
+	// ProviderFuncPkgPath is the import path of the provider function's package
+	ProviderFuncPkgPath string
+	// ProviderFuncPkgName is the package name of the provider function's package
+	ProviderFuncPkgName string
 	// ReturnType is the first return type of the provider function
 	ReturnType types.Type
 	// ReturnTypeName is the local name of the return type (e.g., "userRepository")
@@ -199,6 +203,9 @@ func (d *provideCallDetector) extractCandidate(pass *analysis.Pass, callExpr *as
 	// Extract function name
 	funcName := d.extractFuncName(providerFuncExpr)
 
+	// Extract provider function's package
+	providerFuncPkgPath, providerFuncPkgName := d.extractFuncPkg(pass, providerFuncExpr)
+
 	// Extract return type
 	var returnType types.Type
 	var returnTypeName string
@@ -231,15 +238,39 @@ func (d *provideCallDetector) extractCandidate(pass *analysis.Pass, callExpr *as
 	}
 
 	return &ProviderCandidate{
-		CallExpr:         callExpr,
-		ProviderFunc:     providerFuncExpr,
-		ProviderFuncSig:  sig,
-		ProviderFuncName: funcName,
-		ReturnType:       returnType,
-		ReturnTypeName:   returnTypeName,
-		PackagePath:      packagePath,
-		Implements:       implements,
+		CallExpr:            callExpr,
+		ProviderFunc:        providerFuncExpr,
+		ProviderFuncSig:     sig,
+		ProviderFuncName:    funcName,
+		ProviderFuncPkgPath: providerFuncPkgPath,
+		ProviderFuncPkgName: providerFuncPkgName,
+		ReturnType:          returnType,
+		ReturnTypeName:      returnTypeName,
+		PackagePath:         packagePath,
+		Implements:          implements,
 	}
+}
+
+// extractFuncPkg extracts the provider function's package path and name.
+// For local functions (*ast.Ident), uses pass.TypesInfo to resolve the object's package.
+// For qualified functions (*ast.SelectorExpr), resolves from the selector.
+// Falls back to pass.Pkg if resolution fails.
+func (d *provideCallDetector) extractFuncPkg(pass *analysis.Pass, expr ast.Expr) (string, string) {
+	switch e := expr.(type) {
+	case *ast.Ident:
+		if obj := pass.TypesInfo.Uses[e]; obj != nil {
+			if pkg := obj.Pkg(); pkg != nil {
+				return pkg.Path(), pkg.Name()
+			}
+		}
+	case *ast.SelectorExpr:
+		if obj := pass.TypesInfo.Uses[e.Sel]; obj != nil {
+			if pkg := obj.Pkg(); pkg != nil {
+				return pkg.Path(), pkg.Name()
+			}
+		}
+	}
+	return pass.Pkg.Path(), pass.Pkg.Name()
 }
 
 // extractFuncName extracts the function name from a function expression.
