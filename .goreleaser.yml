@@ -26,13 +26,13 @@ changelog:
   sort: asc
   filters:
     exclude:
-      - "^docs:"
-      - "^doc:"
-      - "^style:"
-      - "^ci:"
-      - "^chore:"
-      - "^refactor:"
-      - "^test:"
+      - "^docs(\\(.*\\))?:"
+      - "^doc(\\(.*\\))?:"
+      - "^style(\\(.*\\))?:"
+      - "^ci(\\(.*\\))?:"
+      - "^chore(\\(.*\\))?:"
+      - "^refactor(\\(.*\\))?:"
+      - "^test(\\(.*\\))?:"
       - "^Update coverage badges"
 
 brews:

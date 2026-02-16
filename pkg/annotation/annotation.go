@@ -7,6 +7,7 @@ package annotation
 
 import (
 	"github.com/miyamo2/braider/internal/annotation"
+	appopt "github.com/miyamo2/braider/pkg/annotation/app"
 	"github.com/miyamo2/braider/pkg/annotation/inject"
 	"github.com/miyamo2/braider/pkg/annotation/provide"
 	variableopt "github.com/miyamo2/braider/pkg/annotation/variable"
@@ -71,8 +72,14 @@ func Provide[T provide.Option](providerFunc any) provider[T] {
 	return provider[T]{}
 }
 
-type app struct {
+type app[T appopt.Option] struct {
 	annotation.App
+	opt T
+}
+
+func (a app[T]) option() T {
+	var zero T
+	return zero
 }
 
 // App marks a struct as the top-level dependency injection target.
@@ -109,7 +116,7 @@ type app struct {
 //		Clock Clock
 //	}
 //
-//	var _ = annotation.App(main)
+//	var _ = annotation.App[app.Default](main)
 //
 //	func main() {}
 //
@@ -142,7 +149,7 @@ type app struct {
 //		Clock Clock
 //	}
 //
-//	var _ = annotation.App(main)
+//	var _ = annotation.App[app.Default](main)
 //
 //	func main() {
 //		_ = dependency
@@ -162,8 +169,9 @@ type app struct {
 //			service: service,
 //		}
 //	}()
-func App(_ func()) annotation.App {
-	return app{}
+func App[T appopt.Option](mainFunc func()) annotation.App {
+	_ = mainFunc
+	return app[T]{}
 }
 
 type _variable[T variableopt.Option] struct {

@@ -59,11 +59,17 @@ func buildIntegrationDeps() (
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 
 	// Graph components
-	graphBuilder := graph.NewDependencyGraphBuilder(graph.NewInterfaceRegistry())
+	interfaceRegistry := graph.NewInterfaceRegistry()
+	graphBuilder := graph.NewDependencyGraphBuilder(interfaceRegistry)
 	sorter := graph.NewTopologicalSorter()
 
 	// App detection
 	appDetector := detect.NewAppDetector(markers)
+
+	// Container components
+	appOptionExtractor := detect.NewAppOptionExtractorImpl()
+	containerValidator := graph.NewContainerValidatorImpl(interfaceRegistry)
+	containerResolver := graph.NewContainerResolverImpl(interfaceRegistry)
 
 	// Variable components
 	variableCallDetector := detect.NewVariableCallDetector(markers)
@@ -84,6 +90,7 @@ func buildIntegrationDeps() (
 		graphBuilder, sorter, bootstrapGenerator,
 		suggestedFixBuilder, diagnosticEmitter,
 		variableReg,
+		appOptionExtractor, containerValidator, containerResolver,
 	)
 	appAnalyzer := (*analysis.Analyzer)(NewAppAnalyzer(appRunner))
 
@@ -346,6 +353,106 @@ func TestIntegration(t *testing.T) {
 			testdir:       "struct_tag_typed_fields",
 			depPackages:   []string{"struct_tag_typed_fields/domain", "struct_tag_typed_fields/provider", "struct_tag_typed_fields/service"},
 			appSuggestFix: true,
+		},
+
+		// --- Container mode ---
+		{
+			name:          "ContainerBasic",
+			testdir:       "container_basic",
+			depPackages:   []string{"container_basic/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerNamed",
+			testdir:       "container_named",
+			depPackages:   []string{"container_named/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerIdempotent",
+			testdir:       "container_idempotent",
+			depPackages:   []string{"container_idempotent/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerOutdated",
+			testdir:       "container_outdated",
+			depPackages:   []string{"container_outdated/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerAnonymous",
+			testdir:       "container_anonymous",
+			depPackages:   []string{"container_anonymous/repository", "container_anonymous/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerNamedField",
+			testdir:       "container_named_field",
+			depPackages:   []string{"container_named_field/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerIfaceField",
+			testdir:       "container_iface_field",
+			depPackages:   []string{"container_iface_field/repository"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerCrossPackage",
+			testdir:       "container_cross_package",
+			depPackages:   []string{"container_cross_package/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerTransitive",
+			testdir:       "container_transitive",
+			depPackages:   []string{"container_transitive/repository", "container_transitive/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerVariable",
+			testdir:       "container_variable",
+			depPackages:   []string{"container_variable/config"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerMixedOption",
+			testdir:       "container_mixed_option",
+			depPackages:   []string{"container_mixed_option/config", "container_mixed_option/service"},
+			appSuggestFix: true,
+		},
+
+		// --- Container error cases ---
+		{
+			name:          "ErrorContainerUnresolved",
+			testdir:       "error_container_unresolved",
+			depPackages:   []string{"error_container_unresolved/service"},
+			appSuggestFix: false,
+		},
+		{
+			name:          "ErrorContainerTagExclude",
+			testdir:       "error_container_tag_exclude",
+			depPackages:   []string{"error_container_tag_exclude/service"},
+			appSuggestFix: false,
+		},
+		{
+			name:          "ErrorContainerTagEmpty",
+			testdir:       "error_container_tag_empty",
+			depPackages:   []string{"error_container_tag_empty/service"},
+			appSuggestFix: false,
+		},
+		{
+			name:          "ErrorContainerNonStruct",
+			testdir:       "error_container_non_struct",
+			depPackages:   nil,
+			appSuggestFix: false,
+		},
+		{
+			name:          "ErrorContainerAmbiguous",
+			testdir:       "error_container_ambiguous",
+			depPackages:   []string{"error_container_ambiguous/repository"},
+			appSuggestFix: false,
 		},
 
 		// --- App-only (no DependencyAnalyzer) ---

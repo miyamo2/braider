@@ -18,11 +18,12 @@ const AppFuncName = "App"
 
 // AppAnnotation represents a detected annotation.App call.
 type AppAnnotation struct {
-	CallExpr *ast.CallExpr // The App(main) call expression
-	GenDecl  *ast.GenDecl  // The var declaration containing the call
-	MainFunc *ast.Ident    // The main function identifier argument
-	Pos      token.Pos     // Position for diagnostics
-	File     *ast.File     // The file containing this annotation
+	CallExpr    *ast.CallExpr // The App(main) call expression
+	GenDecl     *ast.GenDecl  // The var declaration containing the call
+	MainFunc    *ast.Ident    // The main function identifier argument
+	Pos         token.Pos     // Position for diagnostics
+	File        *ast.File     // The file containing this annotation
+	TypeArgExpr ast.Expr      // The type argument expression from App[T]; nil for non-generic form
 }
 
 // AppDetector detects annotation.App calls in packages.
@@ -150,15 +151,17 @@ func (d *appDetector) processGenDecl(
 			continue
 		}
 
-		if !d.isAppCall(pass, callExpr) {
+		ok, typeArgExpr := d.isAppCall(pass, callExpr)
+		if !ok {
 			continue
 		}
 
 		app := &AppAnnotation{
-			CallExpr: callExpr,
-			GenDecl:  genDecl,
-			Pos:      callExpr.Pos(),
-			File:     file,
+			CallExpr:    callExpr,
+			GenDecl:     genDecl,
+			Pos:         callExpr.Pos(),
+			File:        file,
+			TypeArgExpr: typeArgExpr,
 		}
 
 		// Extract the argument (should be main function identifier)
@@ -187,27 +190,54 @@ func (d *appDetector) findFileForNode(pass *analysis.Pass, node ast.Node) *ast.F
 
 // isAppCall checks if the call expression is annotation.App
 // using types.Implements with the sealed App marker interface.
-func (d *appDetector) isAppCall(pass *analysis.Pass, call *ast.CallExpr) bool {
-	// Handle selector expression: annotation.App
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return false
+// It returns true if the call is annotation.App (non-generic or generic form),
+// and also returns the type argument expression if it is a generic call (or nil otherwise).
+func (d *appDetector) isAppCall(pass *analysis.Pass, call *ast.CallExpr) (bool, ast.Expr) {
+	var sel *ast.SelectorExpr
+	var typeArgExpr ast.Expr
+
+	switch fun := call.Fun.(type) {
+	case *ast.SelectorExpr:
+		// Non-generic: annotation.App(main)
+		sel = fun
+	case *ast.IndexExpr:
+		// Generic single type arg: annotation.App[T](main)
+		var ok bool
+		sel, ok = fun.X.(*ast.SelectorExpr)
+		if !ok {
+			return false, nil
+		}
+		typeArgExpr = fun.Index
+	case *ast.IndexListExpr:
+		// Defensive: multi-type-arg annotation.App[T1, T2](main) — not expected but handled
+		var ok bool
+		sel, ok = fun.X.(*ast.SelectorExpr)
+		if !ok {
+			return false, nil
+		}
+		if len(fun.Indices) > 0 {
+			typeArgExpr = fun.Indices[0]
+		}
+	default:
+		return false, nil
 	}
 
 	if sel.Sel.Name != AppFuncName {
-		return false
+		return false, nil
 	}
 
 	// Check the call's return type implements the App marker interface
 	typ := pass.TypesInfo.TypeOf(call)
 	if typ == nil {
-		return false
+		return false, nil
 	}
 
 	if d.markers != nil && d.markers.App != nil {
-		return types.Implements(typ, d.markers.App)
+		if types.Implements(typ, d.markers.App) {
+			return true, typeArgExpr
+		}
 	}
-	return false
+	return false, nil
 }
 
 // ValidateAppAnnotations validates all detected App annotations.

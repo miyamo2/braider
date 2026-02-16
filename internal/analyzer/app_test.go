@@ -49,25 +49,33 @@ func setupTestDependencies() (
 	generate.BootstrapGenerator,
 	report.SuggestedFixBuilder,
 	report.DiagnosticEmitter,
+	detect.AppOptionExtractor,
+	graph.ContainerValidator,
+	graph.ContainerResolver,
 ) {
 	providerRegistry := registry.NewProviderRegistry()
 	injectorRegistry := registry.NewInjectorRegistry()
 	packageTracker := registry.NewPackageTracker()
 	bootstrapCtx, bootstrapCancel := context.WithCancelCause(context.Background())
 	appDetector := detect.NewAppDetector(detect.ResolveMarkers())
-	graphBuilder := graph.NewDependencyGraphBuilder(graph.NewInterfaceRegistry())
+	interfaceRegistry := graph.NewInterfaceRegistry()
+	graphBuilder := graph.NewDependencyGraphBuilder(interfaceRegistry)
 	sorter := graph.NewTopologicalSorter()
 	bootstrapGenerator := generate.NewBootstrapGenerator(generate.NewCodeFormatter())
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
+	appOptionExtractor := detect.NewAppOptionExtractorImpl()
+	containerValidator := graph.NewContainerValidatorImpl(interfaceRegistry)
+	containerResolver := graph.NewContainerResolverImpl(interfaceRegistry)
 
 	return providerRegistry, injectorRegistry, packageTracker, bootstrapCtx, bootstrapCancel, appDetector,
-		graphBuilder, sorter, bootstrapGenerator, suggestedFixBuilder, diagnosticEmitter
+		graphBuilder, sorter, bootstrapGenerator, suggestedFixBuilder, diagnosticEmitter,
+		appOptionExtractor, containerValidator, containerResolver
 }
 
 func TestAppAnalyzer_ContextCancellation(t *testing.T) {
 	providerRegistry, injectorRegistry, packageTracker, bootstrapCtx, bootstrapCancel, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+		bootstrapGen, fixBuilder, diagnosticEmitter, appOptionExtractor, containerValidator, containerResolver := setupTestDependencies()
 
 	injectorRegistry.Register(
 		&registry.InjectorInfo{
@@ -92,7 +100,7 @@ func TestAppAnalyzer_ContextCancellation(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader,
 		packageTracker, bootstrapCtx,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-		variableReg,
+		variableReg, appOptionExtractor, containerValidator, containerResolver,
 	)
 	analyzer := (*analysis.Analyzer)(NewAppAnalyzer(runner))
 
@@ -102,7 +110,7 @@ func TestAppAnalyzer_ContextCancellation(t *testing.T) {
 
 func TestAppAnalyzer_MissingConstructor(t *testing.T) {
 	providerRegistry, injectorRegistry, packageTracker, bootstrapCtx, _, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+		bootstrapGen, fixBuilder, diagnosticEmitter, appOptionExtractor, containerValidator, containerResolver := setupTestDependencies()
 
 	providerRegistry.Register(
 		&registry.ProviderInfo{
@@ -124,7 +132,7 @@ func TestAppAnalyzer_MissingConstructor(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader,
 		packageTracker, bootstrapCtx,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-		variableReg,
+		variableReg, appOptionExtractor, containerValidator, containerResolver,
 	)
 	analyzer := (*analysis.Analyzer)(NewAppAnalyzer(runner))
 	analysistest.Run(t, "testdata/bootstrapgen/missingctor", analyzer, ".")
@@ -133,7 +141,7 @@ func TestAppAnalyzer_MissingConstructor(t *testing.T) {
 
 func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
 	providerRegistry, injectorRegistry, packageTracker, bootstrapCtx, _, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter := setupTestDependencies()
+		bootstrapGen, fixBuilder, diagnosticEmitter, appOptionExtractor, containerValidator, containerResolver := setupTestDependencies()
 
 	injectorRegistry.Register(
 		&registry.InjectorInfo{
@@ -166,7 +174,7 @@ func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
 		appDetector, injectorRegistry, providerRegistry, packageLoader,
 		packageTracker, bootstrapCtx,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-		variableReg,
+		variableReg, appOptionExtractor, containerValidator, containerResolver,
 	)
 	analyzer := (*analysis.Analyzer)(NewAppAnalyzer(runner))
 	analysistest.Run(t, "testdata/bootstrapgen/multipleapp", analyzer, "./...")

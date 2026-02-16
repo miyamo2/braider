@@ -7,11 +7,12 @@ package main
 
 import (
 	"github.com/miyamo2/braider/pkg/annotation"
+	app "github.com/miyamo2/braider/pkg/annotation/app"
 	"struct_tag_idempotent/repository"
 	"struct_tag_idempotent/service"
 )
 
-var _ = annotation.App(main)
+var _ = annotation.App[app.Default](main)
 
 func main() {
 	_ = dependency

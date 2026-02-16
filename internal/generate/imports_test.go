@@ -8,6 +8,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/graph"
 )
 
@@ -807,5 +808,315 @@ func TestExtractPackagePaths(t *testing.T) {
 				t.Errorf("extractPackagePaths() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCollectContainerImports_NilContainerDef(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"github.com/user/repo.Service": {
+				TypeName:    "github.com/user/repo.Service",
+				PackagePath: "github.com/user/repo",
+				PackageName: "repo",
+			},
+		},
+		Edges: make(map[string][]string),
+	}
+
+	baseImports, baseAliases := CollectImports(g, "main", "main", nil)
+	containerImports, containerAliases := CollectContainerImports(g, nil, "main", "main", nil)
+
+	if !reflect.DeepEqual(baseImports, containerImports) {
+		t.Errorf("CollectContainerImports(nil) imports = %v, want %v", containerImports, baseImports)
+	}
+
+	if !reflect.DeepEqual(baseAliases, containerAliases) {
+		t.Errorf("CollectContainerImports(nil) aliases = %v, want %v", containerAliases, baseAliases)
+	}
+}
+
+func TestCollectContainerImports_NilGraph(t *testing.T) {
+	containerDef := &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{Name: "Svc", TypeString: "*pkg.Service"},
+		},
+	}
+
+	imports, aliases := CollectContainerImports(nil, containerDef, "main", "main", nil)
+
+	if len(imports) != 0 {
+		t.Errorf("CollectContainerImports(nil graph) imports = %v, want empty", imports)
+	}
+
+	if len(aliases) != 0 {
+		t.Errorf("CollectContainerImports(nil graph) aliases = %v, want empty", aliases)
+	}
+}
+
+func TestCollectContainerImports_ContainerNamedTypeAdded(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"github.com/user/repo.Service": {
+				TypeName:    "github.com/user/repo.Service",
+				PackagePath: "github.com/user/repo",
+				PackageName: "repo",
+			},
+		},
+		Edges: make(map[string][]string),
+	}
+
+	containerDef := &detect.ContainerDefinition{
+		IsNamed:     true,
+		PackagePath: "github.com/user/container",
+		PackageName: "container",
+		Fields:      []detect.ContainerField{},
+	}
+
+	imports, _ := CollectContainerImports(g, containerDef, "main", "main", nil)
+
+	// Should include both repo and container packages
+	paths := make(map[string]bool)
+	for _, imp := range imports {
+		paths[imp.Path] = true
+	}
+
+	if !paths["github.com/user/repo"] {
+		t.Error("expected github.com/user/repo in imports")
+	}
+	if !paths["github.com/user/container"] {
+		t.Error("expected github.com/user/container in imports")
+	}
+}
+
+func TestCollectContainerImports_ContainerNamedTypeExcludeCurrentPackage(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"github.com/user/repo.Service": {
+				TypeName:    "github.com/user/repo.Service",
+				PackagePath: "github.com/user/repo",
+				PackageName: "repo",
+			},
+		},
+		Edges: make(map[string][]string),
+	}
+
+	containerDef := &detect.ContainerDefinition{
+		IsNamed:     true,
+		PackagePath: "main",
+		PackageName: "main",
+		Fields:      []detect.ContainerField{},
+	}
+
+	imports, _ := CollectContainerImports(g, containerDef, "main", "main", nil)
+
+	paths := make(map[string]bool)
+	for _, imp := range imports {
+		paths[imp.Path] = true
+	}
+
+	if paths["main"] {
+		t.Error("current package should not be in imports")
+	}
+}
+
+func TestCollectContainerImports_FieldTypePackagesIncluded(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"github.com/user/repo.Service": {
+				TypeName:    "github.com/user/repo.Service",
+				PackagePath: "github.com/user/repo",
+				PackageName: "repo",
+			},
+		},
+		Edges: make(map[string][]string),
+	}
+
+	fieldType := createNamedTypeInPackage("Logger", "github.com/user/logging", "logging")
+
+	containerDef := &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{
+				Name:       "Log",
+				Type:       fieldType,
+				TypeString: "*logging.Logger",
+			},
+		},
+	}
+
+	imports, _ := CollectContainerImports(g, containerDef, "main", "main", nil)
+
+	paths := make(map[string]bool)
+	for _, imp := range imports {
+		paths[imp.Path] = true
+	}
+
+	if !paths["github.com/user/logging"] {
+		t.Errorf("expected github.com/user/logging in imports, got %v", imports)
+	}
+}
+
+func TestCollectContainerImports_FieldTypePointerPackagesIncluded(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"github.com/user/repo.Service": {
+				TypeName:    "github.com/user/repo.Service",
+				PackagePath: "github.com/user/repo",
+				PackageName: "repo",
+			},
+		},
+		Edges: make(map[string][]string),
+	}
+
+	fieldType := types.NewPointer(createNamedTypeInPackage("Logger", "github.com/user/logging", "logging"))
+
+	containerDef := &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{
+				Name:       "Log",
+				Type:       fieldType,
+				TypeString: "*logging.Logger",
+			},
+		},
+	}
+
+	imports, _ := CollectContainerImports(g, containerDef, "main", "main", nil)
+
+	paths := make(map[string]bool)
+	for _, imp := range imports {
+		paths[imp.Path] = true
+	}
+
+	if !paths["github.com/user/logging"] {
+		t.Errorf("expected github.com/user/logging in imports, got %v", imports)
+	}
+}
+
+func TestCollectContainerImports_CollisionBetweenGraphAndContainerField(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"github.com/a/pkg.Service": {
+				TypeName:    "github.com/a/pkg.Service",
+				PackagePath: "github.com/a/pkg",
+				PackageName: "pkg",
+			},
+		},
+		Edges: make(map[string][]string),
+	}
+
+	fieldType := createNamedTypeInPackage("Logger", "github.com/b/pkg", "pkg")
+
+	containerDef := &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{
+				Name:       "Log",
+				Type:       fieldType,
+				TypeString: "*pkg.Logger",
+			},
+		},
+	}
+
+	imports, aliasMap := CollectContainerImports(g, containerDef, "main", "main", nil)
+
+	// Both packages named "pkg" from different paths - should produce collision aliases
+	if len(imports) != 2 {
+		t.Fatalf("expected 2 imports, got %d: %v", len(imports), imports)
+	}
+
+	// At least one should have an alias due to collision
+	hasAlias := false
+	for _, imp := range imports {
+		if imp.Alias != "" {
+			hasAlias = true
+		}
+	}
+	if !hasAlias {
+		t.Errorf("expected at least one alias due to pkg name collision, aliases = %v", aliasMap)
+	}
+}
+
+func TestCollectContainerImports_AnonymousContainerNoPackageAdded(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"github.com/user/repo.Service": {
+				TypeName:    "github.com/user/repo.Service",
+				PackagePath: "github.com/user/repo",
+				PackageName: "repo",
+			},
+		},
+		Edges: make(map[string][]string),
+	}
+
+	containerDef := &detect.ContainerDefinition{
+		IsNamed: false, // Anonymous struct
+		Fields:  []detect.ContainerField{},
+	}
+
+	imports, _ := CollectContainerImports(g, containerDef, "main", "main", nil)
+
+	// Should only have the repo package, not an anonymous container package
+	if len(imports) != 1 || imports[0].Path != "github.com/user/repo" {
+		t.Errorf("expected only repo import, got %v", imports)
+	}
+}
+
+func TestCollectContainerImports_SortedOutput(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"github.com/z/repo.Service": {
+				TypeName:    "github.com/z/repo.Service",
+				PackagePath: "github.com/z/repo",
+				PackageName: "repo",
+			},
+		},
+		Edges: make(map[string][]string),
+	}
+
+	fieldType := createNamedTypeInPackage("Logger", "github.com/a/logging", "logging")
+
+	containerDef := &detect.ContainerDefinition{
+		IsNamed:     true,
+		PackagePath: "github.com/m/container",
+		PackageName: "container",
+		Fields: []detect.ContainerField{
+			{Name: "Log", Type: fieldType, TypeString: "*logging.Logger"},
+		},
+	}
+
+	imports, _ := CollectContainerImports(g, containerDef, "main", "main", nil)
+
+	for i := 1; i < len(imports); i++ {
+		if imports[i-1].Path >= imports[i].Path {
+			t.Errorf("imports not sorted: %s >= %s", imports[i-1].Path, imports[i].Path)
+		}
+	}
+}
+
+func TestCollectContainerImports_NilFieldTypeSkipped(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"github.com/user/repo.Service": {
+				TypeName:    "github.com/user/repo.Service",
+				PackagePath: "github.com/user/repo",
+				PackageName: "repo",
+			},
+		},
+		Edges: make(map[string][]string),
+	}
+
+	containerDef := &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{
+				Name:       "Unknown",
+				Type:       nil, // nil type
+				TypeString: "unknown",
+			},
+		},
+	}
+
+	// Should not panic with nil Type
+	imports, _ := CollectContainerImports(g, containerDef, "main", "main", nil)
+
+	if len(imports) != 1 || imports[0].Path != "github.com/user/repo" {
+		t.Errorf("expected only repo import, got %v", imports)
 	}
 }
