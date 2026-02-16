@@ -176,13 +176,12 @@ var _ = annotation.App[app.Container[struct {
 }]](main)
 ```
 
-Container fields are matched against registered dependencies by type. Use `braider:"name"` tags to match named dependencies, and `braider:"-"` to exclude fields:
+Container fields are matched against registered dependencies by type. Use `braider:"name"` tags to match named dependencies. Note that `braider:"-"` is not permitted on container fields (it is a validation error):
 
 ```go
 var _ = annotation.App[app.Container[struct {
     Primary *Database `braider:"primaryDB"`
     Replica *Database `braider:"replicaDB"`
-    Debug   Debugger  `braider:"-"`
 }]](main)
 ```
 
