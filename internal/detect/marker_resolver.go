@@ -40,6 +40,7 @@ func resolveModulePath() string {
 // MarkerInterfaces holds resolved marker interfaces from internal/annotation.
 // These are used with types.Implements to identify annotation types.
 type MarkerInterfaces struct {
+	App                   *types.Interface
 	Injectable            *types.Interface
 	Provider              *types.Interface
 	Variable              *types.Interface
@@ -76,6 +77,7 @@ func ResolveMarkers() *MarkerInterfaces {
 		}
 
 		resolvedMarkers = &MarkerInterfaces{
+			App:                   lookupMarkerInterface(annPkg, "App"),
 			Injectable:            lookupMarkerInterface(annPkg, "Injectable"),
 			Provider:              lookupMarkerInterface(annPkg, "Provider"),
 			Variable:              lookupMarkerInterface(annPkg, "Variable"),

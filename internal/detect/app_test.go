@@ -15,19 +15,39 @@ import (
 )
 
 // createAnnotationPackageWithApp creates a fake annotation package with App function.
+// The App function returns a type embedding the internal/annotation.App marker interface.
 func createAnnotationPackageWithApp() *types.Package {
+	// Create synthetic internal/annotation marker interface for App
+	internalPkg := types.NewPackage("github.com/miyamo2/braider/internal/annotation", "annotation")
+	markerSig := types.NewSignatureType(nil, nil, nil, nil, nil, false)
+	markerMethod := types.NewFunc(token.NoPos, internalPkg, "_IsApp", markerSig)
+	markerIface := types.NewInterfaceType([]*types.Func{markerMethod}, nil)
+	markerIface.Complete()
+	markerTypeName := types.NewTypeName(token.NoPos, internalPkg, "App", nil)
+	markerNamed := types.NewNamed(markerTypeName, markerIface, nil)
+	internalPkg.Scope().Insert(markerNamed.Obj())
+	internalPkg.MarkComplete()
+
+	// Create pkg/annotation package
 	annotationPkg := types.NewPackage(detect.AnnotationPath, "annotation")
 
-	// Create the App function signature: func(func()) struct{}
-	emptyStruct := types.NewStruct(nil, nil)
+	// Create the app struct embedding the internal marker interface
+	embeddedField := types.NewField(token.NoPos, nil, "", markerNamed, true)
+	appStruct := types.NewStruct([]*types.Var{embeddedField}, nil)
+	appReturnType := types.NewNamed(
+		types.NewTypeName(token.NoPos, annotationPkg, "app", nil),
+		appStruct,
+		nil,
+	)
+	annotationPkg.Scope().Insert(appReturnType.Obj())
+
+	// Create the App function: func(func()) app
 	funcParam := types.NewSignatureType(nil, nil, nil, nil, nil, false) // func()
 	appSig := types.NewSignatureType(
-		nil, // receiver
-		nil, // recv type params
-		nil, // type params
-		types.NewTuple(types.NewVar(token.NoPos, nil, "", funcParam)),   // params
-		types.NewTuple(types.NewVar(token.NoPos, nil, "", emptyStruct)), // results
-		false, // variadic
+		nil, nil, nil,
+		types.NewTuple(types.NewVar(token.NoPos, nil, "", funcParam)),
+		types.NewTuple(types.NewVar(token.NoPos, nil, "", appReturnType)),
+		false,
 	)
 	appFunc := types.NewFunc(token.NoPos, annotationPkg, detect.AppFuncName, appSig)
 	annotationPkg.Scope().Insert(appFunc)
@@ -224,7 +244,7 @@ func main() {}
 		t.Run(tt.name, func(t *testing.T) {
 			pass, _ := mockPassForApp(t, tt.src, tt.pkgs)
 
-			detector := detect.NewAppDetector()
+			detector := detect.NewAppDetector(detect.ResolveMarkers())
 			apps := detector.DetectAppAnnotations(pass)
 
 			if len(apps) != tt.expectedCount {
@@ -301,7 +321,7 @@ func main() {}
 		t.Run(tt.name, func(t *testing.T) {
 			pass, _ := mockPassForApp(t, tt.src, tt.pkgs)
 
-			detector := detect.NewAppDetector()
+			detector := detect.NewAppDetector(detect.ResolveMarkers())
 			apps := detector.DetectAppAnnotations(pass)
 			err := detector.ValidateAppAnnotations(pass, apps)
 
@@ -396,7 +416,7 @@ func main() {}
 		t.Run(tt.name, func(t *testing.T) {
 			pass, _ := mockPassWithInspectorForApp(t, tt.src, tt.pkgs)
 
-			detector := detect.NewAppDetector()
+			detector := detect.NewAppDetector(detect.ResolveMarkers())
 			apps := detector.DetectAppAnnotations(pass)
 
 			if len(apps) != tt.expectedCount {
@@ -420,7 +440,7 @@ func main() {}
 	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 	pass, _ := mockPassForApp(t, src, pkgs)
 
-	detector := detect.NewAppDetector()
+	detector := detect.NewAppDetector(detect.ResolveMarkers())
 	apps := detector.DetectAppAnnotations(pass)
 
 	if len(apps) != 1 {
@@ -508,7 +528,7 @@ func main() {}
 		t.Run(tt.name, func(t *testing.T) {
 			pass, _ := mockPassForApp(t, tt.src, tt.pkgs)
 
-			detector := detect.NewAppDetector()
+			detector := detect.NewAppDetector(detect.ResolveMarkers())
 			apps := detector.DetectAppAnnotations(pass)
 			deduplicated := detector.DeduplicateAppsByFile(apps)
 
@@ -528,7 +548,7 @@ func main() {}
 
 func TestAppDetector_DeduplicateAppsByFile_NilFile(t *testing.T) {
 	// Test the fallback behavior when File is nil
-	detector := detect.NewAppDetector()
+	detector := detect.NewAppDetector(detect.ResolveMarkers())
 
 	// Create annotations with nil File (edge case)
 	apps := []*detect.AppAnnotation{
@@ -609,7 +629,7 @@ func TestAppDetector_ValidateAppAnnotations_EdgeCases(t *testing.T) {
 				TypesInfo: info,
 			}
 
-			detector := detect.NewAppDetector()
+			detector := detect.NewAppDetector(detect.ResolveMarkers())
 			apps := tt.setupApps()
 			err := detector.ValidateAppAnnotations(pass, apps)
 
@@ -636,7 +656,7 @@ func main() {}
 	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 	pass, _ := mockPassForApp(t, src, pkgs)
 
-	detector := detect.NewAppDetector()
+	detector := detect.NewAppDetector(detect.ResolveMarkers())
 	apps := detector.DetectAppAnnotations(pass)
 
 	// Should find the annotation but validation should fail
@@ -665,7 +685,7 @@ func main() {}
 	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 	pass, _ := mockPassForApp(t, src, pkgs)
 
-	detector := detect.NewAppDetector()
+	detector := detect.NewAppDetector(detect.ResolveMarkers())
 	apps := detector.DetectAppAnnotations(pass)
 
 	// Should find the annotation
@@ -776,7 +796,7 @@ func main() {}
 		t.Run(tt.name, func(t *testing.T) {
 			pass, _ := mockPassForApp(t, tt.src, tt.pkgs)
 
-			detector := detect.NewAppDetector()
+			detector := detect.NewAppDetector(detect.ResolveMarkers())
 			apps := detector.DetectAppAnnotations(pass)
 
 			if len(apps) != tt.expectedCount {
@@ -794,7 +814,7 @@ func TestAppDetector_FindFileForNode_NoFileFound(t *testing.T) {
 		Files: []*ast.File{}, // Empty files
 	}
 
-	detector := detect.NewAppDetector()
+	detector := detect.NewAppDetector(detect.ResolveMarkers())
 	// Since findFileForNode is private, we test it indirectly through DetectAppAnnotations
 	// With empty files, should return empty
 	apps := detector.DetectAppAnnotations(pass)

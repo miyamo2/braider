@@ -63,7 +63,7 @@ func buildIntegrationDeps() (
 	sorter := graph.NewTopologicalSorter()
 
 	// App detection
-	appDetector := detect.NewAppDetector()
+	appDetector := detect.NewAppDetector(markers)
 
 	// Variable components
 	variableCallDetector := detect.NewVariableCallDetector(markers)

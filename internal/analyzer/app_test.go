@@ -54,7 +54,7 @@ func setupTestDependencies() (
 	injectorRegistry := registry.NewInjectorRegistry()
 	packageTracker := registry.NewPackageTracker()
 	bootstrapCtx, bootstrapCancel := context.WithCancelCause(context.Background())
-	appDetector := detect.NewAppDetector()
+	appDetector := detect.NewAppDetector(detect.ResolveMarkers())
 	graphBuilder := graph.NewDependencyGraphBuilder(graph.NewInterfaceRegistry())
 	sorter := graph.NewTopologicalSorter()
 	bootstrapGenerator := generate.NewBootstrapGenerator(generate.NewCodeFormatter())
