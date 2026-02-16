@@ -1,0 +1,28 @@
+package main
+
+import (
+	"container_iface_field/domain"
+	"container_iface_field/repository"
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/app"
+)
+
+var _ = annotation.App[app.Container[struct { // want "bootstrap code is missing"
+	Repo domain.IUserRepository
+}]](main)
+
+func main() {
+	_ = dependency
+}
+
+// braider:hash:cddd29c4a5743079
+var dependency = func() struct {
+	Repo domain.IUserRepository
+} {
+	userRepository := repository.NewUserRepository()
+	return struct {
+		Repo domain.IUserRepository
+	}{
+		Repo: userRepository,
+	}
+}()

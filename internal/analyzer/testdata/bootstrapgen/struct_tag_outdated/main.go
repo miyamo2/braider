@@ -6,11 +6,12 @@ package main
 
 import (
 	"github.com/miyamo2/braider/pkg/annotation"
+	app "github.com/miyamo2/braider/pkg/annotation/app"
 	"struct_tag_outdated/repository"
 	"struct_tag_outdated/service"
 )
 
-var _ = annotation.App(main) // want "bootstrap code is outdated"
+var _ = annotation.App[app.Default](main) // want "bootstrap code is outdated"
 
 func main() {
 	_ = dependency

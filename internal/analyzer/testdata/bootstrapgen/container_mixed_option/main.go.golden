@@ -1,0 +1,30 @@
+package main
+
+import (
+	"container_mixed_option/domain"
+	"container_mixed_option/service"
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/app"
+	"os"
+)
+
+var _ = annotation.App[app.Container[struct { // want "bootstrap code is missing"
+	Svc *service.UserService
+}]](main)
+
+func main() {
+	_ = dependency
+}
+
+// braider:hash:2a1a0f8d939d0ec3
+var dependency = func() struct {
+	Svc *service.UserService
+} {
+	file := os.Stdout
+	userService := service.NewUserService(file)
+	return struct {
+		Svc *service.UserService
+	}{
+		Svc: userService,
+	}
+}()

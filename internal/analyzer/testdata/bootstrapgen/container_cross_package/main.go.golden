@@ -1,0 +1,22 @@
+package main
+
+import (
+	"container_cross_package/container"
+	"container_cross_package/service"
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/app"
+)
+
+var _ = annotation.App[app.Container[container.AppContainer]](main) // want "bootstrap code is missing"
+
+func main() {
+	_ = dependency
+}
+
+// braider:hash:f40abbb0c310ebca
+var dependency = func() container.AppContainer {
+	userService := service.NewUserService()
+	return container.AppContainer{
+		Svc: userService,
+	}
+}()
