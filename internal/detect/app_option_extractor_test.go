@@ -12,59 +12,43 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-// createAppOptionTestPackages creates the fake packages needed for App option extractor tests.
-func createAppOptionTestPackages() map[string]*types.Package {
-	annotationPkg := createAnnotationPackageWithApp()
+// testAppMarkers holds the marker interfaces created from fake internal/annotation types.
+// These are used for both createAppOptionTestPackages and manual type construction tests
+// so that types.Implements checks work with consistent marker identities.
+type testAppMarkers struct {
+	internalAnnotationPkg *types.Package
+	appContainerIface     *types.Interface // underlying interface of AppContainer
+	appDefaultIface       *types.Interface // underlying interface of AppDefault
+	appOptionIface        *types.Interface // underlying interface of AppOption
+	markers               *detect.MarkerInterfaces
+}
 
-	// Create internal/annotation package with AppContainer and AppDefault marker interfaces
+// createTestAppMarkers creates the internal/annotation marker types and returns them
+// for use in both fake package construction and MarkerInterfaces.
+// Marker interfaces use void methods (no return types) to match internal/annotation
+// and ensure types.Implements works across separate packages.Load contexts.
+func createTestAppMarkers() *testAppMarkers {
 	internalAnnotationPkg := types.NewPackage("github.com/miyamo2/braider/internal/annotation", "annotation")
 
-	// AppContainerMarker struct
-	appContainerMarkerType := types.NewTypeName(token.NoPos, internalAnnotationPkg, "AppContainerMarker", nil)
-	appContainerMarkerStruct := types.NewStruct(nil, nil)
-	appContainerMarkerNamed := types.NewNamed(appContainerMarkerType, appContainerMarkerStruct, nil)
-	_ = appContainerMarkerNamed
-	internalAnnotationPkg.Scope().Insert(appContainerMarkerType)
-
-	// AppContainer interface: _IsAppContainerMarker() AppContainerMarker
+	// AppContainer interface: _IsAppContainerMarker()
 	appContainerMethod := types.NewFunc(token.NoPos, internalAnnotationPkg, "_IsAppContainerMarker",
-		types.NewSignatureType(nil, nil, nil, nil,
-			types.NewTuple(types.NewVar(token.NoPos, internalAnnotationPkg, "", appContainerMarkerNamed)),
-			false))
+		types.NewSignatureType(nil, nil, nil, nil, nil, false))
 	appContainerIface := types.NewInterfaceType([]*types.Func{appContainerMethod}, nil)
 	appContainerIface.Complete()
 	appContainerType := types.NewTypeName(token.NoPos, internalAnnotationPkg, "AppContainer", appContainerIface)
 	internalAnnotationPkg.Scope().Insert(appContainerType)
 
-	// AppDefaultMarker struct
-	appDefaultMarkerType := types.NewTypeName(token.NoPos, internalAnnotationPkg, "AppDefaultMarker", nil)
-	appDefaultMarkerStruct := types.NewStruct(nil, nil)
-	appDefaultMarkerNamed := types.NewNamed(appDefaultMarkerType, appDefaultMarkerStruct, nil)
-	_ = appDefaultMarkerNamed
-	internalAnnotationPkg.Scope().Insert(appDefaultMarkerType)
-
-	// AppDefault interface: _IsAppDefault() AppDefaultMarker
+	// AppDefault interface: _IsAppDefault()
 	appDefaultMethod := types.NewFunc(token.NoPos, internalAnnotationPkg, "_IsAppDefault",
-		types.NewSignatureType(nil, nil, nil, nil,
-			types.NewTuple(types.NewVar(token.NoPos, internalAnnotationPkg, "", appDefaultMarkerNamed)),
-			false))
+		types.NewSignatureType(nil, nil, nil, nil, nil, false))
 	appDefaultIface := types.NewInterfaceType([]*types.Func{appDefaultMethod}, nil)
 	appDefaultIface.Complete()
 	appDefaultType := types.NewTypeName(token.NoPos, internalAnnotationPkg, "AppDefault", appDefaultIface)
 	internalAnnotationPkg.Scope().Insert(appDefaultType)
 
-	// AppOptionMarker struct
-	appOptionMarkerType := types.NewTypeName(token.NoPos, internalAnnotationPkg, "AppOptionMarker", nil)
-	appOptionMarkerStruct := types.NewStruct(nil, nil)
-	appOptionMarkerNamed := types.NewNamed(appOptionMarkerType, appOptionMarkerStruct, nil)
-	_ = appOptionMarkerNamed
-	internalAnnotationPkg.Scope().Insert(appOptionMarkerType)
-
-	// AppOption interface: _IsAppOption() AppOptionMarker
+	// AppOption interface: _IsAppOption()
 	appOptionMethod := types.NewFunc(token.NoPos, internalAnnotationPkg, "_IsAppOption",
-		types.NewSignatureType(nil, nil, nil, nil,
-			types.NewTuple(types.NewVar(token.NoPos, internalAnnotationPkg, "", appOptionMarkerNamed)),
-			false))
+		types.NewSignatureType(nil, nil, nil, nil, nil, false))
 	appOptionIface := types.NewInterfaceType([]*types.Func{appOptionMethod}, nil)
 	appOptionIface.Complete()
 	appOptionType := types.NewTypeName(token.NoPos, internalAnnotationPkg, "AppOption", appOptionIface)
@@ -72,17 +56,35 @@ func createAppOptionTestPackages() map[string]*types.Package {
 
 	internalAnnotationPkg.MarkComplete()
 
+	return &testAppMarkers{
+		internalAnnotationPkg: internalAnnotationPkg,
+		appContainerIface:     appContainerIface,
+		appDefaultIface:       appDefaultIface,
+		appOptionIface:        appOptionIface,
+		markers: &detect.MarkerInterfaces{
+			AppDefault:   appDefaultIface,
+			AppContainer: appContainerIface,
+		},
+	}
+}
+
+// createAppOptionTestPackages creates the fake packages needed for App option extractor tests.
+// Returns both the package map (for the fake importer) and MarkerInterfaces (for the extractor).
+func createAppOptionTestPackages() (map[string]*types.Package, *detect.MarkerInterfaces) {
+	annotationPkg := createAnnotationPackageWithApp()
+	appMarkers := createTestAppMarkers()
+
 	// Create app options package
 	appOptionsPkg := types.NewPackage("github.com/miyamo2/braider/pkg/annotation/app", "app")
 
 	// app.Option interface (embeds annotation.AppOption)
-	optionIface := types.NewInterfaceType(nil, []types.Type{appOptionIface})
+	optionIface := types.NewInterfaceType(nil, []types.Type{appMarkers.appOptionIface})
 	optionIface.Complete()
 	optionType := types.NewTypeName(token.NoPos, appOptionsPkg, "Option", optionIface)
 	appOptionsPkg.Scope().Insert(optionType)
 
 	// app.Default interface (embeds Option + AppDefault)
-	defaultIface := types.NewInterfaceType(nil, []types.Type{optionIface, appDefaultIface})
+	defaultIface := types.NewInterfaceType(nil, []types.Type{optionIface, appMarkers.appDefaultIface})
 	defaultIface.Complete()
 	defaultType := types.NewTypeName(token.NoPos, appOptionsPkg, "Default", defaultIface)
 	appOptionsPkg.Scope().Insert(defaultType)
@@ -91,18 +93,19 @@ func createAppOptionTestPackages() map[string]*types.Package {
 	// For testing, we create a non-generic named type that embeds AppContainer.
 	// The real Container[T] is generic, but for type checking in our tests,
 	// we need a simulated version that the type checker can work with.
-	containerIface := types.NewInterfaceType(nil, []types.Type{optionIface, appContainerIface})
+	containerIface := types.NewInterfaceType(nil, []types.Type{optionIface, appMarkers.appContainerIface})
 	containerIface.Complete()
 	containerType := types.NewTypeName(token.NoPos, appOptionsPkg, "Container", containerIface)
 	appOptionsPkg.Scope().Insert(containerType)
 
 	appOptionsPkg.MarkComplete()
 
-	return map[string]*types.Package{
-		detect.AnnotationPath:                                    annotationPkg,
-		"github.com/miyamo2/braider/internal/annotation":        internalAnnotationPkg,
-		"github.com/miyamo2/braider/pkg/annotation/app":         appOptionsPkg,
+	pkgs := map[string]*types.Package{
+		detect.AnnotationPath:                             annotationPkg,
+		"github.com/miyamo2/braider/internal/annotation": appMarkers.internalAnnotationPkg,
+		"github.com/miyamo2/braider/pkg/annotation/app":  appOptionsPkg,
 	}
+	return pkgs, appMarkers.markers
 }
 
 // mockPassForAppOption creates a mock analysis.Pass for App option extractor tests.
@@ -144,9 +147,9 @@ func mockPassForAppOption(t *testing.T, src string, pkgs map[string]*types.Packa
 }
 
 func TestAppOptionExtractor_NilTypeArgExpr(t *testing.T) {
-	extractor := detect.NewAppOptionExtractorImpl()
+	pkgs, markers := createAppOptionTestPackages()
+	extractor := detect.NewAppOptionExtractorImpl(markers)
 
-	pkgs := createAppOptionTestPackages()
 	src := `package main
 
 import "github.com/miyamo2/braider/pkg/annotation"
@@ -183,9 +186,9 @@ func main() {}
 }
 
 func TestAppOptionExtractor_AppDefault(t *testing.T) {
-	extractor := detect.NewAppOptionExtractorImpl()
+	pkgs, markers := createAppOptionTestPackages()
+	extractor := detect.NewAppOptionExtractorImpl(markers)
 
-	pkgs := createAppOptionTestPackages()
 	src := `package main
 
 import (
@@ -224,9 +227,8 @@ func main() {}
 }
 
 func TestAppOptionExtractor_ContainerWithNamedStruct(t *testing.T) {
-	extractor := detect.NewAppOptionExtractorImpl()
-
-	pkgs := createAppOptionTestPackages()
+	pkgs, markers := createAppOptionTestPackages()
+	extractor := detect.NewAppOptionExtractorImpl(markers)
 
 	// We need to test that when the type argument resolves to app.Container[NamedStruct],
 	// we get a ContainerDefinition. Since we can't easily create generic instantiation
@@ -275,7 +277,8 @@ func main() {}
 func TestAppOptionExtractor_DirectAppAnnotation(t *testing.T) {
 	// Test with a manually constructed AppAnnotation to test ExtractAppOption
 	// with controlled TypeArgExpr
-	extractor := detect.NewAppOptionExtractorImpl()
+	appMarkers := createTestAppMarkers()
+	extractor := detect.NewAppOptionExtractorImpl(appMarkers.markers)
 
 	// Test nil TypeArgExpr
 	metadata, err := extractor.ExtractAppOption(&analysis.Pass{
@@ -296,7 +299,8 @@ func TestAppOptionExtractor_DirectAppAnnotation(t *testing.T) {
 }
 
 func TestAppOptionExtractor_UnresolvableTypeArg(t *testing.T) {
-	extractor := detect.NewAppOptionExtractorImpl()
+	appMarkers := createTestAppMarkers()
+	extractor := detect.NewAppOptionExtractorImpl(appMarkers.markers)
 
 	// Create a TypeArgExpr that doesn't resolve to anything in TypesInfo
 	fakeExpr := &ast.Ident{Name: "Unknown"}
@@ -320,9 +324,8 @@ func TestAppOptionExtractor_UnresolvableTypeArg(t *testing.T) {
 }
 
 func TestAppOptionExtractor_MixedOptionWithDefault(t *testing.T) {
-	extractor := detect.NewAppOptionExtractorImpl()
-
-	pkgs := createAppOptionTestPackages()
+	pkgs, markers := createAppOptionTestPackages()
+	extractor := detect.NewAppOptionExtractorImpl(markers)
 
 	// Test mixed option that embeds app.Default
 	src := `package main
@@ -363,9 +366,8 @@ func main() {}
 }
 
 func TestAppOptionExtractor_MixedOptionWithContainer(t *testing.T) {
-	extractor := detect.NewAppOptionExtractorImpl()
-
-	pkgs := createAppOptionTestPackages()
+	pkgs, markers := createAppOptionTestPackages()
+	extractor := detect.NewAppOptionExtractorImpl(markers)
 
 	// Test mixed option that embeds app.Container
 	src := `package main
@@ -406,11 +408,11 @@ func main() {}
 }
 
 func TestAppOptionExtractor_ContainerWithNamedStruct_FullIntegration(t *testing.T) {
-	// This test uses a real Go source file that defines a container struct,
-	// then manually constructs the type argument to test buildContainerDefinition
+	// This test uses manually constructed types to test buildContainerDefinition
 	// through ExtractAppOption.
 
-	extractor := detect.NewAppOptionExtractorImpl()
+	appMarkers := createTestAppMarkers()
+	extractor := detect.NewAppOptionExtractorImpl(appMarkers.markers)
 
 	// Create a package with a named struct type to use as container
 	containerPkg := types.NewPackage("example.com/myapp", "myapp")
@@ -425,13 +427,16 @@ func TestAppOptionExtractor_ContainerWithNamedStruct_FullIntegration(t *testing.
 	containerPkg.Scope().Insert(containerTypeName)
 	containerPkg.MarkComplete()
 
-	// Create a fake app.Container[MyContainer] named type with the container as type arg
+	// Create a fake app.Container[MyContainer] named type with the container as type arg.
+	// The underlying interface embeds AppContainer so types.Implements works.
 	appOptionsPkg := types.NewPackage("github.com/miyamo2/braider/pkg/annotation/app", "app")
 	containerIfaceName := types.NewTypeName(token.NoPos, appOptionsPkg, "Container", nil)
 
 	// Create a Named type with type parameters and arguments to simulate Container[T]
 	tparam := types.NewTypeParam(types.NewTypeName(token.NoPos, nil, "T", nil), types.NewInterfaceType(nil, nil))
-	containerNamedGeneric := types.NewNamed(containerIfaceName, types.NewInterfaceType(nil, nil), nil)
+	containerUnderlying := types.NewInterfaceType(nil, []types.Type{appMarkers.appContainerIface})
+	containerUnderlying.Complete()
+	containerNamedGeneric := types.NewNamed(containerIfaceName, containerUnderlying, nil)
 	containerNamedGeneric.SetTypeParams([]*types.TypeParam{tparam})
 
 	// Instantiate Container[MyContainer]
@@ -516,7 +521,8 @@ func TestAppOptionExtractor_ContainerWithNamedStruct_FullIntegration(t *testing.
 }
 
 func TestAppOptionExtractor_ContainerWithAnonymousStruct(t *testing.T) {
-	extractor := detect.NewAppOptionExtractorImpl()
+	appMarkers := createTestAppMarkers()
+	extractor := detect.NewAppOptionExtractorImpl(appMarkers.markers)
 
 	// Create an anonymous struct type
 	handlerField := types.NewField(token.NoPos, nil, "handler", types.Typ[types.String], false)
@@ -525,12 +531,15 @@ func TestAppOptionExtractor_ContainerWithAnonymousStruct(t *testing.T) {
 		[]string{`braider:"handler"`},
 	)
 
-	// Create a fake app.Container[struct{...}] with the anonymous struct as type arg
+	// Create a fake app.Container[struct{...}] with the anonymous struct as type arg.
+	// The underlying interface embeds AppContainer so types.Implements works.
 	appOptionsPkg := types.NewPackage("github.com/miyamo2/braider/pkg/annotation/app", "app")
 	containerIfaceName := types.NewTypeName(token.NoPos, appOptionsPkg, "Container", nil)
 
 	tparam := types.NewTypeParam(types.NewTypeName(token.NoPos, nil, "T", nil), types.NewInterfaceType(nil, nil))
-	containerNamedGeneric := types.NewNamed(containerIfaceName, types.NewInterfaceType(nil, nil), nil)
+	containerUnderlying := types.NewInterfaceType(nil, []types.Type{appMarkers.appContainerIface})
+	containerUnderlying.Complete()
+	containerNamedGeneric := types.NewNamed(containerIfaceName, containerUnderlying, nil)
 	containerNamedGeneric.SetTypeParams([]*types.TypeParam{tparam})
 
 	// Instantiate Container[struct{handler string}]
@@ -591,7 +600,8 @@ func TestAppOptionExtractor_ContainerWithAnonymousStruct(t *testing.T) {
 }
 
 func TestAppOptionExtractor_MixedOptionContainerDef(t *testing.T) {
-	extractor := detect.NewAppOptionExtractorImpl()
+	appMarkers := createTestAppMarkers()
+	extractor := detect.NewAppOptionExtractorImpl(appMarkers.markers)
 
 	// Create a named struct for the container
 	containerPkg := types.NewPackage("example.com/myapp", "myapp")
@@ -602,11 +612,14 @@ func TestAppOptionExtractor_MixedOptionContainerDef(t *testing.T) {
 	containerPkg.Scope().Insert(containerTypeName)
 	containerPkg.MarkComplete()
 
-	// Create app.Container[AppContainer] as an instantiated generic type
+	// Create app.Container[AppContainer] as an instantiated generic type.
+	// The underlying interface embeds AppContainer so types.Implements works.
 	appOptionsPkg := types.NewPackage("github.com/miyamo2/braider/pkg/annotation/app", "app")
 	containerIfaceName := types.NewTypeName(token.NoPos, appOptionsPkg, "Container", nil)
 	tparam := types.NewTypeParam(types.NewTypeName(token.NoPos, nil, "T", nil), types.NewInterfaceType(nil, nil))
-	containerNamedGeneric := types.NewNamed(containerIfaceName, types.NewInterfaceType(nil, nil), nil)
+	containerUnderlying := types.NewInterfaceType(nil, []types.Type{appMarkers.appContainerIface})
+	containerUnderlying.Complete()
+	containerNamedGeneric := types.NewNamed(containerIfaceName, containerUnderlying, nil)
 	containerNamedGeneric.SetTypeParams([]*types.TypeParam{tparam})
 
 	instantiated, err := types.Instantiate(nil, containerNamedGeneric, []types.Type{containerNamed}, false)

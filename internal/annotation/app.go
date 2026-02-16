@@ -4,20 +4,14 @@ type App interface {
 	_IsApp()
 }
 
-type AppOptionMarker struct{}
-
 type AppOption interface {
-	_IsAppOption() AppOptionMarker
+	_IsAppOption()
 }
-
-type AppDefaultMarker struct{}
 
 type AppDefault interface {
-	_IsAppDefault() AppDefaultMarker
+	_IsAppDefault()
 }
 
-type AppContainerMarker struct{}
-
 type AppContainer interface {
-	_IsAppContainerMarker() AppContainerMarker
+	_IsAppContainerMarker()
 }

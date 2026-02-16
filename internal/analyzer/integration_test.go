@@ -67,7 +67,7 @@ func buildIntegrationDeps() (
 	appDetector := detect.NewAppDetector(markers)
 
 	// Container components
-	appOptionExtractor := detect.NewAppOptionExtractorImpl()
+	appOptionExtractor := detect.NewAppOptionExtractorImpl(markers)
 	containerValidator := graph.NewContainerValidatorImpl(interfaceRegistry)
 	containerResolver := graph.NewContainerResolverImpl(interfaceRegistry)
 

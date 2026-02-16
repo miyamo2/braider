@@ -64,7 +64,7 @@ func setupTestDependencies() (
 	bootstrapGenerator := generate.NewBootstrapGenerator(generate.NewCodeFormatter())
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
-	appOptionExtractor := detect.NewAppOptionExtractorImpl()
+	appOptionExtractor := detect.NewAppOptionExtractorImpl(detect.ResolveMarkers())
 	containerValidator := graph.NewContainerValidatorImpl(interfaceRegistry)
 	containerResolver := graph.NewContainerResolverImpl(interfaceRegistry)
 
