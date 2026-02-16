@@ -135,7 +135,7 @@ type MyService struct {
 					t.Fatal("MyService struct not found")
 				}
 
-				injectDetector := detect.NewInjectDetector()
+				injectDetector := detect.NewInjectDetector(detect.ResolveMarkers())
 				injectField := injectDetector.FindInjectField(pass, structType)
 
 				fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -199,7 +199,7 @@ type Config struct{}
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(detect.ResolveMarkers())
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -292,7 +292,7 @@ type Delta interface{}
 		},
 	)
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(detect.ResolveMarkers())
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -479,7 +479,7 @@ type MyService struct {
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(detect.ResolveMarkers())
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -542,7 +542,7 @@ type Logger struct{}
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(detect.ResolveMarkers())
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -602,7 +602,7 @@ type Repository interface{}
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(detect.ResolveMarkers())
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -661,7 +661,7 @@ type Logger interface{}
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(detect.ResolveMarkers())
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -733,7 +733,7 @@ type Repository interface{}
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(detect.ResolveMarkers())
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -794,7 +794,7 @@ type Repository interface{}
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(detect.ResolveMarkers())
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -851,7 +851,7 @@ type Repository interface{}
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(detect.ResolveMarkers())
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -916,7 +916,7 @@ type Logger interface{}
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(detect.ResolveMarkers())
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -990,7 +990,7 @@ type MyService struct {
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(detect.ResolveMarkers())
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()

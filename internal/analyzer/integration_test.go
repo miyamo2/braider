@@ -40,13 +40,14 @@ func buildIntegrationDeps() (
 	ctx, bootstrapCancel := context.WithCancelCause(context.Background())
 
 	// Detection components (all real)
+	markers := detect.ResolveMarkers()
 	packageLoader := &mockPackageLoader{}
 	namerValidator := detect.NewNamerValidatorImpl(packageLoader)
-	optionExtractor := detect.NewOptionExtractorImpl(namerValidator)
-	injectDetector := detect.NewInjectDetector()
+	optionExtractor := detect.NewOptionExtractorImpl(markers, namerValidator)
+	injectDetector := detect.NewInjectDetector(markers)
 	fieldAnalyzer := detect.NewFieldAnalyzer()
 	constructorAnalyzer := detect.NewConstructorAnalyzer()
-	provideCallDetector := detect.NewProvideCallDetector()
+	provideCallDetector := detect.NewProvideCallDetector(markers)
 	structDetector := detect.NewStructDetector(injectDetector)
 
 	// Generation components
@@ -65,7 +66,7 @@ func buildIntegrationDeps() (
 	appDetector := detect.NewAppDetector()
 
 	// Variable components
-	variableCallDetector := detect.NewVariableCallDetector()
+	variableCallDetector := detect.NewVariableCallDetector(markers)
 	variableReg := registry.NewVariableRegistry()
 
 	depRunner := NewDependencyAnalyzeRunner(

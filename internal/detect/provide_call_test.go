@@ -189,7 +189,7 @@ var _ = annotation.Provide(NewRepo)
 			tt.name, func(t *testing.T) {
 				pass, _ := mockPass(t, tt.src, tt.pkgs)
 
-				detector := detect.NewProvideCallDetector()
+				detector := detect.NewProvideCallDetector(detect.ResolveMarkers())
 				candidates := detector.DetectProviders(pass)
 
 				if len(candidates) != tt.expectedCount {
@@ -249,7 +249,7 @@ var _ = annotation.Provide(NewService)
 			tt.name, func(t *testing.T) {
 				pass, _ := mockPassWithInspector(t, tt.src, tt.pkgs)
 
-				detector := detect.NewProvideCallDetector()
+				detector := detect.NewProvideCallDetector(detect.ResolveMarkers())
 				candidates := detector.DetectProviders(pass)
 
 				if len(candidates) != tt.expectedCount {
@@ -280,7 +280,7 @@ var _ = annotation.Provide(NewRepo)
 	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewProvideCallDetector()
+	detector := detect.NewProvideCallDetector(detect.ResolveMarkers())
 	candidates := detector.DetectProviders(pass)
 
 	if len(candidates) != 1 {
@@ -343,7 +343,7 @@ var _ = annotation.Provide(NewRepo)
 			pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 			pass, _ := mockPass(t, src, pkgs)
 
-			detector := detect.NewProvideCallDetector()
+			detector := detect.NewProvideCallDetector(detect.ResolveMarkers())
 			candidates := detector.DetectProviders(pass)
 
 			if len(candidates) != 1 {
@@ -394,7 +394,7 @@ var _ = annotation.Provide(helper.NewRepo)
 			}
 			pass, _ := mockPass(t, src, pkgs)
 
-			detector := detect.NewProvideCallDetector()
+			detector := detect.NewProvideCallDetector(detect.ResolveMarkers())
 			candidates := detector.DetectProviders(pass)
 
 			if len(candidates) != 1 {
@@ -428,7 +428,7 @@ var _ = annotation.Provide()
 			pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 			pass, _ := mockPass(t, src, pkgs)
 
-			detector := detect.NewProvideCallDetector()
+			detector := detect.NewProvideCallDetector(detect.ResolveMarkers())
 			candidates := detector.DetectProviders(pass)
 
 			// With no arguments, the call might fail type-checking, resulting in 0 candidates
@@ -451,7 +451,7 @@ var _ = annotation.Provide(myVar)
 			pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 			pass, _ := mockPass(t, src, pkgs)
 
-			detector := detect.NewProvideCallDetector()
+			detector := detect.NewProvideCallDetector(detect.ResolveMarkers())
 			candidates := detector.DetectProviders(pass)
 
 			// Non-function argument: extractCandidate checks for *types.Signature, returns nil
@@ -718,7 +718,7 @@ var _ iface.Processor = &MyProcessor{}
 				}
 
 				aPass := pass.toAnalysisPass()
-				detector := detect.NewProvideCallDetector()
+				detector := detect.NewProvideCallDetector(detect.ResolveMarkers())
 				ifaces := detector.DetectImplementedInterfaces(aPass, namedType)
 
 				if len(ifaces) != tt.expectedCount {
@@ -834,7 +834,7 @@ var _ iface.Writer = ReadWriter{}
 	}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewProvideCallDetector()
+	detector := detect.NewProvideCallDetector(detect.ResolveMarkers())
 	ifaces := detector.DetectImplementedInterfaces(pass, implNamed)
 
 	if len(ifaces) != 2 {
@@ -877,7 +877,7 @@ var _ = annotation.Provide(NewRepo)
 			pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 			pass, _ := mockPass(t, src, pkgs)
 
-			detector := detect.NewProvideCallDetector()
+			detector := detect.NewProvideCallDetector(detect.ResolveMarkers())
 			candidates := detector.DetectProviders(pass)
 
 			if len(candidates) != 1 {
@@ -896,7 +896,7 @@ var _ = someFunc()
 `
 			pass, _ := mockPass(t, src, nil)
 
-			detector := detect.NewProvideCallDetector()
+			detector := detect.NewProvideCallDetector(detect.ResolveMarkers())
 			candidates := detector.DetectProviders(pass)
 
 			if len(candidates) != 0 {
@@ -914,7 +914,7 @@ type MyType int
 `
 			pass, _ := mockPass(t, src, nil)
 
-			detector := detect.NewProvideCallDetector()
+			detector := detect.NewProvideCallDetector(detect.ResolveMarkers())
 			candidates := detector.DetectProviders(pass)
 
 			if len(candidates) != 0 {
@@ -939,7 +939,7 @@ var _ = annotation.Provide(NewValue)
 	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewProvideCallDetector()
+	detector := detect.NewProvideCallDetector(detect.ResolveMarkers())
 	candidates := detector.DetectProviders(pass)
 
 	if len(candidates) != 1 {
@@ -966,7 +966,7 @@ var _ = annotation.Provide(DoNothing)
 	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewProvideCallDetector()
+	detector := detect.NewProvideCallDetector(detect.ResolveMarkers())
 	candidates := detector.DetectProviders(pass)
 
 	if len(candidates) != 1 {

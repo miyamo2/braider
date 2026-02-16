@@ -28,12 +28,13 @@ func newDepAnalyzerTestEnv() *depAnalyzerTestEnv {
 	packageTracker := registry.NewPackageTracker()
 	_, cancel := context.WithCancelCause(context.Background())
 
-	injectDetector := detect.NewInjectDetector()
+	markers := detect.ResolveMarkers()
+	injectDetector := detect.NewInjectDetector(markers)
 	fieldAnalyzer := detect.NewFieldAnalyzer()
 	constructorAnalyzer := detect.NewConstructorAnalyzer()
-	provideCallDetector := detect.NewProvideCallDetector()
+	provideCallDetector := detect.NewProvideCallDetector(markers)
 	structDetector := detect.NewStructDetector(injectDetector)
-	variableCallDetector := detect.NewVariableCallDetector()
+	variableCallDetector := detect.NewVariableCallDetector(markers)
 	var optionExtractor detect.OptionExtractor
 	constructorGenerator := generate.NewConstructorGenerator()
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()

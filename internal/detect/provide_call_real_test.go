@@ -7,7 +7,7 @@ import (
 func TestProvideCallDetector_DetectProviders_WithRealPackage(t *testing.T) {
 	_, pass := LoadTestPackage(t, "provide_call")
 
-	detector := NewProvideCallDetector()
+	detector := NewProvideCallDetector(ResolveMarkers())
 	candidates := detector.DetectProviders(pass)
 
 	if len(candidates) != 2 {

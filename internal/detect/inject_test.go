@@ -284,7 +284,7 @@ type Repository interface{}
 				t.Fatal("MyService struct not found")
 			}
 
-			detector := detect.NewInjectDetector()
+			detector := detect.NewInjectDetector(detect.ResolveMarkers())
 			result := detector.HasInjectAnnotation(pass, structType)
 
 			if result != tt.expected {
@@ -391,7 +391,7 @@ type Repository interface{}
 				t.Fatal("MyService struct not found")
 			}
 
-			detector := detect.NewInjectDetector()
+			detector := detect.NewInjectDetector(detect.ResolveMarkers())
 			field := detector.FindInjectField(pass, structType)
 
 			if tt.expectNil {
@@ -468,7 +468,7 @@ type Repository interface{}
 	}
 
 	// When Types map is empty and TypeOf returns nil, should return nil (no inject found)
-	detector := detect.NewInjectDetector()
+	detector := detect.NewInjectDetector(detect.ResolveMarkers())
 	field := detector.FindInjectField(pass, structType)
 
 	// Should return nil because type information is not available
@@ -512,7 +512,7 @@ type Repository interface{}
 		t.Fatal("MyService struct not found")
 	}
 
-	detector := detect.NewInjectDetector()
+	detector := detect.NewInjectDetector(detect.ResolveMarkers())
 
 	if !detector.HasInjectAnnotation(pass, structType) {
 		t.Error("HasInjectAnnotation() = false, want true for aliased import")
@@ -582,7 +582,7 @@ type Repository interface{}
 				t.Fatal("MyService struct not found")
 			}
 
-			detector := detect.NewInjectDetector()
+			detector := detect.NewInjectDetector(detect.ResolveMarkers())
 			hasInject := detector.HasInjectAnnotation(pass, structType)
 
 			if hasInject != tt.expectInject {
@@ -600,7 +600,7 @@ func TestInjectDetector_FindInjectField_NilStructFields(t *testing.T) {
 		Fields: nil, // Explicitly nil
 	}
 
-	detector := detect.NewInjectDetector()
+	detector := detect.NewInjectDetector(detect.ResolveMarkers())
 	field := detector.FindInjectField(pass, structType)
 
 	if field != nil {
@@ -669,7 +669,7 @@ type MyService struct {
 				t.Fatal("MyService struct not found")
 			}
 
-			detector := detect.NewInjectDetector()
+			detector := detect.NewInjectDetector(detect.ResolveMarkers())
 			hasInject := detector.HasInjectAnnotation(pass, structType)
 
 			if hasInject != tt.expectInject {

@@ -8,8 +8,12 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/provide"
 	"golang.org/x/tools/go/packages"
 )
+
+var _ = annotation.Provide[provide.Default](ResolveMarkers)
 
 var (
 	resolvedModulePathOnce sync.Once
@@ -51,24 +55,16 @@ type MarkerInterfaces struct {
 	VariableNamed         *types.Interface
 }
 
-// markerResolver resolves and caches marker interfaces from internal/annotation.
-// Uses packages.Load to load the internal/annotation package via the source directory
-// obtained from runtime.Caller, combined with the module path from debug/buildinfo.
-type markerResolver struct {
-	once    sync.Once
-	markers *MarkerInterfaces
-}
+var (
+	resolveMarkersOnce sync.Once
+	resolvedMarkers    *MarkerInterfaces
+)
 
-var globalMarkerResolver = &markerResolver{}
-
-// resolveMarkers returns the cached marker interfaces from internal/annotation.
-// Thread-safe; result is computed once per binary lifetime.
-func resolveMarkers() *MarkerInterfaces {
-	return globalMarkerResolver.resolve()
-}
-
-func (r *markerResolver) resolve() *MarkerInterfaces {
-	r.once.Do(func() {
+// ResolveMarkers loads the internal/annotation package via packages.Load and
+// returns the resolved marker interfaces. Returns nil if resolution fails.
+// Thread-safe; result is computed once and cached.
+func ResolveMarkers() *MarkerInterfaces {
+	resolveMarkersOnce.Do(func() {
 		modPath := resolveModulePath()
 		if modPath == "" {
 			return
@@ -79,7 +75,7 @@ func (r *markerResolver) resolve() *MarkerInterfaces {
 			return
 		}
 
-		r.markers = &MarkerInterfaces{
+		resolvedMarkers = &MarkerInterfaces{
 			Injectable:            lookupMarkerInterface(annPkg, "Injectable"),
 			Provider:              lookupMarkerInterface(annPkg, "Provider"),
 			Variable:              lookupMarkerInterface(annPkg, "Variable"),
@@ -95,7 +91,7 @@ func (r *markerResolver) resolve() *MarkerInterfaces {
 			VariableNamed:         lookupMarkerInterface(annPkg, "VariableNamed"),
 		}
 	})
-	return r.markers
+	return resolvedMarkers
 }
 
 // loadInternalAnnotationPkg loads the internal/annotation package using
@@ -147,10 +143,4 @@ func lookupMarkerInterface(pkg *types.Package, name string) *types.Interface {
 		return nil
 	}
 	return iface
-}
-
-// resetMarkerResolverForTest resets the global marker resolver state.
-// This is intended for use in tests only.
-func resetMarkerResolverForTest() {
-	globalMarkerResolver = &markerResolver{}
 }

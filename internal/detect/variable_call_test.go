@@ -206,7 +206,7 @@ var _ = annotation.Provide(NewRepo)
 		t.Run(tt.name, func(t *testing.T) {
 			pass, _ := mockPass(t, tt.src, tt.pkgs)
 
-			detector := detect.NewVariableCallDetector()
+			detector := detect.NewVariableCallDetector(detect.ResolveMarkers())
 			candidates, _ := detector.DetectVariables(pass)
 
 			if len(candidates) != tt.expectedCount {
@@ -246,7 +246,7 @@ var _ = annotation.Variable(os.Stdout)
 	}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewVariableCallDetector()
+	detector := detect.NewVariableCallDetector(detect.ResolveMarkers())
 	candidates, errs := detector.DetectVariables(pass)
 	if len(errs) != 0 {
 		t.Fatalf("unexpected errors: %v", errs)
@@ -353,7 +353,7 @@ var _ = annotation.Variable(os.Stderr)
 		t.Run(tt.name, func(t *testing.T) {
 			pass, _ := mockPassWithInspector(t, tt.src, tt.pkgs)
 
-			detector := detect.NewVariableCallDetector()
+			detector := detect.NewVariableCallDetector(detect.ResolveMarkers())
 			candidates, _ := detector.DetectVariables(pass)
 
 			if len(candidates) != tt.expectedCount {
@@ -381,7 +381,7 @@ var _ = annotation.Variable(defaultConfig)
 	}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewVariableCallDetector()
+	detector := detect.NewVariableCallDetector(detect.ResolveMarkers())
 	candidates, errs := detector.DetectVariables(pass)
 	if len(errs) != 0 {
 		t.Fatalf("unexpected errors: %v", errs)
@@ -418,7 +418,7 @@ var _ = annotation.Variable()
 	}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewVariableCallDetector()
+	detector := detect.NewVariableCallDetector(detect.ResolveMarkers())
 	candidates, errs := detector.DetectVariables(pass)
 
 	// No arguments -> no candidate
@@ -460,7 +460,7 @@ var _ = annotation.Variable(myos.Stdout)
 	}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewVariableCallDetector()
+	detector := detect.NewVariableCallDetector(detect.ResolveMarkers())
 	candidates, errs := detector.DetectVariables(pass)
 	if len(errs) != 0 {
 		t.Fatalf("unexpected errors: %v", errs)
@@ -556,7 +556,7 @@ var _ = annotation.Variable(cfg.Value)
 		t.Run(tt.name, func(t *testing.T) {
 			pass, _ := mockPass(t, tt.src, tt.pkgs)
 
-			detector := detect.NewVariableCallDetector()
+			detector := detect.NewVariableCallDetector(detect.ResolveMarkers())
 			candidates, errs := detector.DetectVariables(pass)
 
 			if len(candidates) != 0 {

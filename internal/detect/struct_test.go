@@ -119,7 +119,7 @@ type Repository interface {
 			tt.name, func(t *testing.T) {
 				pass, _ := mockPass(t, tt.src, tt.pkgs)
 
-				detector := detect.NewStructDetector(detect.NewInjectDetector())
+				detector := detect.NewStructDetector(detect.NewInjectDetector(detect.ResolveMarkers()))
 				candidates := detector.DetectCandidates(pass)
 
 				if len(candidates) != tt.expectedCount {
@@ -280,7 +280,7 @@ type Repository interface{}
 			tt.name, func(t *testing.T) {
 				pass, _ := mockPass(t, tt.src, tt.pkgs)
 
-				detector := detect.NewStructDetector(detect.NewInjectDetector())
+				detector := detect.NewStructDetector(detect.NewInjectDetector(detect.ResolveMarkers()))
 				fn := detector.FindExistingConstructor(pass, tt.structName)
 
 				if tt.expectFound && fn == nil {
@@ -321,7 +321,7 @@ type Logger interface{}
 	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewStructDetector(detect.NewInjectDetector())
+	detector := detect.NewStructDetector(detect.NewInjectDetector(detect.ResolveMarkers()))
 	candidates := detector.DetectCandidates(pass)
 
 	if len(candidates) != 2 {
@@ -469,7 +469,7 @@ type Repository interface{}
 			tt.name, func(t *testing.T) {
 				pass, _ := mockPassWithoutTypesInfo(t, tt.src)
 
-				detector := detect.NewStructDetector(detect.NewInjectDetector())
+				detector := detect.NewStructDetector(detect.NewInjectDetector(detect.ResolveMarkers()))
 				fn := detector.FindExistingConstructor(pass, tt.structName)
 
 				if tt.expectFound && fn == nil {
@@ -535,7 +535,7 @@ type ServiceB struct {
 			tt.name, func(t *testing.T) {
 				pass, _ := mockPassWithInspector(t, tt.src, tt.pkgs)
 
-				detector := detect.NewStructDetector(detect.NewInjectDetector())
+				detector := detect.NewStructDetector(detect.NewInjectDetector(detect.ResolveMarkers()))
 				candidates := detector.DetectCandidates(pass)
 
 				if len(candidates) != tt.expectedCount {
