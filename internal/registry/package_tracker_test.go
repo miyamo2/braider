@@ -15,22 +15,6 @@ func (t *PackageTracker) IsPackageScanned(pkgPath string) bool {
 	return t.scannedPackages[pkgPath]
 }
 
-// WaitForAllPackages waits until all expected packages are scanned
-// using a default 30s timeout.
-// Test-only helper — wraps WaitForAllPackagesWithContext.
-func (t *PackageTracker) WaitForAllPackages(expectedPkgs []string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	return t.WaitForAllPackagesWithContext(ctx, expectedPkgs)
-}
-
-// waitForAllPackagesWithTimeout is a test helper that waits with a custom timeout.
-func (t *PackageTracker) waitForAllPackagesWithTimeout(expectedPkgs []string, timeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	return t.WaitForAllPackagesWithContext(ctx, expectedPkgs)
-}
-
 func TestPackageTracker_MarkPackageScanned(t *testing.T) {
 	t.Run(
 		"marks a single package as scanned", func(t *testing.T) {
@@ -120,14 +104,16 @@ func TestPackageTracker_WaitForAllPackages_AllScanned(t *testing.T) {
 			}
 
 			start := time.Now()
-			err := pt.WaitForAllPackages(packages)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			err := pt.WaitForAllPackagesWithContext(ctx, packages)
 			elapsed := time.Since(start)
 
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
 			if elapsed > 100*time.Millisecond {
-				t.Errorf("WaitForAllPackages took too long: %v", elapsed)
+				t.Errorf("WaitForAllPackagesWithContext took too long: %v", elapsed)
 			}
 		},
 	)
@@ -149,7 +135,9 @@ func TestPackageTracker_WaitForAllPackages_AllScanned(t *testing.T) {
 				}
 			}()
 
-			err := pt.WaitForAllPackages(packages)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			err := pt.WaitForAllPackagesWithContext(ctx, packages)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -167,7 +155,9 @@ func TestPackageTracker_WaitForAllPackages_AllScanned(t *testing.T) {
 		"returns nil for empty package list", func(t *testing.T) {
 			pt := NewPackageTracker()
 
-			err := pt.WaitForAllPackages([]string{})
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			err := pt.WaitForAllPackagesWithContext(ctx, []string{})
 			if err != nil {
 				t.Errorf("unexpected error for empty package list: %v", err)
 			}
@@ -186,7 +176,9 @@ func TestPackageTracker_WaitForAllPackages_Timeout(t *testing.T) {
 			}
 
 			// Don't mark any packages as scanned - should timeout
-			err := pt.waitForAllPackagesWithTimeout(packages, 100*time.Millisecond)
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+			err := pt.WaitForAllPackagesWithContext(ctx, packages)
 			if err == nil {
 				t.Error("expected timeout error, got nil")
 			}
@@ -215,7 +207,9 @@ func TestPackageTracker_WaitForAllPackages_PreScanned(t *testing.T) {
 				pt.MarkPackageScanned("example.com/handler")
 			}()
 
-			err := pt.WaitForAllPackages(packages)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			err := pt.WaitForAllPackagesWithContext(ctx, packages)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -296,7 +290,9 @@ func TestPackageTracker_WaitForAllPackages_PartialScanning(t *testing.T) {
 				}
 			}()
 
-			err := pt.WaitForAllPackages(packages)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			err := pt.WaitForAllPackagesWithContext(ctx, packages)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
