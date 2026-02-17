@@ -40,9 +40,6 @@ type DiagnosticEmitter interface {
 	// EmitGenerationError reports a constructor generation failure.
 	EmitGenerationError(reporter Reporter, pos token.Pos, structName string, reason string)
 
-	// EmitMissingConstructorError reports Provide struct without constructor.
-	EmitMissingConstructorError(reporter Reporter, pos token.Pos, typeName string)
-
 	// EmitNonMainAppError reports App referencing non-main function.
 	EmitNonMainAppError(reporter Reporter, pos token.Pos, funcName string)
 
@@ -86,12 +83,6 @@ type DiagnosticEmitter interface {
 
 	// EmitContainerFieldError reports an unresolvable container field.
 	EmitContainerFieldError(reporter Reporter, pos token.Pos, fieldName string, fieldType string, reason string)
-
-	// EmitContainerFieldAmbiguousError reports an ambiguous container field resolution.
-	EmitContainerFieldAmbiguousError(reporter Reporter, pos token.Pos, fieldName string, fieldType string, candidates []string)
-
-	// EmitContainerStructTagError reports a forbidden or invalid struct tag in container.
-	EmitContainerStructTagError(reporter Reporter, pos token.Pos, fieldName string, reason string)
 }
 
 // diagnosticEmitter is the default implementation of DiagnosticEmitter.
@@ -155,17 +146,6 @@ func (e *diagnosticEmitter) EmitGenerationError(reporter Reporter, pos token.Pos
 		analysis.Diagnostic{
 			Pos:     pos,
 			Message: fmt.Sprintf("failed to generate constructor for %s: %s", structName, reason),
-		},
-	)
-}
-
-// EmitMissingConstructorError reports Provide struct without constructor.
-func (e *diagnosticEmitter) EmitMissingConstructorError(reporter Reporter, pos token.Pos, typeName string) {
-	reporter.Report(
-		analysis.Diagnostic{
-			Pos:      pos,
-			Category: "constructor",
-			Message:  fmt.Sprintf("Provide struct %s requires a constructor (New%s)", typeName, typeName),
 		},
 	)
 }
@@ -312,21 +292,5 @@ func (e *diagnosticEmitter) EmitContainerFieldError(reporter Reporter, pos token
 	reporter.Report(analysis.Diagnostic{
 		Pos:     pos,
 		Message: fmt.Sprintf("container field %q (type %s): %s", fieldName, fieldType, reason),
-	})
-}
-
-// EmitContainerFieldAmbiguousError reports an ambiguous container field resolution.
-func (e *diagnosticEmitter) EmitContainerFieldAmbiguousError(reporter Reporter, pos token.Pos, fieldName string, fieldType string, candidates []string) {
-	reporter.Report(analysis.Diagnostic{
-		Pos:     pos,
-		Message: fmt.Sprintf("container field %q (type %s) is ambiguous: multiple candidates [%s]", fieldName, fieldType, strings.Join(candidates, ", ")),
-	})
-}
-
-// EmitContainerStructTagError reports a forbidden or invalid struct tag in container.
-func (e *diagnosticEmitter) EmitContainerStructTagError(reporter Reporter, pos token.Pos, fieldName string, reason string) {
-	reporter.Report(analysis.Diagnostic{
-		Pos:     pos,
-		Message: fmt.Sprintf("container field %q: %s", fieldName, reason),
 	})
 }
