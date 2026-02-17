@@ -11,12 +11,25 @@ import (
 
 // createAnnotationPackageWithVariable creates a fake annotation package with a non-generic Variable function.
 // The function signature is: func Variable(any) _variable
-// where _variable is a named type in the annotation package.
+// where _variable is a named type in the annotation package embedding the internal marker interface.
 func createAnnotationPackageWithVariable() *types.Package {
+	// Create synthetic internal/annotation marker interface for Variable
+	internalPkg := types.NewPackage("github.com/miyamo2/braider/internal/annotation", "annotation")
+	markerSig := types.NewSignatureType(nil, nil, nil, nil, nil, false)
+	markerMethod := types.NewFunc(token.NoPos, internalPkg, "_IsVariable", markerSig)
+	markerIface := types.NewInterfaceType([]*types.Func{markerMethod}, nil)
+	markerIface.Complete()
+	markerTypeName := types.NewTypeName(token.NoPos, internalPkg, "Variable", nil)
+	markerNamed := types.NewNamed(markerTypeName, markerIface, nil)
+	internalPkg.Scope().Insert(markerNamed.Obj())
+	internalPkg.MarkComplete()
+
+	// Create pkg/annotation package
 	annotationPkg := types.NewPackage(detect.AnnotationPath, "annotation")
 
-	// Create the _variable named type (returned by Variable)
-	variableStruct := types.NewStruct(nil, nil)
+	// Create the _variable named type embedding the internal marker interface
+	embeddedField := types.NewField(token.NoPos, nil, "", markerNamed, true)
+	variableStruct := types.NewStruct([]*types.Var{embeddedField}, nil)
 	variableNamed := types.NewNamed(
 		types.NewTypeName(token.NoPos, annotationPkg, "_variable", nil),
 		variableStruct,
@@ -40,6 +53,11 @@ func createAnnotationPackageWithVariable() *types.Package {
 }
 
 func TestVariableCallDetector_DetectVariables(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackageWithVariable()
 
 	// Create an os package with Stdout
@@ -193,7 +211,7 @@ var _ = annotation.Provide(NewRepo)
 		t.Run(tt.name, func(t *testing.T) {
 			pass, _ := mockPass(t, tt.src, tt.pkgs)
 
-			detector := detect.NewVariableCallDetector()
+			detector := detect.NewVariableCallDetector(markers)
 			candidates, _ := detector.DetectVariables(pass)
 
 			if len(candidates) != tt.expectedCount {
@@ -204,6 +222,11 @@ var _ = annotation.Provide(NewRepo)
 }
 
 func TestVariableCallDetector_DetectVariables_CandidateFields(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackageWithVariable()
 
 	osPkg := types.NewPackage("os", "os")
@@ -233,7 +256,7 @@ var _ = annotation.Variable(os.Stdout)
 	}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewVariableCallDetector()
+	detector := detect.NewVariableCallDetector(markers)
 	candidates, errs := detector.DetectVariables(pass)
 	if len(errs) != 0 {
 		t.Fatalf("unexpected errors: %v", errs)
@@ -277,6 +300,11 @@ var _ = annotation.Variable(os.Stdout)
 }
 
 func TestVariableCallDetector_DetectVariables_WithInspector(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackageWithVariable()
 
 	osPkg := types.NewPackage("os", "os")
@@ -340,7 +368,7 @@ var _ = annotation.Variable(os.Stderr)
 		t.Run(tt.name, func(t *testing.T) {
 			pass, _ := mockPassWithInspector(t, tt.src, tt.pkgs)
 
-			detector := detect.NewVariableCallDetector()
+			detector := detect.NewVariableCallDetector(markers)
 			candidates, _ := detector.DetectVariables(pass)
 
 			if len(candidates) != tt.expectedCount {
@@ -351,6 +379,11 @@ var _ = annotation.Variable(os.Stderr)
 }
 
 func TestVariableCallDetector_DetectVariables_LocalVariable(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackageWithVariable()
 
 	src := `package test
@@ -368,7 +401,7 @@ var _ = annotation.Variable(defaultConfig)
 	}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewVariableCallDetector()
+	detector := detect.NewVariableCallDetector(markers)
 	candidates, errs := detector.DetectVariables(pass)
 	if len(errs) != 0 {
 		t.Fatalf("unexpected errors: %v", errs)
@@ -392,6 +425,11 @@ var _ = annotation.Variable(defaultConfig)
 }
 
 func TestVariableCallDetector_DetectVariables_NoArguments(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackageWithVariable()
 
 	src := `package test
@@ -405,7 +443,7 @@ var _ = annotation.Variable()
 	}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewVariableCallDetector()
+	detector := detect.NewVariableCallDetector(markers)
 	candidates, errs := detector.DetectVariables(pass)
 
 	// No arguments -> no candidate
@@ -418,6 +456,11 @@ var _ = annotation.Variable()
 }
 
 func TestVariableCallDetector_DetectVariables_AliasedImportNormalization(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackageWithVariable()
 
 	osPkg := types.NewPackage("os", "os")
@@ -447,7 +490,7 @@ var _ = annotation.Variable(myos.Stdout)
 	}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewVariableCallDetector()
+	detector := detect.NewVariableCallDetector(markers)
 	candidates, errs := detector.DetectVariables(pass)
 	if len(errs) != 0 {
 		t.Fatalf("unexpected errors: %v", errs)
@@ -478,6 +521,11 @@ var _ = annotation.Variable(myos.Stdout)
 }
 
 func TestVariableCallDetector_DetectVariables_UnsupportedExpression(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackageWithVariable()
 
 	tests := []struct {
@@ -543,7 +591,7 @@ var _ = annotation.Variable(cfg.Value)
 		t.Run(tt.name, func(t *testing.T) {
 			pass, _ := mockPass(t, tt.src, tt.pkgs)
 
-			detector := detect.NewVariableCallDetector()
+			detector := detect.NewVariableCallDetector(markers)
 			candidates, errs := detector.DetectVariables(pass)
 
 			if len(candidates) != 0 {
@@ -570,3 +618,4 @@ var _ = annotation.Variable(cfg.Value)
 		})
 	}
 }
+

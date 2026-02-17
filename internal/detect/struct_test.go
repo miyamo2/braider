@@ -8,6 +8,11 @@ import (
 )
 
 func TestStructDetector_DetectCandidates(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackage()
 
 	tests := []struct {
@@ -119,7 +124,7 @@ type Repository interface {
 			tt.name, func(t *testing.T) {
 				pass, _ := mockPass(t, tt.src, tt.pkgs)
 
-				detector := detect.NewStructDetector(detect.NewInjectDetector())
+				detector := detect.NewStructDetector(detect.NewInjectDetector(markers))
 				candidates := detector.DetectCandidates(pass)
 
 				if len(candidates) != tt.expectedCount {
@@ -140,6 +145,11 @@ type Repository interface {
 }
 
 func TestStructDetector_FindExistingConstructor(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackage()
 
 	tests := []struct {
@@ -280,7 +290,7 @@ type Repository interface{}
 			tt.name, func(t *testing.T) {
 				pass, _ := mockPass(t, tt.src, tt.pkgs)
 
-				detector := detect.NewStructDetector(detect.NewInjectDetector())
+				detector := detect.NewStructDetector(detect.NewInjectDetector(markers))
 				fn := detector.FindExistingConstructor(pass, tt.structName)
 
 				if tt.expectFound && fn == nil {
@@ -295,6 +305,11 @@ type Repository interface{}
 }
 
 func TestStructDetector_CandidateHasExistingConstructor(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackage()
 
 	src := `package test
@@ -321,7 +336,7 @@ type Logger interface{}
 	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewStructDetector(detect.NewInjectDetector())
+	detector := detect.NewStructDetector(detect.NewInjectDetector(markers))
 	candidates := detector.DetectCandidates(pass)
 
 	if len(candidates) != 2 {
@@ -355,6 +370,11 @@ type Logger interface{}
 }
 
 func TestStructDetector_FindExistingConstructor_WithoutTypesInfo(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Test AST fallback path (isPointerToStructAST) when TypesInfo.TypeOf returns nil
 	tests := []struct {
 		name        string
@@ -469,7 +489,7 @@ type Repository interface{}
 			tt.name, func(t *testing.T) {
 				pass, _ := mockPassWithoutTypesInfo(t, tt.src)
 
-				detector := detect.NewStructDetector(detect.NewInjectDetector())
+				detector := detect.NewStructDetector(detect.NewInjectDetector(markers))
 				fn := detector.FindExistingConstructor(pass, tt.structName)
 
 				if tt.expectFound && fn == nil {
@@ -484,6 +504,11 @@ type Repository interface{}
 }
 
 func TestStructDetector_DetectCandidates_WithInspector(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackage()
 
 	tests := []struct {
@@ -535,7 +560,7 @@ type ServiceB struct {
 			tt.name, func(t *testing.T) {
 				pass, _ := mockPassWithInspector(t, tt.src, tt.pkgs)
 
-				detector := detect.NewStructDetector(detect.NewInjectDetector())
+				detector := detect.NewStructDetector(detect.NewInjectDetector(markers))
 				candidates := detector.DetectCandidates(pass)
 
 				if len(candidates) != tt.expectedCount {

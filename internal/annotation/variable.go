@@ -1,31 +1,21 @@
 package annotation
 
-type VariableMarker struct{}
-
 type Variable interface {
-	_IsVariable() VariableMarker
+	_IsVariable()
 }
-
-type VariableOptionMarker struct{}
 
 type VariableOption interface {
-	_IsVariableOption() VariableOptionMarker
+	_IsVariableOption()
 }
-
-type VariableDefaultMarker struct{}
 
 type VariableDefault interface {
-	_IsVariableDefault() VariableDefaultMarker
+	_IsVariableDefault()
 }
-
-type VariableTypedMarker struct{}
 
 type VariableTyped interface {
-	_IsVariableTyped() VariableTypedMarker
+	_IsVariableTyped()
 }
 
-type VariableNamedMarker struct{}
-
 type VariableNamed interface {
-	_IsVariableNamed() VariableNamedMarker
+	_IsVariableNamed()
 }

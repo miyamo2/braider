@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 
 	"github.com/miyamo2/braider/internal/analyzer"
 	"github.com/miyamo2/braider/internal/detect"
@@ -62,14 +63,18 @@ var dependency = func() struct {
 } {
 	cancelCauseFunc := bootstrapCancel
 	context := bootstrapCtx
-	appDetector := detect.NewAppDetector()
-	appOptionExtractor := detect.NewAppOptionExtractorImpl()
+	markerInterfaces, err := detect.ResolveMarkers()
+	if err != nil {
+		log.Fatalf("braider: failed to resolve marker interfaces: %v", err)
+	}
+	appDetector := detect.NewAppDetector(markerInterfaces)
+	appOptionExtractor := detect.NewAppOptionExtractorImpl(markerInterfaces)
 	constructorAnalyzer := detect.NewConstructorAnalyzer()
 	fieldAnalyzer := detect.NewFieldAnalyzer()
-	injectDetector := detect.NewInjectDetector()
-	provideCallDetector := detect.NewProvideCallDetector()
+	injectDetector := detect.NewInjectDetector(markerInterfaces)
+	provideCallDetector := detect.NewProvideCallDetector(markerInterfaces)
 	structDetector := detect.NewStructDetector(injectDetector)
-	variableCallDetector := detect.NewVariableCallDetector()
+	variableCallDetector := detect.NewVariableCallDetector(markerInterfaces)
 	codeFormatter := generate.NewCodeFormatter()
 	bootstrapGenerator := generate.NewBootstrapGenerator(codeFormatter)
 	constructorGenerator := generate.NewConstructorGenerator()
@@ -80,7 +85,7 @@ var dependency = func() struct {
 	topologicalSorter := graph.NewTopologicalSorter()
 	packageLoader := loader.NewPackageLoader()
 	namerValidatorImpl := detect.NewNamerValidatorImpl(packageLoader)
-	optionExtractorImpl := detect.NewOptionExtractorImpl(namerValidatorImpl)
+	optionExtractorImpl := detect.NewOptionExtractorImpl(markerInterfaces, namerValidatorImpl)
 	injectorRegistry := registry.NewInjectorRegistry()
 	packageTracker := registry.NewPackageTracker()
 	providerRegistry := registry.NewProviderRegistry()

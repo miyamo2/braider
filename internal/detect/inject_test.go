@@ -131,10 +131,24 @@ func (i *fakeImporter) Import(path string) (*types.Package, error) {
 }
 
 // createAnnotationPackage creates a fake annotation package for testing.
+// The synthetic Injectable type embeds the internal/annotation.Injectable marker interface
+// so that types.Implements works via samePkg path comparison.
 func createAnnotationPackage() *types.Package {
+	// Create synthetic internal/annotation marker interface
+	internalPkg := types.NewPackage("github.com/miyamo2/braider/internal/annotation", "annotation")
+	markerSig := types.NewSignatureType(nil, nil, nil, nil, nil, false)
+	markerMethod := types.NewFunc(token.NoPos, internalPkg, "_IsInjectable", markerSig)
+	markerIface := types.NewInterfaceType([]*types.Func{markerMethod}, nil)
+	markerIface.Complete()
+	markerTypeName := types.NewTypeName(token.NoPos, internalPkg, "Injectable", nil)
+	markerNamed := types.NewNamed(markerTypeName, markerIface, nil)
+	internalPkg.Scope().Insert(markerNamed.Obj())
+	internalPkg.MarkComplete()
+
+	// Create pkg/annotation package with Injectable embedding the marker
 	annotationPkg := types.NewPackage(detect.AnnotationPath, "annotation")
-	// Create the Injectable struct type - pass nil for underlying, NewNamed will set it
-	injectStruct := types.NewStruct(nil, nil)
+	embeddedField := types.NewField(token.NoPos, nil, "", markerNamed, true)
+	injectStruct := types.NewStruct([]*types.Var{embeddedField}, nil)
 	injectNamed := types.NewNamed(
 		types.NewTypeName(token.NoPos, annotationPkg, detect.InjectableTypeName, nil),
 		injectStruct,
@@ -248,6 +262,11 @@ type Repository interface{}
 		},
 	}
 
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pass, file := mockPass(t, tt.src, tt.pkgs)
@@ -270,7 +289,7 @@ type Repository interface{}
 				t.Fatal("MyService struct not found")
 			}
 
-			detector := detect.NewInjectDetector()
+			detector := detect.NewInjectDetector(markers)
 			result := detector.HasInjectAnnotation(pass, structType)
 
 			if result != tt.expected {
@@ -355,6 +374,11 @@ type Repository interface{}
 		},
 	}
 
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pass, file := mockPass(t, tt.src, tt.pkgs)
@@ -377,7 +401,7 @@ type Repository interface{}
 				t.Fatal("MyService struct not found")
 			}
 
-			detector := detect.NewInjectDetector()
+			detector := detect.NewInjectDetector(markers)
 			field := detector.FindInjectField(pass, structType)
 
 			if tt.expectNil {
@@ -454,7 +478,11 @@ type Repository interface{}
 	}
 
 	// When Types map is empty and TypeOf returns nil, should return nil (no inject found)
-	detector := detect.NewInjectDetector()
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	detector := detect.NewInjectDetector(markers)
 	field := detector.FindInjectField(pass, structType)
 
 	// Should return nil because type information is not available
@@ -498,7 +526,11 @@ type Repository interface{}
 		t.Fatal("MyService struct not found")
 	}
 
-	detector := detect.NewInjectDetector()
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	detector := detect.NewInjectDetector(markers)
 
 	if !detector.HasInjectAnnotation(pass, structType) {
 		t.Error("HasInjectAnnotation() = false, want true for aliased import")
@@ -547,6 +579,11 @@ type Repository interface{}
 		},
 	}
 
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pass, file := mockPass(t, tt.src, tt.pkgs)
@@ -568,7 +605,7 @@ type Repository interface{}
 				t.Fatal("MyService struct not found")
 			}
 
-			detector := detect.NewInjectDetector()
+			detector := detect.NewInjectDetector(markers)
 			hasInject := detector.HasInjectAnnotation(pass, structType)
 
 			if hasInject != tt.expectInject {
@@ -586,7 +623,11 @@ func TestInjectDetector_FindInjectField_NilStructFields(t *testing.T) {
 		Fields: nil, // Explicitly nil
 	}
 
-	detector := detect.NewInjectDetector()
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	detector := detect.NewInjectDetector(markers)
 	field := detector.FindInjectField(pass, structType)
 
 	if field != nil {
@@ -634,6 +675,11 @@ type MyService struct {
 		},
 	}
 
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pass, file := mockPass(t, tt.src, tt.pkgs)
@@ -655,7 +701,7 @@ type MyService struct {
 				t.Fatal("MyService struct not found")
 			}
 
-			detector := detect.NewInjectDetector()
+			detector := detect.NewInjectDetector(markers)
 			hasInject := detector.HasInjectAnnotation(pass, structType)
 
 			if hasInject != tt.expectInject {
@@ -664,3 +710,4 @@ type MyService struct {
 		})
 	}
 }
+

@@ -5,9 +5,14 @@ import (
 )
 
 func TestVariableCallDetector_DetectVariables_WithRealPackage(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	_, pass := LoadTestPackage(t, "variable_call")
 
-	detector := NewVariableCallDetector()
+	detector := NewVariableCallDetector(markers)
 	candidates, errs := detector.DetectVariables(pass)
 	if len(errs) != 0 {
 		t.Fatalf("unexpected detection errors: %v", errs)

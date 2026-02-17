@@ -22,17 +22,19 @@ import (
 
 // setupIntegrationDeps creates shared registries and real components for integration tests.
 // Returns both DependencyAnalyzer and AppAnalyzer configured with the same shared state.
-func setupIntegrationDeps() (*analysis.Analyzer, *analysis.Analyzer) {
-	depAnalyzer, appAnalyzer, _, _, _ := buildIntegrationDeps()
+func setupIntegrationDeps(t *testing.T) (*analysis.Analyzer, *analysis.Analyzer) {
+	t.Helper()
+	depAnalyzer, appAnalyzer, _, _, _ := buildIntegrationDeps(t)
 	return depAnalyzer, appAnalyzer
 }
 
 // buildIntegrationDeps creates all shared components and returns analyzers plus raw registries.
-func buildIntegrationDeps() (
+func buildIntegrationDeps(t *testing.T) (
 	*analysis.Analyzer, *analysis.Analyzer,
 	*registry.InjectorRegistry, *registry.ProviderRegistry,
 	*registry.VariableRegistry,
 ) {
+	t.Helper()
 	// Shared registries
 	providerReg := registry.NewProviderRegistry()
 	injectorReg := registry.NewInjectorRegistry()
@@ -40,13 +42,17 @@ func buildIntegrationDeps() (
 	ctx, bootstrapCancel := context.WithCancelCause(context.Background())
 
 	// Detection components (all real)
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
 	packageLoader := &mockPackageLoader{}
 	namerValidator := detect.NewNamerValidatorImpl(packageLoader)
-	optionExtractor := detect.NewOptionExtractorImpl(namerValidator)
-	injectDetector := detect.NewInjectDetector()
+	optionExtractor := detect.NewOptionExtractorImpl(markers, namerValidator)
+	injectDetector := detect.NewInjectDetector(markers)
 	fieldAnalyzer := detect.NewFieldAnalyzer()
 	constructorAnalyzer := detect.NewConstructorAnalyzer()
-	provideCallDetector := detect.NewProvideCallDetector()
+	provideCallDetector := detect.NewProvideCallDetector(markers)
 	structDetector := detect.NewStructDetector(injectDetector)
 
 	// Generation components
@@ -63,15 +69,15 @@ func buildIntegrationDeps() (
 	sorter := graph.NewTopologicalSorter()
 
 	// App detection
-	appDetector := detect.NewAppDetector()
+	appDetector := detect.NewAppDetector(markers)
 
 	// Container components
-	appOptionExtractor := detect.NewAppOptionExtractorImpl()
+	appOptionExtractor := detect.NewAppOptionExtractorImpl(markers)
 	containerValidator := graph.NewContainerValidatorImpl(interfaceRegistry)
 	containerResolver := graph.NewContainerResolverImpl(interfaceRegistry)
 
 	// Variable components
-	variableCallDetector := detect.NewVariableCallDetector()
+	variableCallDetector := detect.NewVariableCallDetector(markers)
 	variableReg := registry.NewVariableRegistry()
 
 	depRunner := NewDependencyAnalyzeRunner(
@@ -571,7 +577,7 @@ func TestIntegration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			depAnalyzer, appAnalyzer := setupIntegrationDeps()
+			depAnalyzer, appAnalyzer := setupIntegrationDeps(t)
 			testdir := "testdata/bootstrapgen/" + tt.testdir
 
 			for _, pkg := range tt.depPackages {
@@ -592,7 +598,7 @@ func TestIntegration(t *testing.T) {
 // Uses programmatic registry access since analysistest cannot naturally test duplicate registration
 // (each analysistest.Run creates a fresh analysis pass for the same source).
 func TestIntegration_ErrorDuplicateName(t *testing.T) {
-	depAnalyzer, _, injectorReg, _, _ := buildIntegrationDeps()
+	depAnalyzer, _, injectorReg, _, _ := buildIntegrationDeps(t)
 	testdir := "testdata/bootstrapgen/error_duplicate_name"
 
 	// First scan: registers Named service via analysistest (succeeds without duplicate)

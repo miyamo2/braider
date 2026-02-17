@@ -127,7 +127,11 @@ func FindInjectableField(t *testing.T, pkg *packages.Package) (ast.Expr, *ast.St
 func FindVariableCall(t *testing.T, pkg *packages.Package) (*ast.CallExpr, types.Type) {
 	t.Helper()
 
-	detector := NewVariableCallDetector()
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	detector := NewVariableCallDetector(markers)
 	pass := &analysis.Pass{
 		Fset:      pkg.Fset,
 		Files:     pkg.Syntax,
@@ -144,6 +148,31 @@ func FindVariableCall(t *testing.T, pkg *packages.Package) (*ast.CallExpr, types
 	}
 
 	return candidates[0].CallExpr, candidates[0].ArgumentType
+}
+
+// FindProvideCall finds the first annotation.Provide[T](fn) call expression in the package
+// and returns the call expression and the provider function type.
+func FindProvideCall(t *testing.T, pkg *packages.Package) (*ast.CallExpr, types.Type) {
+	t.Helper()
+
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	detector := NewProvideCallDetector(markers)
+	pass := &analysis.Pass{
+		Fset:      pkg.Fset,
+		Files:     pkg.Syntax,
+		TypesInfo: pkg.TypesInfo,
+		Pkg:       pkg.Types,
+	}
+
+	candidates := detector.DetectProviders(pass)
+	if len(candidates) == 0 {
+		t.Fatal("No Provide call found in package")
+	}
+
+	return candidates[0].CallExpr, candidates[0].ProviderFuncSig
 }
 
 // MockNamerValidator is a mock implementation of NamerValidator for testing.
