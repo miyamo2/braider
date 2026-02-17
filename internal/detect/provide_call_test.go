@@ -11,12 +11,25 @@ import (
 
 // createAnnotationPackageWithProvide creates a fake annotation package with a non-generic Provide function.
 // The function signature is: func Provide(any) Provider
-// where Provider is a named type in the annotation package.
+// where Provider is a named type in the annotation package embedding the internal marker interface.
 func createAnnotationPackageWithProvide() *types.Package {
+	// Create synthetic internal/annotation marker interface for Provider
+	internalPkg := types.NewPackage("github.com/miyamo2/braider/internal/annotation", "annotation")
+	markerSig := types.NewSignatureType(nil, nil, nil, nil, nil, false)
+	markerMethod := types.NewFunc(token.NoPos, internalPkg, "_IsProvider", markerSig)
+	markerIface := types.NewInterfaceType([]*types.Func{markerMethod}, nil)
+	markerIface.Complete()
+	markerTypeName := types.NewTypeName(token.NoPos, internalPkg, "Provider", nil)
+	markerNamed := types.NewNamed(markerTypeName, markerIface, nil)
+	internalPkg.Scope().Insert(markerNamed.Obj())
+	internalPkg.MarkComplete()
+
+	// Create pkg/annotation package
 	annotationPkg := types.NewPackage(detect.AnnotationPath, "annotation")
 
-	// Create the Provider named type (returned by Provide)
-	providerStruct := types.NewStruct(nil, nil)
+	// Create the Provider named type embedding the internal marker interface
+	embeddedField := types.NewField(token.NoPos, nil, "", markerNamed, true)
+	providerStruct := types.NewStruct([]*types.Var{embeddedField}, nil)
 	providerNamed := types.NewNamed(
 		types.NewTypeName(token.NoPos, annotationPkg, "Provider", nil),
 		providerStruct,
@@ -40,6 +53,11 @@ func createAnnotationPackageWithProvide() *types.Package {
 }
 
 func TestProvideCallDetector_DetectProviders(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackageWithProvide()
 
 	tests := []struct {
@@ -176,7 +194,7 @@ var _ = annotation.Provide(NewRepo)
 			tt.name, func(t *testing.T) {
 				pass, _ := mockPass(t, tt.src, tt.pkgs)
 
-				detector := detect.NewProvideCallDetector()
+				detector := detect.NewProvideCallDetector(markers)
 				candidates := detector.DetectProviders(pass)
 
 				if len(candidates) != tt.expectedCount {
@@ -188,6 +206,11 @@ var _ = annotation.Provide(NewRepo)
 }
 
 func TestProvideCallDetector_DetectProviders_WithInspector(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackageWithProvide()
 
 	tests := []struct {
@@ -236,7 +259,7 @@ var _ = annotation.Provide(NewService)
 			tt.name, func(t *testing.T) {
 				pass, _ := mockPassWithInspector(t, tt.src, tt.pkgs)
 
-				detector := detect.NewProvideCallDetector()
+				detector := detect.NewProvideCallDetector(markers)
 				candidates := detector.DetectProviders(pass)
 
 				if len(candidates) != tt.expectedCount {
@@ -252,6 +275,11 @@ var _ = annotation.Provide(NewService)
 }
 
 func TestProvideCallDetector_DetectProviders_CandidateFields(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackageWithProvide()
 
 	src := `package test
@@ -267,7 +295,7 @@ var _ = annotation.Provide(NewRepo)
 	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewProvideCallDetector()
+	detector := detect.NewProvideCallDetector(markers)
 	candidates := detector.DetectProviders(pass)
 
 	if len(candidates) != 1 {
@@ -313,6 +341,11 @@ var _ = annotation.Provide(NewRepo)
 }
 
 func TestProvideCallDetector_DetectProviders_EdgeCases(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackageWithProvide()
 
 	t.Run(
@@ -330,7 +363,7 @@ var _ = annotation.Provide(NewRepo)
 			pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 			pass, _ := mockPass(t, src, pkgs)
 
-			detector := detect.NewProvideCallDetector()
+			detector := detect.NewProvideCallDetector(markers)
 			candidates := detector.DetectProviders(pass)
 
 			if len(candidates) != 1 {
@@ -381,7 +414,7 @@ var _ = annotation.Provide(helper.NewRepo)
 			}
 			pass, _ := mockPass(t, src, pkgs)
 
-			detector := detect.NewProvideCallDetector()
+			detector := detect.NewProvideCallDetector(markers)
 			candidates := detector.DetectProviders(pass)
 
 			if len(candidates) != 1 {
@@ -415,7 +448,7 @@ var _ = annotation.Provide()
 			pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 			pass, _ := mockPass(t, src, pkgs)
 
-			detector := detect.NewProvideCallDetector()
+			detector := detect.NewProvideCallDetector(markers)
 			candidates := detector.DetectProviders(pass)
 
 			// With no arguments, the call might fail type-checking, resulting in 0 candidates
@@ -438,7 +471,7 @@ var _ = annotation.Provide(myVar)
 			pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 			pass, _ := mockPass(t, src, pkgs)
 
-			detector := detect.NewProvideCallDetector()
+			detector := detect.NewProvideCallDetector(markers)
 			candidates := detector.DetectProviders(pass)
 
 			// Non-function argument: extractCandidate checks for *types.Signature, returns nil
@@ -450,6 +483,11 @@ var _ = annotation.Provide(myVar)
 }
 
 func TestProvideCallDetector_DetectImplementedInterfaces(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	tests := []struct {
 		name           string
 		setupPkgs      func() (map[string]*types.Package, *types.Named)
@@ -705,7 +743,7 @@ var _ iface.Processor = &MyProcessor{}
 				}
 
 				aPass := pass.toAnalysisPass()
-				detector := detect.NewProvideCallDetector()
+				detector := detect.NewProvideCallDetector(markers)
 				ifaces := detector.DetectImplementedInterfaces(aPass, namedType)
 
 				if len(ifaces) != tt.expectedCount {
@@ -748,6 +786,11 @@ func (p *testProvidePass) toAnalysisPass() *analysis.Pass {
 }
 
 func TestProvideCallDetector_DetectImplementedInterfaces_MultipleInterfaces(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Create two interface packages
 	ifacePkg := types.NewPackage("example.com/iface", "iface")
 
@@ -821,7 +864,7 @@ var _ iface.Writer = ReadWriter{}
 	}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewProvideCallDetector()
+	detector := detect.NewProvideCallDetector(markers)
 	ifaces := detector.DetectImplementedInterfaces(pass, implNamed)
 
 	if len(ifaces) != 2 {
@@ -847,6 +890,11 @@ var _ iface.Writer = ReadWriter{}
 }
 
 func TestProvideCallDetector_IsProvideCall_ASTPatterns(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackageWithProvide()
 
 	t.Run(
@@ -864,7 +912,7 @@ var _ = annotation.Provide(NewRepo)
 			pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 			pass, _ := mockPass(t, src, pkgs)
 
-			detector := detect.NewProvideCallDetector()
+			detector := detect.NewProvideCallDetector(markers)
 			candidates := detector.DetectProviders(pass)
 
 			if len(candidates) != 1 {
@@ -883,7 +931,7 @@ var _ = someFunc()
 `
 			pass, _ := mockPass(t, src, nil)
 
-			detector := detect.NewProvideCallDetector()
+			detector := detect.NewProvideCallDetector(markers)
 			candidates := detector.DetectProviders(pass)
 
 			if len(candidates) != 0 {
@@ -901,7 +949,7 @@ type MyType int
 `
 			pass, _ := mockPass(t, src, nil)
 
-			detector := detect.NewProvideCallDetector()
+			detector := detect.NewProvideCallDetector(markers)
 			candidates := detector.DetectProviders(pass)
 
 			if len(candidates) != 0 {
@@ -912,6 +960,11 @@ type MyType int
 }
 
 func TestProvideCallDetector_DetectProviders_FunctionReturningNonNamedType(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackageWithProvide()
 
 	// Provider function returning a non-named type (e.g., int)
@@ -926,7 +979,7 @@ var _ = annotation.Provide(NewValue)
 	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewProvideCallDetector()
+	detector := detect.NewProvideCallDetector(markers)
 	candidates := detector.DetectProviders(pass)
 
 	if len(candidates) != 1 {
@@ -940,6 +993,11 @@ var _ = annotation.Provide(NewValue)
 }
 
 func TestProvideCallDetector_DetectProviders_NoReturnValue(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackageWithProvide()
 
 	src := `package test
@@ -953,7 +1011,7 @@ var _ = annotation.Provide(DoNothing)
 	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
 	pass, _ := mockPass(t, src, pkgs)
 
-	detector := detect.NewProvideCallDetector()
+	detector := detect.NewProvideCallDetector(markers)
 	candidates := detector.DetectProviders(pass)
 
 	if len(candidates) != 1 {
@@ -969,3 +1027,4 @@ var _ = annotation.Provide(DoNothing)
 		t.Errorf("ReturnTypeName for no-return function should be empty, got %q", candidates[0].ReturnTypeName)
 	}
 }
+

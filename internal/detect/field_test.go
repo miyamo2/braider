@@ -9,6 +9,11 @@ import (
 )
 
 func TestFieldAnalyzer_AnalyzeFields(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackage()
 
 	tests := []struct {
@@ -135,7 +140,7 @@ type MyService struct {
 					t.Fatal("MyService struct not found")
 				}
 
-				injectDetector := detect.NewInjectDetector()
+				injectDetector := detect.NewInjectDetector(markers)
 				injectField := injectDetector.FindInjectField(pass, structType)
 
 				fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -159,6 +164,11 @@ type MyService struct {
 }
 
 func TestFieldAnalyzer_FieldInfo(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackage()
 
 	src := `package test
@@ -199,7 +209,7 @@ type Config struct{}
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(markers)
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -255,6 +265,11 @@ type Config struct{}
 }
 
 func TestFieldAnalyzer_PreservesFieldOrder(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackage()
 
 	src := `package test
@@ -292,7 +307,7 @@ type Delta interface{}
 		},
 	)
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(markers)
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -446,6 +461,11 @@ type Fourth struct{}
 }
 
 func TestFieldAnalyzer_AnalyzeFields_MultipleNamesInSingleField(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackage()
 
 	src := `package test
@@ -479,7 +499,7 @@ type MyService struct {
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(markers)
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -505,6 +525,11 @@ type MyService struct {
 // fields (NamedDependency, Excluded) default to zero values when no braider tag is present.
 // Covers Task 1.1: struct tag metadata fields on FieldInfo.
 func TestFieldInfo_StructTagMetadataDefaults(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackage()
 
 	src := `package test
@@ -542,7 +567,7 @@ type Logger struct{}
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(markers)
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -567,6 +592,11 @@ type Logger struct{}
 // populate NamedDependency on FieldInfo.
 // Covers Tasks 1.2, 1.3, 1.4.
 func TestFieldAnalyzer_StructTag_NamedDependency(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackage()
 
 	src := `package test
@@ -602,7 +632,7 @@ type Repository interface{}
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(markers)
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -624,6 +654,11 @@ type Repository interface{}
 // set Excluded=true on FieldInfo.
 // Covers Tasks 1.2, 1.3, 1.4.
 func TestFieldAnalyzer_StructTag_Excluded(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackage()
 
 	src := `package test
@@ -661,7 +696,7 @@ type Logger interface{}
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(markers)
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -698,6 +733,11 @@ type Logger interface{}
 // signals an invalid tag state. The field should have InvalidTag=true.
 // Covers Tasks 1.2, 1.4.
 func TestFieldAnalyzer_StructTag_EmptyValue(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackage()
 
 	src := `package test
@@ -733,7 +773,7 @@ type Repository interface{}
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(markers)
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -759,6 +799,11 @@ type Repository interface{}
 // correctly when other struct tags are present on the same field.
 // Covers Tasks 1.2, 1.4.
 func TestFieldAnalyzer_StructTag_MultiTagField(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackage()
 
 	src := `package test
@@ -794,7 +839,7 @@ type Repository interface{}
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(markers)
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -816,6 +861,11 @@ type Repository interface{}
 // do not affect DI behavior.
 // Covers Tasks 1.2, 1.4.
 func TestFieldAnalyzer_StructTag_NoBraiderTag(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackage()
 
 	src := `package test
@@ -851,7 +901,7 @@ type Repository interface{}
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(markers)
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -877,6 +927,11 @@ type Repository interface{}
 // braider tag states are all handled correctly.
 // Covers Tasks 1.3, 1.4.
 func TestFieldAnalyzer_StructTag_MixedFields(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackage()
 
 	src := `package test
@@ -916,7 +971,7 @@ type Logger interface{}
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(markers)
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()
@@ -952,6 +1007,11 @@ type Logger interface{}
 }
 
 func TestFieldAnalyzer_AnalyzeFields_SkipEmbeddedFields(t *testing.T) {
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	annotationPkg := createAnnotationPackage()
 
 	src := `package test
@@ -990,7 +1050,7 @@ type MyService struct {
 		t.Fatal("MyService struct not found")
 	}
 
-	injectDetector := detect.NewInjectDetector()
+	injectDetector := detect.NewInjectDetector(markers)
 	injectField := injectDetector.FindInjectField(pass, structType)
 
 	fieldAnalyzer := detect.NewFieldAnalyzer()

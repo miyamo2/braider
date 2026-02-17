@@ -22,18 +22,23 @@ type depAnalyzerTestEnv struct {
 
 // newDepAnalyzerTestEnv creates a DependencyAnalyzer with all real components.
 // Returns a struct with the analyzer and registries needed for test assertions.
-func newDepAnalyzerTestEnv() *depAnalyzerTestEnv {
+func newDepAnalyzerTestEnv(t *testing.T) *depAnalyzerTestEnv {
+	t.Helper()
 	providerRegistry := registry.NewProviderRegistry()
 	injectorRegistry := registry.NewInjectorRegistry()
 	packageTracker := registry.NewPackageTracker()
 	_, cancel := context.WithCancelCause(context.Background())
 
-	injectDetector := detect.NewInjectDetector()
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	injectDetector := detect.NewInjectDetector(markers)
 	fieldAnalyzer := detect.NewFieldAnalyzer()
 	constructorAnalyzer := detect.NewConstructorAnalyzer()
-	provideCallDetector := detect.NewProvideCallDetector()
+	provideCallDetector := detect.NewProvideCallDetector(markers)
 	structDetector := detect.NewStructDetector(injectDetector)
-	variableCallDetector := detect.NewVariableCallDetector()
+	variableCallDetector := detect.NewVariableCallDetector(markers)
 	var optionExtractor detect.OptionExtractor
 	constructorGenerator := generate.NewConstructorGenerator()
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
@@ -58,7 +63,7 @@ func newDepAnalyzerTestEnv() *depAnalyzerTestEnv {
 }
 
 func TestDependencyAnalyzer(t *testing.T) {
-	env := newDepAnalyzerTestEnv()
+	env := newDepAnalyzerTestEnv(t)
 	analysistest.Run(t, "testdata/dependency/basic", env.analyzer, ".")
 
 	// Verify providers were registered
@@ -78,12 +83,12 @@ func TestDependencyAnalyzer(t *testing.T) {
 }
 
 func TestDependencyAnalyzer_SuggestedFixes(t *testing.T) {
-	env := newDepAnalyzerTestEnv()
+	env := newDepAnalyzerTestEnv(t)
 	analysistest.RunWithSuggestedFixes(t, "testdata/constructorgen", env.analyzer, ".")
 }
 
 func TestDependencyAnalyzer_MissingProvideConstructor(t *testing.T) {
-	env := newDepAnalyzerTestEnv()
+	env := newDepAnalyzerTestEnv(t)
 	analysistest.Run(t, "testdata/dependency/missing_constructor", env.analyzer, ".")
 
 	// Provider should not be registered when constructor is missing
@@ -93,7 +98,7 @@ func TestDependencyAnalyzer_MissingProvideConstructor(t *testing.T) {
 }
 
 func TestDependencyAnalyzer_CrossPackage(t *testing.T) {
-	env := newDepAnalyzerTestEnv()
+	env := newDepAnalyzerTestEnv(t)
 	analysistest.Run(t, "testdata/dependency/cross_package", env.analyzer, "./...")
 
 	// Verify both packages registered their structs
@@ -112,7 +117,7 @@ func TestDependencyAnalyzer_CrossPackage(t *testing.T) {
 }
 
 func TestDependencyAnalyzer_InterfaceImplementation(t *testing.T) {
-	env := newDepAnalyzerTestEnv()
+	env := newDepAnalyzerTestEnv(t)
 	analysistest.Run(t, "testdata/dependency/abstrct", env.analyzer, "./...")
 
 	// Verify Implements field is populated

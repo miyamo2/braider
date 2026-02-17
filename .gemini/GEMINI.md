@@ -33,7 +33,8 @@ braider runs two analyzers via `multichecker.Main` (wired in `cmd/braider/main.g
    - **Phase 4**: Mark package as scanned in `PackageTracker`
 
 2. **`braider_app`** (AppAnalyzer) — runs on main package:
-   - Detect `annotation.App(main)` → wait for all packages to be scanned (10s timeout) → build dependency graph → topological sort → generate IIFE bootstrap code
+   - Detect `annotation.App[T](main)` → extract App option → wait for all packages to be scanned (10s timeout) → build dependency graph → topological sort → generate IIFE bootstrap code
+   - When `app.Container[T]` option: validate container fields → resolve fields to graph nodes → generate container-typed bootstrap
 
 ### Cross-Analyzer Coordination
 
@@ -59,11 +60,12 @@ Bootstrap code includes a `// braider:hash:<hash>` comment. On subsequent runs, 
 
 ### DI Annotations and Options
 
-Four annotation types in `pkg/annotation/`:
+Annotation types in `pkg/annotation/`:
 - **`annotation.Injectable[T inject.Option]`** — struct embedding; marks DI targets (becomes bootstrap struct field)
 - **`annotation.Provide[T provide.Option](fn)`** — package-level `var _ =`; registers provider function (becomes bootstrap struct field)
 - **`annotation.Variable[T variable.Option](value)`** — package-level `var _ =`; registers a pre-existing variable/expression as a dependency (becomes direct assignment in bootstrap IIFE, no constructor invocation)
-- **`annotation.App(main)`** — triggers bootstrap generation
+- **`annotation.App[T appopt.Option](main)`** — triggers bootstrap generation with configurable output mode
+- **`braider:"name"` struct tag** — on Injectable struct fields, controls dependency matching by name; `braider:"-"` excludes the field from DI
 
 Option types customize registration:
 - `inject.Default` / `provide.Default` / `variable.Default` — standard registration
@@ -72,6 +74,13 @@ Option types customize registration:
 - `inject.WithoutConstructor` — skip constructor generation (inject only)
 
 Mixed options via anonymous interface embedding: `Injectable[interface{ inject.Typed[I]; inject.Named[N] }]`
+
+### App Options (`pkg/annotation/app/`)
+
+- **`app.Default`** — standard bootstrap: generates anonymous struct with all dependencies as fields
+- **`app.Container[T]`** — user-defined container: `T` is a struct type (named or anonymous) whose fields map to dependencies; bootstrap returns an instance of `T`
+
+Container fields use `braider:"name"` struct tags to match named dependencies. Fields without tags match by type. `braider:"-"` excludes a field from resolution.
 
 ### Variable Annotation Details
 
@@ -83,11 +92,19 @@ Mixed options via anonymous interface embedding: `Injectable[interface{ inject.T
 - Expression packages are normalized to declared names (not user aliases) for consistent import handling
 - Aliased imports in expressions are rewritten to collision-safe aliases during bootstrap generation
 
+### Struct Tag Details
+
+`braider:"name"` struct tags on Injectable struct fields control dependency resolution:
+- `braider:"primaryDB"` — matches a named dependency with name `primaryDB`
+- `braider:"-"` — excludes the field from DI (skipped during constructor generation and dependency resolution)
+- Fields without a `braider` tag are matched by type (default behavior)
+- Conflicting tags (e.g., using `braider` tag on a field of an Injectable with `inject.Named` option) emit diagnostic errors
+
 ### Internal Package Layers
 
-- **`detect/`** — AST pattern recognition (InjectDetector, ProvideCallDetector, VariableCallDetector, AppDetector, StructDetector, FieldAnalyzer, ConstructorAnalyzer, OptionExtractor, NamerValidator)
+- **`detect/`** — AST pattern recognition (InjectDetector, ProvideCallDetector, VariableCallDetector, AppDetector, AppOptionExtractor, StructDetector, FieldAnalyzer, ConstructorAnalyzer, OptionExtractor, NamerValidator, ContainerDefinition/ContainerField models)
 - **`registry/`** — shared mutable state (ProviderRegistry, InjectorRegistry, VariableRegistry, PackageTracker)
-- **`graph/`** — DependencyGraphBuilder, TopologicalSorter, InterfaceRegistry
+- **`graph/`** — DependencyGraphBuilder, TopologicalSorter, InterfaceRegistry, ContainerValidator, ContainerResolver
 - **`generate/`** — ConstructorGenerator, BootstrapGenerator, hash computation, import management
 - **`report/`** — SuggestedFixBuilder, DiagnosticEmitter
 - **`loader/`** — PackageLoader for module package discovery
@@ -112,14 +129,16 @@ Tests use `golang.org/x/tools/go/analysis/analysistest` with testdata directorie
 
 ### Key Test Directories
 
-- `testdata/bootstrapgen/` — 51 test case directories organized by category:
+- `testdata/bootstrapgen/` — 77 test case directories organized by category:
   - Core: basic, simpleapp, multitype, crosspackage, modulewide, samefileapp, emptygraph, depinuse, depblank, pkgcollision, without_constructor
   - Interface: iface, ifacedep, crossiface, unresiface
   - Typed/Named inject: typed_inject, named_inject
   - Provide: provide_typed, provide_named
   - Variable: variable_basic, variable_named, variable_typed, variable_typed_named, variable_cross_package, variable_pkg_collision, variable_alias_import, variable_ident_ext_type, variable_mixed
+  - Container: container_anonymous, container_basic, container_cross_package, container_idempotent, container_iface_field, container_mixed_option, container_named, container_named_field, container_outdated, container_transitive, container_variable
+  - Struct tag: struct_tag_all_excluded, struct_tag_exclude, struct_tag_idempotent, struct_tag_mixed, struct_tag_named, struct_tag_outdated, struct_tag_typed_fields
   - Idempotent: idempotent, idempotent_import, outdated, variable_idempotent, variable_outdated
-  - Error: error_cases, error_duplicate_name, error_nonliteral, error_provide_typed, error_variable_*, circular, ambiguous*, missingctor, unresolvedparam, unresparam, unresolvedif, contextcancel, nonmainapp, noapp, multipleapp
+  - Error: error_cases, error_duplicate_name, error_nonliteral, error_provide_typed, error_variable_*, error_struct_tag_*, error_container_*, circular, ambiguous*, missingctor, unresolvedparam, unresparam, unresolvedif, contextcancel, nonmainapp, noapp, multipleapp
 - `testdata/constructorgen/` — per-file test cases: simple, multifield, pointer, existing, imported, aliasedimport, definedtypes, typealias
 - `testdata/dependency/` — DependencyAnalyzer-only tests: basic, abstrct, cross_package, missing_constructor
 

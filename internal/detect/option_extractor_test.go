@@ -22,6 +22,11 @@ import (
 )
 
 func TestOptionExtractor_ExtractInjectOptions_Default(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	pkg, pass := LoadTestPackage(t, "option_extractor/default")
 	injectableExpr, _, structName := FindInjectableField(t, pkg)
 
@@ -33,7 +38,7 @@ func TestOptionExtractor_ExtractInjectOptions_Default(t *testing.T) {
 	concreteType := types.NewPointer(obj.Type())
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractorImpl(mockValidator)
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
 
 	metadata, err := extractor.ExtractInjectOptions(pass, injectableExpr, concreteType)
 
@@ -57,6 +62,11 @@ func TestOptionExtractor_ExtractInjectOptions_Default(t *testing.T) {
 }
 
 func TestOptionExtractor_ExtractInjectOptions_Typed(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	pkg, pass := LoadTestPackage(t, "option_extractor/typed")
 	injectableExpr, _, structName := FindInjectableField(t, pkg)
 
@@ -75,7 +85,7 @@ func TestOptionExtractor_ExtractInjectOptions_Typed(t *testing.T) {
 	ifaceType := ifaceObj.Type()
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractorImpl(mockValidator)
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
 
 	metadata, err := extractor.ExtractInjectOptions(pass, injectableExpr, concreteType)
 
@@ -96,6 +106,11 @@ func TestOptionExtractor_ExtractInjectOptions_Typed(t *testing.T) {
 }
 
 func TestOptionExtractor_ExtractInjectOptions_Named(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	pkg, pass := LoadTestPackage(t, "option_extractor/named")
 	injectableExpr, _, structName := FindInjectableField(t, pkg)
 
@@ -111,7 +126,7 @@ func TestOptionExtractor_ExtractInjectOptions_Named(t *testing.T) {
 			return "database", nil
 		},
 	}
-	extractor := NewOptionExtractorImpl(mockValidator)
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
 
 	metadata, err := extractor.ExtractInjectOptions(pass, injectableExpr, concreteType)
 
@@ -125,6 +140,11 @@ func TestOptionExtractor_ExtractInjectOptions_Named(t *testing.T) {
 }
 
 func TestOptionExtractor_ExtractInjectOptions_WithoutConstructor(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	pkg, pass := LoadTestPackage(t, "option_extractor/without_constructor")
 	injectableExpr, _, structName := FindInjectableField(t, pkg)
 
@@ -136,7 +156,7 @@ func TestOptionExtractor_ExtractInjectOptions_WithoutConstructor(t *testing.T) {
 	concreteType := types.NewPointer(obj.Type())
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractorImpl(mockValidator)
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
 
 	metadata, err := extractor.ExtractInjectOptions(pass, injectableExpr, concreteType)
 
@@ -153,6 +173,11 @@ func TestOptionExtractor_ExtractInjectOptions_WithoutConstructor(t *testing.T) {
 }
 
 func TestOptionExtractor_ExtractInjectOptions_TypedNonInterface(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	pkg, pass := LoadTestPackage(t, "option_extractor/typed_non_interface")
 	injectableExpr, _, structName := FindInjectableField(t, pkg)
 
@@ -164,9 +189,9 @@ func TestOptionExtractor_ExtractInjectOptions_TypedNonInterface(t *testing.T) {
 	concreteType := types.NewPointer(obj.Type())
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractorImpl(mockValidator)
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
 
-	_, err := extractor.ExtractInjectOptions(pass, injectableExpr, concreteType)
+	_, err = extractor.ExtractInjectOptions(pass, injectableExpr, concreteType)
 
 	if err == nil {
 		t.Error("Expected error for Typed[I] with non-interface type, got nil")
@@ -180,11 +205,16 @@ func TestOptionExtractor_ExtractInjectOptions_TypedNonInterface(t *testing.T) {
 }
 
 func TestOptionExtractor_ExtractVariableOptions_Default(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	pkg, pass := LoadTestPackage(t, "option_extractor/variable_default")
 	callExpr, argType := FindVariableCall(t, pkg)
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractorImpl(mockValidator)
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
 
 	metadata, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
 
@@ -207,6 +237,11 @@ func TestOptionExtractor_ExtractVariableOptions_Default(t *testing.T) {
 }
 
 func TestOptionExtractor_ExtractVariableOptions_Typed(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	pkg, pass := LoadTestPackage(t, "option_extractor/variable_typed")
 	callExpr, argType := FindVariableCall(t, pkg)
 
@@ -218,7 +253,7 @@ func TestOptionExtractor_ExtractVariableOptions_Typed(t *testing.T) {
 	ifaceType := ifaceObj.Type()
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractorImpl(mockValidator)
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
 
 	metadata, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
 
@@ -238,6 +273,11 @@ func TestOptionExtractor_ExtractVariableOptions_Typed(t *testing.T) {
 }
 
 func TestOptionExtractor_ExtractVariableOptions_Named(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	pkg, pass := LoadTestPackage(t, "option_extractor/variable_named")
 	callExpr, argType := FindVariableCall(t, pkg)
 
@@ -246,7 +286,7 @@ func TestOptionExtractor_ExtractVariableOptions_Named(t *testing.T) {
 			return "stdout", nil
 		},
 	}
-	extractor := NewOptionExtractorImpl(mockValidator)
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
 
 	metadata, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
 
@@ -260,6 +300,11 @@ func TestOptionExtractor_ExtractVariableOptions_Named(t *testing.T) {
 }
 
 func TestOptionExtractor_ExtractVariableOptions_Mixed(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	pkg, pass := LoadTestPackage(t, "option_extractor/variable_mixed")
 	callExpr, argType := FindVariableCall(t, pkg)
 
@@ -275,7 +320,7 @@ func TestOptionExtractor_ExtractVariableOptions_Mixed(t *testing.T) {
 			return "stdout", nil
 		},
 	}
-	extractor := NewOptionExtractorImpl(mockValidator)
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
 
 	metadata, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
 
@@ -301,13 +346,18 @@ func TestOptionExtractor_ExtractVariableOptions_Mixed(t *testing.T) {
 }
 
 func TestOptionExtractor_ExtractVariableOptions_TypedNonInterface(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	pkg, pass := LoadTestPackage(t, "option_extractor/variable_typed_non_interface")
 	callExpr, argType := FindVariableCall(t, pkg)
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractorImpl(mockValidator)
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
 
-	_, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
+	_, err = extractor.ExtractVariableOptions(pass, callExpr, argType)
 
 	if err == nil {
 		t.Error("Expected error for Variable Typed[I] with non-interface type, got nil")
@@ -321,13 +371,18 @@ func TestOptionExtractor_ExtractVariableOptions_TypedNonInterface(t *testing.T) 
 }
 
 func TestOptionExtractor_ExtractVariableOptions_InterfaceImplValidationError(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	pkg, pass := LoadTestPackage(t, "option_extractor/variable_interface_validation_error")
 	callExpr, argType := FindVariableCall(t, pkg)
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractorImpl(mockValidator)
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
 
-	_, err := extractor.ExtractVariableOptions(pass, callExpr, argType)
+	_, err = extractor.ExtractVariableOptions(pass, callExpr, argType)
 
 	if err == nil {
 		t.Error("Expected error for Variable interface implementation mismatch, got nil")
@@ -341,6 +396,11 @@ func TestOptionExtractor_ExtractVariableOptions_InterfaceImplValidationError(t *
 }
 
 func TestOptionExtractor_ExtractInjectOptions_InterfaceImplValidationError(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	pkg, pass := LoadTestPackage(t, "option_extractor/interface_validation_error")
 	injectableExpr, _, structName := FindInjectableField(t, pkg)
 
@@ -352,9 +412,9 @@ func TestOptionExtractor_ExtractInjectOptions_InterfaceImplValidationError(t *te
 	concreteType := types.NewPointer(obj.Type())
 
 	mockValidator := &MockNamerValidator{}
-	extractor := NewOptionExtractorImpl(mockValidator)
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
 
-	_, err := extractor.ExtractInjectOptions(pass, injectableExpr, concreteType)
+	_, err = extractor.ExtractInjectOptions(pass, injectableExpr, concreteType)
 
 	if err == nil {
 		t.Error("Expected error for interface implementation mismatch, got nil")
@@ -364,5 +424,99 @@ func TestOptionExtractor_ExtractInjectOptions_InterfaceImplValidationError(t *te
 	errMsg := err.Error()
 	if !strings.Contains(errMsg, "does not implement interface") {
 		t.Errorf("Expected error to contain 'does not implement interface', got: %v", err)
+	}
+}
+
+func TestOptionExtractor_ExtractProvideOptions_Default(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pkg, pass := LoadTestPackage(t, "option_extractor/provide_default")
+	callExpr, providerFuncType := FindProvideCall(t, pkg)
+
+	mockValidator := &MockNamerValidator{}
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
+
+	metadata, err := extractor.ExtractProvideOptions(pass, callExpr, providerFuncType)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !metadata.IsDefault {
+		t.Error("Expected IsDefault=true")
+	}
+	if metadata.WithoutConstructor {
+		t.Error("Expected WithoutConstructor=false")
+	}
+	if metadata.TypedInterface != nil {
+		t.Errorf("Expected TypedInterface=nil, got %v", metadata.TypedInterface)
+	}
+	if metadata.Name != "" {
+		t.Errorf("Expected Name=\"\", got %q", metadata.Name)
+	}
+}
+
+func TestOptionExtractor_ExtractProvideOptions_Typed(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pkg, pass := LoadTestPackage(t, "option_extractor/provide_typed")
+	callExpr, providerFuncType := FindProvideCall(t, pkg)
+
+	ifaceObj := pkg.Types.Scope().Lookup("MyInterface")
+	if ifaceObj == nil {
+		t.Fatal("MyInterface not found")
+	}
+	ifaceType := ifaceObj.Type()
+
+	mockValidator := &MockNamerValidator{}
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
+
+	metadata, err := extractor.ExtractProvideOptions(pass, callExpr, providerFuncType)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if metadata.TypedInterface == nil {
+		t.Error("Expected TypedInterface to be set, got nil")
+	} else if metadata.TypedInterface != ifaceType {
+		t.Errorf("Expected TypedInterface=%v, got %v", ifaceType, metadata.TypedInterface)
+	}
+
+	if metadata.IsDefault {
+		t.Error("Expected IsDefault=false for Typed option")
+	}
+}
+
+func TestOptionExtractor_ExtractProvideOptions_Named(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pkg, pass := LoadTestPackage(t, "option_extractor/provide_named")
+	callExpr, providerFuncType := FindProvideCall(t, pkg)
+
+	mockValidator := &MockNamerValidator{
+		ExtractNameFn: func(pass *analysis.Pass, nt types.Type) (string, error) {
+			return "database", nil
+		},
+	}
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
+
+	metadata, err := extractor.ExtractProvideOptions(pass, callExpr, providerFuncType)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if metadata.Name != "database" {
+		t.Errorf("Expected Name=\"database\", got %q", metadata.Name)
 	}
 }

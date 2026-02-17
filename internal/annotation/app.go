@@ -1,7 +1,17 @@
 package annotation
 
-type AppMarker struct{}
-
 type App interface {
-	_IsApp() AppMarker
+	_IsApp()
+}
+
+type AppOption interface {
+	_IsAppOption()
+}
+
+type AppDefault interface {
+	_IsAppDefault()
+}
+
+type AppContainer interface {
+	_IsAppContainerMarker()
 }

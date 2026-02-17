@@ -2,11 +2,12 @@ package main
 
 import (
 	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/app"
 	"os"
 	"variable_typed_named/domain"
 )
 
-var _ = annotation.App(main) // want "bootstrap code is missing"
+var _ = annotation.App[app.Default](main) // want "bootstrap code is missing"
 
 func main() {
 	_ = dependency

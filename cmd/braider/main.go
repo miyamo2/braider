@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 
 	"github.com/miyamo2/braider/internal/analyzer"
 	"github.com/miyamo2/braider/internal/detect"
@@ -11,6 +12,7 @@ import (
 	"github.com/miyamo2/braider/internal/registry"
 	"github.com/miyamo2/braider/internal/report"
 	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/app"
 	"github.com/miyamo2/braider/pkg/annotation/variable"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/multichecker"
@@ -20,16 +22,17 @@ var (
 	bootstrapCtx, bootstrapCancel = context.WithCancelCause(context.Background())
 	_                             = annotation.Variable[variable.Default](bootstrapCtx)
 	_                             = annotation.Variable[variable.Default](bootstrapCancel)
-	_                             = annotation.App(main)
+	_                             = annotation.App[app.Default](main)
 )
 
 func main() {
 	multichecker.Main((*analysis.Analyzer)(dependency.dependencyAnalyzer), (*analysis.Analyzer)(dependency.appAnalyzer))
 }
 
-// braider:hash:5a2cbcb944ab64e7
+// braider:hash:28e50522e211b118
 var dependency = func() struct {
 	appDetector             detect.AppDetector
+	appOptionExtractor      detect.AppOptionExtractor
 	constructorAnalyzer     detect.ConstructorAnalyzer
 	fieldAnalyzer           detect.FieldAnalyzer
 	injectDetector          detect.InjectDetector
@@ -40,6 +43,8 @@ var dependency = func() struct {
 	bootstrapGenerator      generate.BootstrapGenerator
 	constructorGenerator    generate.ConstructorGenerator
 	interfaceRegistry       *graph.InterfaceRegistry
+	containerValidator      graph.ContainerValidator
+	containerResolver       graph.ContainerResolver
 	dependencyGraphBuilder  *graph.DependencyGraphBuilder
 	topologicalSorter       *graph.TopologicalSorter
 	packageLoader           loader.PackageLoader
@@ -58,22 +63,29 @@ var dependency = func() struct {
 } {
 	cancelCauseFunc := bootstrapCancel
 	context := bootstrapCtx
-	appDetector := detect.NewAppDetector()
+	markerInterfaces, err := detect.ResolveMarkers()
+	if err != nil {
+		log.Fatalf("braider: failed to resolve marker interfaces: %v", err)
+	}
+	appDetector := detect.NewAppDetector(markerInterfaces)
+	appOptionExtractor := detect.NewAppOptionExtractorImpl(markerInterfaces)
 	constructorAnalyzer := detect.NewConstructorAnalyzer()
 	fieldAnalyzer := detect.NewFieldAnalyzer()
-	injectDetector := detect.NewInjectDetector()
-	provideCallDetector := detect.NewProvideCallDetector()
+	injectDetector := detect.NewInjectDetector(markerInterfaces)
+	provideCallDetector := detect.NewProvideCallDetector(markerInterfaces)
 	structDetector := detect.NewStructDetector(injectDetector)
-	variableCallDetector := detect.NewVariableCallDetector()
+	variableCallDetector := detect.NewVariableCallDetector(markerInterfaces)
 	codeFormatter := generate.NewCodeFormatter()
 	bootstrapGenerator := generate.NewBootstrapGenerator(codeFormatter)
 	constructorGenerator := generate.NewConstructorGenerator()
 	interfaceRegistry := graph.NewInterfaceRegistry()
+	containerValidator := graph.NewContainerValidatorImpl(interfaceRegistry)
+	containerResolver := graph.NewContainerResolverImpl(interfaceRegistry)
 	dependencyGraphBuilder := graph.NewDependencyGraphBuilder(interfaceRegistry)
 	topologicalSorter := graph.NewTopologicalSorter()
 	packageLoader := loader.NewPackageLoader()
 	namerValidatorImpl := detect.NewNamerValidatorImpl(packageLoader)
-	optionExtractorImpl := detect.NewOptionExtractorImpl(namerValidatorImpl)
+	optionExtractorImpl := detect.NewOptionExtractorImpl(markerInterfaces, namerValidatorImpl)
 	injectorRegistry := registry.NewInjectorRegistry()
 	packageTracker := registry.NewPackageTracker()
 	providerRegistry := registry.NewProviderRegistry()
@@ -93,6 +105,9 @@ var dependency = func() struct {
 		suggestedFixBuilder,
 		diagnosticEmitter,
 		variableRegistry,
+		appOptionExtractor,
+		containerValidator,
+		containerResolver,
 	)
 	appAnalyzer := analyzer.NewAppAnalyzer(appAnalyzeRunner)
 	dependencyAnalyzeRunner := analyzer.NewDependencyAnalyzeRunner(
@@ -115,6 +130,7 @@ var dependency = func() struct {
 	dependencyAnalyzer := analyzer.NewDependencyAnalyzer(dependencyAnalyzeRunner)
 	return struct {
 		appDetector             detect.AppDetector
+		appOptionExtractor      detect.AppOptionExtractor
 		constructorAnalyzer     detect.ConstructorAnalyzer
 		fieldAnalyzer           detect.FieldAnalyzer
 		injectDetector          detect.InjectDetector
@@ -125,6 +141,8 @@ var dependency = func() struct {
 		bootstrapGenerator      generate.BootstrapGenerator
 		constructorGenerator    generate.ConstructorGenerator
 		interfaceRegistry       *graph.InterfaceRegistry
+		containerValidator      graph.ContainerValidator
+		containerResolver       graph.ContainerResolver
 		dependencyGraphBuilder  *graph.DependencyGraphBuilder
 		topologicalSorter       *graph.TopologicalSorter
 		packageLoader           loader.PackageLoader
@@ -142,6 +160,7 @@ var dependency = func() struct {
 		dependencyAnalyzer      *analyzer.DependencyAnalyzer
 	}{
 		appDetector:             appDetector,
+		appOptionExtractor:      appOptionExtractor,
 		constructorAnalyzer:     constructorAnalyzer,
 		fieldAnalyzer:           fieldAnalyzer,
 		injectDetector:          injectDetector,
@@ -152,6 +171,8 @@ var dependency = func() struct {
 		bootstrapGenerator:      bootstrapGenerator,
 		constructorGenerator:    constructorGenerator,
 		interfaceRegistry:       interfaceRegistry,
+		containerValidator:      containerValidator,
+		containerResolver:       containerResolver,
 		dependencyGraphBuilder:  dependencyGraphBuilder,
 		topologicalSorter:       topologicalSorter,
 		packageLoader:           packageLoader,

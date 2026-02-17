@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/graph"
 )
 
@@ -341,4 +342,173 @@ func extractVersion(pkgPath string) string {
 // isReservedKeyword checks if a name is a Go reserved keyword.
 func isReservedKeyword(name string) bool {
 	return goReservedKeywords[name]
+}
+
+// CollectContainerImports extends CollectImports with container type imports.
+// When containerDef is nil, it behaves identically to CollectImports.
+func CollectContainerImports(
+	g *graph.Graph,
+	containerDef *detect.ContainerDefinition,
+	currentPackage, currentPkgName string,
+	existingAliases map[string]string,
+) ([]ImportInfo, map[string]string) {
+	if containerDef == nil {
+		return CollectImports(g, currentPackage, currentPkgName, existingAliases)
+	}
+
+	if g == nil {
+		return []ImportInfo{}, make(map[string]string)
+	}
+
+	// Start with graph-based import set
+	importSet := make(map[string]bool)
+
+	// Extract package paths from graph nodes (same logic as CollectImports)
+	for _, node := range g.Nodes {
+		pkgPath := node.PackagePath
+		if pkgPath == "" {
+			continue
+		}
+
+		if node.PackageName == "main" && currentPkgName == "main" {
+			if pkgPath != currentPackage {
+				continue
+			}
+		} else if node.PackageName != currentPkgName {
+			importSet[pkgPath] = true
+		}
+
+		if node.RegisteredType != nil {
+			for _, regPkgPath := range extractPackagePaths(node.RegisteredType) {
+				if regPkgPath != "" && regPkgPath != currentPackage {
+					importSet[regPkgPath] = true
+				}
+			}
+		}
+
+		for _, exprPkgPath := range node.ExpressionPkgs {
+			if exprPkgPath != "" && exprPkgPath != currentPackage {
+				importSet[exprPkgPath] = true
+			}
+		}
+	}
+
+	// Add container type package if named and external
+	if containerDef.IsNamed && containerDef.PackagePath != "" && containerDef.PackagePath != currentPackage {
+		importSet[containerDef.PackagePath] = true
+	}
+
+	// Add packages from container field types
+	for _, field := range containerDef.Fields {
+		if field.Type != nil {
+			for _, fieldPkgPath := range extractPackagePaths(field.Type) {
+				if fieldPkgPath != "" && fieldPkgPath != currentPackage {
+					importSet[fieldPkgPath] = true
+				}
+			}
+		}
+	}
+
+	// Detect collisions across graph + container packages
+	collisions := detectPackageCollisionsWithContainer(g, containerDef)
+	aliasMap := generateAliases(collisions, existingAliases)
+
+	// Apply aliases to graph nodes
+	for _, node := range g.Nodes {
+		if alias, exists := aliasMap[node.PackagePath]; exists {
+			node.PackageAlias = alias
+		}
+	}
+
+	// Build ImportInfo list
+	var imports []ImportInfo
+	for pkgPath := range importSet {
+		imp := ImportInfo{
+			Path:  pkgPath,
+			Alias: aliasMap[pkgPath],
+		}
+		imports = append(imports, imp)
+	}
+
+	// Sort by path for deterministic output
+	sort.Slice(imports, func(i, j int) bool {
+		return imports[i].Path < imports[j].Path
+	})
+
+	return imports, aliasMap
+}
+
+// detectPackageCollisionsWithContainer extends detectPackageCollisions to include
+// container type and field type packages in collision detection.
+func detectPackageCollisionsWithContainer(g *graph.Graph, containerDef *detect.ContainerDefinition) map[string]string {
+	if g == nil {
+		return make(map[string]string)
+	}
+
+	nameToPathsMap := make(map[string][]string)
+	pathToNameMap := make(map[string]string)
+
+	addPackage := func(pkgName, pkgPath string) {
+		if pkgName == "" || pkgPath == "" {
+			return
+		}
+		if existingName, exists := pathToNameMap[pkgPath]; exists && existingName == pkgName {
+			return
+		}
+		nameToPathsMap[pkgName] = append(nameToPathsMap[pkgName], pkgPath)
+		pathToNameMap[pkgPath] = pkgName
+	}
+
+	// Build mappings from graph nodes
+	for _, node := range g.Nodes {
+		addPackage(node.PackageName, node.PackagePath)
+
+		if node.RegisteredType != nil {
+			for _, regPkgPath := range extractPackagePaths(node.RegisteredType) {
+				pkgName := extractPackageName(node.RegisteredType, regPkgPath)
+				addPackage(pkgName, regPkgPath)
+			}
+		}
+
+		for i, exprPkgPath := range node.ExpressionPkgs {
+			if i < len(node.ExpressionPkgNames) {
+				addPackage(node.ExpressionPkgNames[i], exprPkgPath)
+			}
+		}
+	}
+
+	// Add container type package
+	if containerDef != nil {
+		if containerDef.IsNamed && containerDef.PackagePath != "" {
+			addPackage(containerDef.PackageName, containerDef.PackagePath)
+		}
+
+		// Add packages from container field types
+		for _, field := range containerDef.Fields {
+			if field.Type != nil {
+				for _, fieldPkgPath := range extractPackagePaths(field.Type) {
+					pkgName := extractPackageName(field.Type, fieldPkgPath)
+					addPackage(pkgName, fieldPkgPath)
+				}
+			}
+		}
+	}
+
+	// Extract only colliding packages
+	collisions := make(map[string]string)
+	for pkgName, paths := range nameToPathsMap {
+		if len(paths) >= 2 {
+			uniquePaths := make(map[string]bool)
+			for _, p := range paths {
+				uniquePaths[p] = true
+			}
+			if len(uniquePaths) >= 2 {
+				for path := range uniquePaths {
+					collisions[path] = pkgName
+				}
+			}
+		}
+	}
+
+	return collisions
 }

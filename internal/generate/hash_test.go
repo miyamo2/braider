@@ -3,6 +3,7 @@ package generate
 import (
 	"testing"
 
+	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/graph"
 )
 
@@ -469,5 +470,300 @@ func TestComputeGraphHash_IsFieldFlagChanges(t *testing.T) {
 
 	if hash1 == hash2 {
 		t.Errorf("ComputeGraphHash() did not detect IsField flag change: hash1=%s, hash2=%s", hash1, hash2)
+	}
+}
+
+func TestComputeContainerHash_NilContainerDefMatchesGraphHash(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.Service": {
+				TypeName:        "example.com/pkg.Service",
+				PackagePath:     "example.com/pkg",
+				PackageName:     "pkg",
+				LocalName:       "Service",
+				ConstructorName: "NewService",
+				Dependencies:    []string{},
+				IsField:         true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.Service": {},
+		},
+	}
+
+	graphHash := ComputeGraphHash(g)
+	containerHash := ComputeContainerHash(g, nil)
+
+	if graphHash != containerHash {
+		t.Errorf("ComputeContainerHash(g, nil) = %s, want %s (same as ComputeGraphHash)", containerHash, graphHash)
+	}
+}
+
+func TestComputeContainerHash_NilGraph(t *testing.T) {
+	hash := ComputeContainerHash(nil, nil)
+	if hash != "0000000000000000" {
+		t.Errorf("ComputeContainerHash(nil, nil) = %s, want 0000000000000000", hash)
+	}
+
+	hash2 := ComputeContainerHash(nil, &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{{Name: "Svc", TypeString: "*pkg.Service"}},
+	})
+	if hash2 != "0000000000000000" {
+		t.Errorf("ComputeContainerHash(nil, def) = %s, want 0000000000000000", hash2)
+	}
+}
+
+func TestComputeContainerHash_FieldAddedChangesHash(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.Service": {
+				TypeName:        "example.com/pkg.Service",
+				ConstructorName: "NewService",
+				Dependencies:    []string{},
+				IsField:         true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.Service": {},
+		},
+	}
+
+	hashNoFields := ComputeContainerHash(g, &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{},
+	})
+
+	hashWithField := ComputeContainerHash(g, &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{Name: "Svc", TypeString: "*pkg.Service"},
+		},
+	})
+
+	if hashNoFields == hashWithField {
+		t.Errorf("ComputeContainerHash() did not detect field addition: both = %s", hashNoFields)
+	}
+}
+
+func TestComputeContainerHash_FieldRemovedChangesHash(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.Service": {
+				TypeName:        "example.com/pkg.Service",
+				ConstructorName: "NewService",
+				Dependencies:    []string{},
+				IsField:         true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.Service": {},
+		},
+	}
+
+	hashTwoFields := ComputeContainerHash(g, &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{Name: "Svc", TypeString: "*pkg.Service"},
+			{Name: "Repo", TypeString: "*pkg.Repository"},
+		},
+	})
+
+	hashOneField := ComputeContainerHash(g, &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{Name: "Svc", TypeString: "*pkg.Service"},
+		},
+	})
+
+	if hashTwoFields == hashOneField {
+		t.Errorf("ComputeContainerHash() did not detect field removal: both = %s", hashTwoFields)
+	}
+}
+
+func TestComputeContainerHash_FieldRenamedChangesHash(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.Service": {
+				TypeName:        "example.com/pkg.Service",
+				ConstructorName: "NewService",
+				Dependencies:    []string{},
+				IsField:         true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.Service": {},
+		},
+	}
+
+	hash1 := ComputeContainerHash(g, &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{Name: "Svc", TypeString: "*pkg.Service"},
+		},
+	})
+
+	hash2 := ComputeContainerHash(g, &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{Name: "Service", TypeString: "*pkg.Service"},
+		},
+	})
+
+	if hash1 == hash2 {
+		t.Errorf("ComputeContainerHash() did not detect field rename: both = %s", hash1)
+	}
+}
+
+func TestComputeContainerHash_FieldTypeChangesHash(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.Service": {
+				TypeName:        "example.com/pkg.Service",
+				ConstructorName: "NewService",
+				Dependencies:    []string{},
+				IsField:         true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.Service": {},
+		},
+	}
+
+	hash1 := ComputeContainerHash(g, &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{Name: "Svc", TypeString: "*pkg.Service"},
+		},
+	})
+
+	hash2 := ComputeContainerHash(g, &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{Name: "Svc", TypeString: "pkg.ServiceInterface"},
+		},
+	})
+
+	if hash1 == hash2 {
+		t.Errorf("ComputeContainerHash() did not detect field type change: both = %s", hash1)
+	}
+}
+
+func TestComputeContainerHash_TagChangesHash(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.Service": {
+				TypeName:        "example.com/pkg.Service",
+				ConstructorName: "NewService",
+				Dependencies:    []string{},
+				IsField:         true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.Service": {},
+		},
+	}
+
+	hash1 := ComputeContainerHash(g, &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{Name: "Svc", TypeString: "*pkg.Service", Tag: ""},
+		},
+	})
+
+	hash2 := ComputeContainerHash(g, &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{Name: "Svc", TypeString: "*pkg.Service", Tag: "primary"},
+		},
+	})
+
+	if hash1 == hash2 {
+		t.Errorf("ComputeContainerHash() did not detect tag change: both = %s", hash1)
+	}
+}
+
+func TestComputeContainerHash_FieldOrderChangesHash(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.Service": {
+				TypeName:        "example.com/pkg.Service",
+				ConstructorName: "NewService",
+				Dependencies:    []string{},
+				IsField:         true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.Service": {},
+		},
+	}
+
+	hash1 := ComputeContainerHash(g, &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{Name: "Svc", TypeString: "*pkg.Service"},
+			{Name: "Repo", TypeString: "*pkg.Repository"},
+		},
+	})
+
+	hash2 := ComputeContainerHash(g, &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{Name: "Repo", TypeString: "*pkg.Repository"},
+			{Name: "Svc", TypeString: "*pkg.Service"},
+		},
+	})
+
+	if hash1 == hash2 {
+		t.Errorf("ComputeContainerHash() did not detect field order change: both = %s", hash1)
+	}
+}
+
+func TestComputeContainerHash_Stability(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.Service": {
+				TypeName:        "example.com/pkg.Service",
+				ConstructorName: "NewService",
+				Dependencies:    []string{},
+				IsField:         true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.Service": {},
+		},
+	}
+
+	containerDef := &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{
+			{Name: "Svc", TypeString: "*pkg.Service"},
+			{Name: "Repo", TypeString: "*pkg.Repository", Tag: "primary"},
+		},
+	}
+
+	hash1 := ComputeContainerHash(g, containerDef)
+	hash2 := ComputeContainerHash(g, containerDef)
+
+	if hash1 != hash2 {
+		t.Errorf("ComputeContainerHash() not stable: hash1=%s, hash2=%s", hash1, hash2)
+	}
+
+	if len(hash1) != 16 {
+		t.Errorf("ComputeContainerHash() hash length = %d, want 16", len(hash1))
+	}
+}
+
+func TestComputeContainerHash_EmptyContainerDefMatchesGraphHash(t *testing.T) {
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.Service": {
+				TypeName:        "example.com/pkg.Service",
+				ConstructorName: "NewService",
+				Dependencies:    []string{},
+				IsField:         true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.Service": {},
+		},
+	}
+
+	// Empty container def with no fields should still differ from nil,
+	// because the containerDef != nil check passes but no fields are written.
+	// This means an empty ContainerDefinition with 0 fields is equivalent to nil.
+	graphHash := ComputeGraphHash(g)
+	emptyContainerHash := ComputeContainerHash(g, &detect.ContainerDefinition{
+		Fields: []detect.ContainerField{},
+	})
+
+	if graphHash != emptyContainerHash {
+		t.Errorf("ComputeContainerHash with empty fields = %s, ComputeGraphHash = %s; expected equal", emptyContainerHash, graphHash)
 	}
 }

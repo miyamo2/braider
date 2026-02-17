@@ -2,12 +2,13 @@ package main
 
 import (
 	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/app"
 	"struct_tag_typed_fields/domain"
 	"struct_tag_typed_fields/provider"
 	"struct_tag_typed_fields/service"
 )
 
-var _ = annotation.App(main) // want "bootstrap code is missing"
+var _ = annotation.App[app.Default](main) // want "bootstrap code is missing"
 
 func main() {
 	_ = dependency

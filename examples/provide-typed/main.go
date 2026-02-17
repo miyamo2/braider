@@ -15,6 +15,7 @@ package main
 
 import (
 	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/app"
 	"github.com/miyamo2/braider/pkg/annotation/inject"
 	"github.com/miyamo2/braider/pkg/annotation/provide"
 )
@@ -46,6 +47,6 @@ type UserService struct {
 	repo Repository
 }
 
-var _ = annotation.App(main)
+var _ = annotation.App[app.Default](main)
 
 func main() {}

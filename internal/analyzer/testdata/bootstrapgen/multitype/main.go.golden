@@ -4,9 +4,10 @@ import (
 	"example.com/multitype/repository"
 	"example.com/multitype/service"
 	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/app"
 )
 
-var _ = annotation.App(main) // want "bootstrap code is missing"
+var _ = annotation.App[app.Default](main) // want "bootstrap code is missing"
 
 func main() {
 	_ = dependency

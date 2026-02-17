@@ -1,0 +1,28 @@
+package main
+
+import (
+	"os"
+
+	"github.com/miyamo2/braider/pkg/annotation"
+	"github.com/miyamo2/braider/pkg/annotation/app"
+)
+
+var _ = annotation.App[app.Container[struct { // want "bootstrap code is missing"
+	Writer *os.File
+}]](main)
+
+func main() {
+	_ = dependency
+}
+
+// braider:hash:088eeb4856981e2e
+var dependency = func() struct {
+	Writer *os.File
+} {
+	file := os.Stdout
+	return struct {
+		Writer *os.File
+	}{
+		Writer: file,
+	}
+}()

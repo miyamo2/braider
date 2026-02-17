@@ -22,17 +22,19 @@ import (
 
 // setupIntegrationDeps creates shared registries and real components for integration tests.
 // Returns both DependencyAnalyzer and AppAnalyzer configured with the same shared state.
-func setupIntegrationDeps() (*analysis.Analyzer, *analysis.Analyzer) {
-	depAnalyzer, appAnalyzer, _, _, _ := buildIntegrationDeps()
+func setupIntegrationDeps(t *testing.T) (*analysis.Analyzer, *analysis.Analyzer) {
+	t.Helper()
+	depAnalyzer, appAnalyzer, _, _, _ := buildIntegrationDeps(t)
 	return depAnalyzer, appAnalyzer
 }
 
 // buildIntegrationDeps creates all shared components and returns analyzers plus raw registries.
-func buildIntegrationDeps() (
+func buildIntegrationDeps(t *testing.T) (
 	*analysis.Analyzer, *analysis.Analyzer,
 	*registry.InjectorRegistry, *registry.ProviderRegistry,
 	*registry.VariableRegistry,
 ) {
+	t.Helper()
 	// Shared registries
 	providerReg := registry.NewProviderRegistry()
 	injectorReg := registry.NewInjectorRegistry()
@@ -40,13 +42,17 @@ func buildIntegrationDeps() (
 	ctx, bootstrapCancel := context.WithCancelCause(context.Background())
 
 	// Detection components (all real)
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
 	packageLoader := &mockPackageLoader{}
 	namerValidator := detect.NewNamerValidatorImpl(packageLoader)
-	optionExtractor := detect.NewOptionExtractorImpl(namerValidator)
-	injectDetector := detect.NewInjectDetector()
+	optionExtractor := detect.NewOptionExtractorImpl(markers, namerValidator)
+	injectDetector := detect.NewInjectDetector(markers)
 	fieldAnalyzer := detect.NewFieldAnalyzer()
 	constructorAnalyzer := detect.NewConstructorAnalyzer()
-	provideCallDetector := detect.NewProvideCallDetector()
+	provideCallDetector := detect.NewProvideCallDetector(markers)
 	structDetector := detect.NewStructDetector(injectDetector)
 
 	// Generation components
@@ -58,14 +64,20 @@ func buildIntegrationDeps() (
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 
 	// Graph components
-	graphBuilder := graph.NewDependencyGraphBuilder(graph.NewInterfaceRegistry())
+	interfaceRegistry := graph.NewInterfaceRegistry()
+	graphBuilder := graph.NewDependencyGraphBuilder(interfaceRegistry)
 	sorter := graph.NewTopologicalSorter()
 
 	// App detection
-	appDetector := detect.NewAppDetector()
+	appDetector := detect.NewAppDetector(markers)
+
+	// Container components
+	appOptionExtractor := detect.NewAppOptionExtractorImpl(markers)
+	containerValidator := graph.NewContainerValidatorImpl(interfaceRegistry)
+	containerResolver := graph.NewContainerResolverImpl(interfaceRegistry)
 
 	// Variable components
-	variableCallDetector := detect.NewVariableCallDetector()
+	variableCallDetector := detect.NewVariableCallDetector(markers)
 	variableReg := registry.NewVariableRegistry()
 
 	depRunner := NewDependencyAnalyzeRunner(
@@ -83,6 +95,7 @@ func buildIntegrationDeps() (
 		graphBuilder, sorter, bootstrapGenerator,
 		suggestedFixBuilder, diagnosticEmitter,
 		variableReg,
+		appOptionExtractor, containerValidator, containerResolver,
 	)
 	appAnalyzer := (*analysis.Analyzer)(NewAppAnalyzer(appRunner))
 
@@ -353,6 +366,106 @@ func TestIntegration(t *testing.T) {
 			appSuggestFix: true,
 		},
 
+		// --- Container mode ---
+		{
+			name:          "ContainerBasic",
+			testdir:       "container_basic",
+			depPackages:   []string{"container_basic/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerNamed",
+			testdir:       "container_named",
+			depPackages:   []string{"container_named/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerIdempotent",
+			testdir:       "container_idempotent",
+			depPackages:   []string{"container_idempotent/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerOutdated",
+			testdir:       "container_outdated",
+			depPackages:   []string{"container_outdated/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerAnonymous",
+			testdir:       "container_anonymous",
+			depPackages:   []string{"container_anonymous/repository", "container_anonymous/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerNamedField",
+			testdir:       "container_named_field",
+			depPackages:   []string{"container_named_field/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerIfaceField",
+			testdir:       "container_iface_field",
+			depPackages:   []string{"container_iface_field/repository"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerCrossPackage",
+			testdir:       "container_cross_package",
+			depPackages:   []string{"container_cross_package/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerTransitive",
+			testdir:       "container_transitive",
+			depPackages:   []string{"container_transitive/repository", "container_transitive/service"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerVariable",
+			testdir:       "container_variable",
+			depPackages:   []string{"container_variable/config"},
+			appSuggestFix: true,
+		},
+		{
+			name:          "ContainerMixedOption",
+			testdir:       "container_mixed_option",
+			depPackages:   []string{"container_mixed_option/config", "container_mixed_option/service"},
+			appSuggestFix: true,
+		},
+
+		// --- Container error cases ---
+		{
+			name:          "ErrorContainerUnresolved",
+			testdir:       "error_container_unresolved",
+			depPackages:   []string{"error_container_unresolved/service"},
+			appSuggestFix: false,
+		},
+		{
+			name:          "ErrorContainerTagExclude",
+			testdir:       "error_container_tag_exclude",
+			depPackages:   []string{"error_container_tag_exclude/service"},
+			appSuggestFix: false,
+		},
+		{
+			name:          "ErrorContainerTagEmpty",
+			testdir:       "error_container_tag_empty",
+			depPackages:   []string{"error_container_tag_empty/service"},
+			appSuggestFix: false,
+		},
+		{
+			name:          "ErrorContainerNonStruct",
+			testdir:       "error_container_non_struct",
+			depPackages:   nil,
+			appSuggestFix: false,
+		},
+		{
+			name:          "ErrorContainerAmbiguous",
+			testdir:       "error_container_ambiguous",
+			depPackages:   []string{"error_container_ambiguous/repository"},
+			appSuggestFix: false,
+		},
+
 		// --- App-only (no DependencyAnalyzer) ---
 		{
 			name:          "NonMainReference",
@@ -470,7 +583,7 @@ func TestIntegration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			depAnalyzer, appAnalyzer := setupIntegrationDeps()
+			depAnalyzer, appAnalyzer := setupIntegrationDeps(t)
 			testdir := "testdata/bootstrapgen/" + tt.testdir
 
 			for _, pkg := range tt.depPackages {
@@ -491,7 +604,7 @@ func TestIntegration(t *testing.T) {
 // Uses programmatic registry access since analysistest cannot naturally test duplicate registration
 // (each analysistest.Run creates a fresh analysis pass for the same source).
 func TestIntegration_ErrorDuplicateName(t *testing.T) {
-	depAnalyzer, _, injectorReg, _, _ := buildIntegrationDeps()
+	depAnalyzer, _, injectorReg, _, _ := buildIntegrationDeps(t)
 	testdir := "testdata/bootstrapgen/error_duplicate_name"
 
 	// First scan: registers Named service via analysistest (succeeds without duplicate)
