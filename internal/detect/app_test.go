@@ -1111,3 +1111,69 @@ func TestAppDetector_FindFileForNode_NoFileFound(t *testing.T) {
 		t.Errorf("DetectAppAnnotations() with empty files returned %d, want 0", len(apps))
 	}
 }
+
+func TestAppDetector_NilMarkers(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithApp()
+
+	tests := []struct {
+		name string
+		src  string
+		pkgs map[string]*types.Package
+	}{
+		{
+			name: "has App call but nil markers returns empty",
+			src: `package main
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+var _ = annotation.App(main)
+
+func main() {}
+`,
+			pkgs: map[string]*types.Package{detect.AnnotationPath: annotationPkg},
+		},
+		{
+			name: "no App calls returns empty",
+			src: `package main
+
+func main() {}
+`,
+			pkgs: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass, _ := mockPassForApp(t, tt.src, tt.pkgs)
+
+			detector := detect.NewAppDetector(nil)
+			apps := detector.DetectAppAnnotations(pass)
+
+			if len(apps) != 0 {
+				t.Errorf("DetectAppAnnotations() returned %d annotations, want 0 with nil markers", len(apps))
+			}
+		})
+	}
+}
+
+func TestAppDetector_NilAppMarkerField(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithApp()
+
+	src := `package main
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+var _ = annotation.App(main)
+
+func main() {}
+`
+	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
+	pass, _ := mockPassForApp(t, src, pkgs)
+
+	detector := detect.NewAppDetector(&detect.MarkerInterfaces{})
+	apps := detector.DetectAppAnnotations(pass)
+
+	if len(apps) != 0 {
+		t.Errorf("DetectAppAnnotations() returned %d annotations, want 0 with nil App marker field", len(apps))
+	}
+}

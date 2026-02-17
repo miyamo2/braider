@@ -1027,3 +1027,73 @@ var _ = annotation.Provide(DoNothing)
 		t.Errorf("ReturnTypeName for no-return function should be empty, got %q", candidates[0].ReturnTypeName)
 	}
 }
+
+func TestProvideCallDetector_NilMarkers(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithProvide()
+
+	tests := []struct {
+		name string
+		src  string
+		pkgs map[string]*types.Package
+	}{
+		{
+			name: "has Provide call but nil markers returns empty",
+			src: `package test
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+func NewRepo() *MyRepo { return nil }
+
+type MyRepo struct{}
+
+var _ = annotation.Provide(NewRepo)
+`,
+			pkgs: map[string]*types.Package{detect.AnnotationPath: annotationPkg},
+		},
+		{
+			name: "no Provide calls returns empty",
+			src: `package test
+
+var x = 42
+`,
+			pkgs: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass, _ := mockPass(t, tt.src, tt.pkgs)
+
+			detector := detect.NewProvideCallDetector(nil)
+			candidates := detector.DetectProviders(pass)
+
+			if len(candidates) != 0 {
+				t.Errorf("DetectProviders() returned %d candidates, want 0 with nil markers", len(candidates))
+			}
+		})
+	}
+}
+
+func TestProvideCallDetector_NilProviderMarkerField(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithProvide()
+
+	src := `package test
+
+import "github.com/miyamo2/braider/pkg/annotation"
+
+func NewRepo() *MyRepo { return nil }
+
+type MyRepo struct{}
+
+var _ = annotation.Provide(NewRepo)
+`
+	pkgs := map[string]*types.Package{detect.AnnotationPath: annotationPkg}
+	pass, _ := mockPass(t, src, pkgs)
+
+	detector := detect.NewProvideCallDetector(&detect.MarkerInterfaces{})
+	candidates := detector.DetectProviders(pass)
+
+	if len(candidates) != 0 {
+		t.Errorf("DetectProviders() returned %d candidates, want 0 with nil Provider marker field", len(candidates))
+	}
+}

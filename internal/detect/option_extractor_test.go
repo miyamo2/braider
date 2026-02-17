@@ -14,6 +14,7 @@
 package detect
 
 import (
+	"go/ast"
 	"go/types"
 	"strings"
 	"testing"
@@ -424,5 +425,147 @@ func TestOptionExtractor_ExtractInjectOptions_InterfaceImplValidationError(t *te
 	errMsg := err.Error()
 	if !strings.Contains(errMsg, "does not implement interface") {
 		t.Errorf("Expected error to contain 'does not implement interface', got: %v", err)
+	}
+}
+
+func TestOptionExtractor_NilMarkers_Methods(t *testing.T) {
+	extractor := NewOptionExtractorImpl(nil, nil)
+
+	fakePass := &analysis.Pass{
+		TypesInfo: &types.Info{
+			Types: make(map[ast.Expr]types.TypeAndValue),
+		},
+	}
+
+	tests := []struct {
+		name string
+		fn   func() bool
+	}{
+		{
+			name: "isDefaultOption returns false with nil markers",
+			fn: func() bool {
+				return extractor.isDefaultOption(fakePass, types.Typ[types.Int])
+			},
+		},
+		{
+			name: "isWithoutConstructorOption returns false with nil markers",
+			fn: func() bool {
+				return extractor.isWithoutConstructorOption(fakePass, types.Typ[types.Int])
+			},
+		},
+		{
+			name: "extractTypedInterfaceDirect returns nil with nil markers",
+			fn: func() bool {
+				return extractor.extractTypedInterfaceDirect(fakePass, types.Typ[types.Int]) != nil
+			},
+		},
+		{
+			name: "extractNamerTypeDirect returns nil with nil markers",
+			fn: func() bool {
+				return extractor.extractNamerTypeDirect(fakePass, types.Typ[types.Int]) != nil
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.fn() {
+				t.Error("expected false/nil with nil markers")
+			}
+		})
+	}
+}
+
+func TestOptionExtractor_ExtractProvideOptions_Default(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pkg, pass := LoadTestPackage(t, "option_extractor/provide_default")
+	callExpr, providerFuncType := FindProvideCall(t, pkg)
+
+	mockValidator := &MockNamerValidator{}
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
+
+	metadata, err := extractor.ExtractProvideOptions(pass, callExpr, providerFuncType)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !metadata.IsDefault {
+		t.Error("Expected IsDefault=true")
+	}
+	if metadata.WithoutConstructor {
+		t.Error("Expected WithoutConstructor=false")
+	}
+	if metadata.TypedInterface != nil {
+		t.Errorf("Expected TypedInterface=nil, got %v", metadata.TypedInterface)
+	}
+	if metadata.Name != "" {
+		t.Errorf("Expected Name=\"\", got %q", metadata.Name)
+	}
+}
+
+func TestOptionExtractor_ExtractProvideOptions_Typed(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pkg, pass := LoadTestPackage(t, "option_extractor/provide_typed")
+	callExpr, providerFuncType := FindProvideCall(t, pkg)
+
+	ifaceObj := pkg.Types.Scope().Lookup("MyInterface")
+	if ifaceObj == nil {
+		t.Fatal("MyInterface not found")
+	}
+	ifaceType := ifaceObj.Type()
+
+	mockValidator := &MockNamerValidator{}
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
+
+	metadata, err := extractor.ExtractProvideOptions(pass, callExpr, providerFuncType)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if metadata.TypedInterface == nil {
+		t.Error("Expected TypedInterface to be set, got nil")
+	} else if metadata.TypedInterface != ifaceType {
+		t.Errorf("Expected TypedInterface=%v, got %v", ifaceType, metadata.TypedInterface)
+	}
+
+	if metadata.IsDefault {
+		t.Error("Expected IsDefault=false for Typed option")
+	}
+}
+
+func TestOptionExtractor_ExtractProvideOptions_Named(t *testing.T) {
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pkg, pass := LoadTestPackage(t, "option_extractor/provide_named")
+	callExpr, providerFuncType := FindProvideCall(t, pkg)
+
+	mockValidator := &MockNamerValidator{
+		ExtractNameFn: func(pass *analysis.Pass, nt types.Type) (string, error) {
+			return "database", nil
+		},
+	}
+	extractor := NewOptionExtractorImpl(markers, mockValidator)
+
+	metadata, err := extractor.ExtractProvideOptions(pass, callExpr, providerFuncType)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if metadata.Name != "database" {
+		t.Errorf("Expected Name=\"database\", got %q", metadata.Name)
 	}
 }

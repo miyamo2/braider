@@ -618,3 +618,101 @@ var _ = annotation.Variable(cfg.Value)
 		})
 	}
 }
+
+func TestVariableCallDetector_NilMarkers(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithVariable()
+
+	osPkg := types.NewPackage("os", "os")
+	fileStruct := types.NewStruct(nil, nil)
+	fileNamed := types.NewNamed(
+		types.NewTypeName(token.NoPos, osPkg, "File", nil),
+		fileStruct,
+		nil,
+	)
+	osPkg.Scope().Insert(fileNamed.Obj())
+	stdoutVar := types.NewVar(token.NoPos, osPkg, "Stdout", types.NewPointer(fileNamed))
+	osPkg.Scope().Insert(stdoutVar)
+	osPkg.MarkComplete()
+
+	tests := []struct {
+		name string
+		src  string
+		pkgs map[string]*types.Package
+	}{
+		{
+			name: "has Variable call but nil markers returns empty",
+			src: `package test
+
+import (
+	"os"
+	"github.com/miyamo2/braider/pkg/annotation"
+)
+
+var _ = annotation.Variable(os.Stdout)
+`,
+			pkgs: map[string]*types.Package{
+				detect.AnnotationPath: annotationPkg,
+				"os":                  osPkg,
+			},
+		},
+		{
+			name: "no Variable calls returns empty",
+			src: `package test
+
+var x = 42
+`,
+			pkgs: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pass, _ := mockPass(t, tt.src, tt.pkgs)
+
+			detector := detect.NewVariableCallDetector(nil)
+			candidates, _ := detector.DetectVariables(pass)
+
+			if len(candidates) != 0 {
+				t.Errorf("DetectVariables() returned %d candidates, want 0 with nil markers", len(candidates))
+			}
+		})
+	}
+}
+
+func TestVariableCallDetector_NilVariableMarkerField(t *testing.T) {
+	annotationPkg := createAnnotationPackageWithVariable()
+
+	osPkg := types.NewPackage("os", "os")
+	fileStruct := types.NewStruct(nil, nil)
+	fileNamed := types.NewNamed(
+		types.NewTypeName(token.NoPos, osPkg, "File", nil),
+		fileStruct,
+		nil,
+	)
+	osPkg.Scope().Insert(fileNamed.Obj())
+	stdoutVar := types.NewVar(token.NoPos, osPkg, "Stdout", types.NewPointer(fileNamed))
+	osPkg.Scope().Insert(stdoutVar)
+	osPkg.MarkComplete()
+
+	src := `package test
+
+import (
+	"os"
+	"github.com/miyamo2/braider/pkg/annotation"
+)
+
+var _ = annotation.Variable(os.Stdout)
+`
+	pkgs := map[string]*types.Package{
+		detect.AnnotationPath: annotationPkg,
+		"os":                  osPkg,
+	}
+	pass, _ := mockPass(t, src, pkgs)
+
+	detector := detect.NewVariableCallDetector(&detect.MarkerInterfaces{})
+	candidates, _ := detector.DetectVariables(pass)
+
+	if len(candidates) != 0 {
+		t.Errorf("DetectVariables() returned %d candidates, want 0 with nil Variable marker field", len(candidates))
+	}
+}
