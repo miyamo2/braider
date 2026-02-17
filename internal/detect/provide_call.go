@@ -162,10 +162,7 @@ func (d *provideCallDetector) isProvideCall(pass *analysis.Pass, callExpr *ast.C
 		return false
 	}
 
-	if d.markers != nil && d.markers.Provider != nil {
-		return types.Implements(typ, d.markers.Provider)
-	}
-	return false
+	return types.Implements(typ, d.markers.Provider)
 }
 
 // extractCandidate extracts a ProviderCandidate from a validated Provide[T](fn) call.

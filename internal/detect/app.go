@@ -232,10 +232,8 @@ func (d *appDetector) isAppCall(pass *analysis.Pass, call *ast.CallExpr) (bool, 
 		return false, nil
 	}
 
-	if d.markers != nil && d.markers.App != nil {
-		if types.Implements(typ, d.markers.App) {
-			return true, typeArgExpr
-		}
+	if types.Implements(typ, d.markers.App) {
+		return true, typeArgExpr
 	}
 	return false, nil
 }

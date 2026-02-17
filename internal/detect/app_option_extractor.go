@@ -80,19 +80,13 @@ func (e *appOptionExtractorImpl) ExtractAppOption(pass *analysis.Pass, app *AppA
 // isAppDefaultOption checks if the type implements AppDefault.
 // Uses types.Implements with the sealed AppDefault marker interface.
 func (e *appOptionExtractorImpl) isAppDefaultOption(typ types.Type) bool {
-	if e.markers == nil {
-		return false
-	}
-	return e.markers.AppDefault != nil && types.Implements(typ, e.markers.AppDefault)
+	return types.Implements(typ, e.markers.AppDefault)
 }
 
 // isAppContainerOption checks if the type implements AppContainer.
 // Uses types.Implements with the sealed AppContainer marker interface.
 func (e *appOptionExtractorImpl) isAppContainerOption(typ types.Type) bool {
-	if e.markers == nil {
-		return false
-	}
-	return e.markers.AppContainer != nil && types.Implements(typ, e.markers.AppContainer)
+	return types.Implements(typ, e.markers.AppContainer)
 }
 
 // searchEmbeddedForContainerDef searches embedded interfaces for a Container[T] with extractable type args.

@@ -196,12 +196,9 @@ func (e *optionExtractorImpl) extractMetadataFromOptionType(
 // types.Implements inherently handles embedded method sets, so mixed-in options are supported
 // without explicit recursion into embedded interfaces.
 func (e *optionExtractorImpl) isDefaultOption(_ *analysis.Pass, typ types.Type) bool {
-	if e.markers == nil {
-		return false
-	}
-	return (e.markers.InjectableDefault != nil && types.Implements(typ, e.markers.InjectableDefault)) ||
-		(e.markers.ProviderDefault != nil && types.Implements(typ, e.markers.ProviderDefault)) ||
-		(e.markers.VariableDefault != nil && types.Implements(typ, e.markers.VariableDefault))
+	return types.Implements(typ, e.markers.InjectableDefault) ||
+		types.Implements(typ, e.markers.ProviderDefault) ||
+		types.Implements(typ, e.markers.VariableDefault)
 }
 
 // isWithoutConstructorOption checks if the type is inject.WithoutConstructor.
@@ -209,10 +206,7 @@ func (e *optionExtractorImpl) isDefaultOption(_ *analysis.Pass, typ types.Type) 
 // types.Implements inherently handles embedded method sets, so mixed-in options are supported
 // without explicit recursion into embedded interfaces.
 func (e *optionExtractorImpl) isWithoutConstructorOption(_ *analysis.Pass, typ types.Type) bool {
-	if e.markers == nil {
-		return false
-	}
-	return e.markers.InjectableWithoutCtor != nil && types.Implements(typ, e.markers.InjectableWithoutCtor)
+	return types.Implements(typ, e.markers.InjectableWithoutCtor)
 }
 
 // extractTypedInterface extracts the interface type from Typed[I] option.
@@ -234,13 +228,9 @@ func (e *optionExtractorImpl) extractTypedInterfaceDirect(_ *analysis.Pass, typ 
 		return nil
 	}
 
-	if e.markers == nil {
-		return nil
-	}
-
-	isTyped := (e.markers.InjectableTyped != nil && types.Implements(typ, e.markers.InjectableTyped)) ||
-		(e.markers.ProviderTyped != nil && types.Implements(typ, e.markers.ProviderTyped)) ||
-		(e.markers.VariableTyped != nil && types.Implements(typ, e.markers.VariableTyped))
+	isTyped := types.Implements(typ, e.markers.InjectableTyped) ||
+		types.Implements(typ, e.markers.ProviderTyped) ||
+		types.Implements(typ, e.markers.VariableTyped)
 	if !isTyped {
 		return nil
 	}
@@ -272,13 +262,9 @@ func (e *optionExtractorImpl) extractNamerTypeDirect(_ *analysis.Pass, typ types
 		return nil
 	}
 
-	if e.markers == nil {
-		return nil
-	}
-
-	isNamed := (e.markers.InjectableNamed != nil && types.Implements(typ, e.markers.InjectableNamed)) ||
-		(e.markers.ProviderNamed != nil && types.Implements(typ, e.markers.ProviderNamed)) ||
-		(e.markers.VariableNamed != nil && types.Implements(typ, e.markers.VariableNamed))
+	isNamed := types.Implements(typ, e.markers.InjectableNamed) ||
+		types.Implements(typ, e.markers.ProviderNamed) ||
+		types.Implements(typ, e.markers.VariableNamed)
 	if !isNamed {
 		return nil
 	}

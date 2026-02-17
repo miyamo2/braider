@@ -89,8 +89,5 @@ func (d *injectDetector) isInjectType(pass *analysis.Pass, expr ast.Expr) bool {
 // isNamedInjectType checks if the type is the annotation.Injectable[T] named type
 // using types.Implements with the sealed marker interface.
 func (d *injectDetector) isNamedInjectType(_ *analysis.Pass, t types.Type) bool {
-	if d.markers != nil && d.markers.Injectable != nil {
-		return types.Implements(t, d.markers.Injectable)
-	}
-	return false
+	return types.Implements(t, d.markers.Injectable)
 }

@@ -203,10 +203,7 @@ func (d *variableCallDetector) isVariableCall(pass *analysis.Pass, callExpr *ast
 		return false
 	}
 
-	if d.markers != nil && d.markers.Variable != nil {
-		return types.Implements(typ, d.markers.Variable)
-	}
-	return false
+	return types.Implements(typ, d.markers.Variable)
 }
 
 // extractCandidate extracts a VariableCandidate from a validated Variable[T](value) call.

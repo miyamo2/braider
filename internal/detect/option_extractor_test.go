@@ -14,7 +14,6 @@
 package detect
 
 import (
-	"go/ast"
 	"go/types"
 	"strings"
 	"testing"
@@ -425,54 +424,6 @@ func TestOptionExtractor_ExtractInjectOptions_InterfaceImplValidationError(t *te
 	errMsg := err.Error()
 	if !strings.Contains(errMsg, "does not implement interface") {
 		t.Errorf("Expected error to contain 'does not implement interface', got: %v", err)
-	}
-}
-
-func TestOptionExtractor_NilMarkers_Methods(t *testing.T) {
-	extractor := NewOptionExtractorImpl(nil, nil)
-
-	fakePass := &analysis.Pass{
-		TypesInfo: &types.Info{
-			Types: make(map[ast.Expr]types.TypeAndValue),
-		},
-	}
-
-	tests := []struct {
-		name string
-		fn   func() bool
-	}{
-		{
-			name: "isDefaultOption returns false with nil markers",
-			fn: func() bool {
-				return extractor.isDefaultOption(fakePass, types.Typ[types.Int])
-			},
-		},
-		{
-			name: "isWithoutConstructorOption returns false with nil markers",
-			fn: func() bool {
-				return extractor.isWithoutConstructorOption(fakePass, types.Typ[types.Int])
-			},
-		},
-		{
-			name: "extractTypedInterfaceDirect returns nil with nil markers",
-			fn: func() bool {
-				return extractor.extractTypedInterfaceDirect(fakePass, types.Typ[types.Int]) != nil
-			},
-		},
-		{
-			name: "extractNamerTypeDirect returns nil with nil markers",
-			fn: func() bool {
-				return extractor.extractNamerTypeDirect(fakePass, types.Typ[types.Int]) != nil
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.fn() {
-				t.Error("expected false/nil with nil markers")
-			}
-		})
 	}
 }
 
