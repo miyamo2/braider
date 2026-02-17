@@ -3,6 +3,7 @@ package analyzer
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/generate"
@@ -77,7 +78,9 @@ func TestDependencyAnalyzer(t *testing.T) {
 	}
 
 	// Verify package was marked as scanned
-	if !env.packageTracker.IsPackageScanned("example.com/dependency/basic") {
+	ctx, cancel2 := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel2()
+	if err := env.packageTracker.WaitForAllPackagesWithContext(ctx, []string{"example.com/dependency/basic"}); err != nil {
 		t.Error("expected package to be marked as scanned")
 	}
 }
@@ -108,11 +111,13 @@ func TestDependencyAnalyzer_CrossPackage(t *testing.T) {
 	}
 
 	// Verify both packages were marked as scanned
-	if !env.packageTracker.IsPackageScanned("example.com/dependency/cross_package/repo") {
-		t.Error("expected repo package to be marked as scanned")
-	}
-	if !env.packageTracker.IsPackageScanned("example.com/dependency/cross_package/service") {
-		t.Error("expected service package to be marked as scanned")
+	ctx, cancel2 := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel2()
+	if err := env.packageTracker.WaitForAllPackagesWithContext(ctx, []string{
+		"example.com/dependency/cross_package/repo",
+		"example.com/dependency/cross_package/service",
+	}); err != nil {
+		t.Error("expected both packages to be marked as scanned")
 	}
 }
 

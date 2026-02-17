@@ -1,17 +1,34 @@
 package registry
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
 )
 
-// SetTimeout sets the timeout for WaitForAllPackages.
-// Used for testing with shorter timeouts.
-func (t *PackageTracker) SetTimeout(timeout time.Duration) {
+// IsPackageScanned checks if a specific package has been scanned.
+// Test-only helper — accesses unexported scannedPackages field.
+func (t *PackageTracker) IsPackageScanned(pkgPath string) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.timeout = timeout
+	return t.scannedPackages[pkgPath]
+}
+
+// WaitForAllPackages waits until all expected packages are scanned
+// using a default 30s timeout.
+// Test-only helper — wraps WaitForAllPackagesWithContext.
+func (t *PackageTracker) WaitForAllPackages(expectedPkgs []string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return t.WaitForAllPackagesWithContext(ctx, expectedPkgs)
+}
+
+// waitForAllPackagesWithTimeout is a test helper that waits with a custom timeout.
+func (t *PackageTracker) waitForAllPackagesWithTimeout(expectedPkgs []string, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return t.WaitForAllPackagesWithContext(ctx, expectedPkgs)
 }
 
 func TestPackageTracker_MarkPackageScanned(t *testing.T) {
@@ -163,16 +180,13 @@ func TestPackageTracker_WaitForAllPackages_Timeout(t *testing.T) {
 		"returns error on timeout", func(t *testing.T) {
 			pt := NewPackageTracker()
 
-			// Set a very short timeout for testing
-			pt.SetTimeout(100 * time.Millisecond)
-
 			packages := []string{
 				"example.com/repo",
 				"example.com/service",
 			}
 
 			// Don't mark any packages as scanned - should timeout
-			err := pt.WaitForAllPackages(packages)
+			err := pt.waitForAllPackagesWithTimeout(packages, 100*time.Millisecond)
 			if err == nil {
 				t.Error("expected timeout error, got nil")
 			}

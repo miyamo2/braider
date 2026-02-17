@@ -10,9 +10,6 @@ import (
 	"github.com/miyamo2/braider/pkg/annotation/provide"
 )
 
-// DefaultTimeout is the default timeout for waiting for all packages.
-const DefaultTimeout = 30 * time.Second
-
 // PackageStatusPollInterval is the interval for checking package scan status.
 const PackageStatusPollInterval = 10 * time.Millisecond
 
@@ -34,22 +31,19 @@ type PackageTracker struct {
 	mu              sync.Mutex
 	scannedPackages map[string]bool
 	completionChan  chan struct{}
-	timeout         time.Duration
 }
 
 // NewPackageTracker creates a new empty tracker.
 func NewPackageTracker() *PackageTracker {
 	return &PackageTracker{
 		scannedPackages: make(map[string]bool),
-		completionChan:  nil, // Initialized dynamically in WaitForAllPackages
-		timeout:         DefaultTimeout,
 	}
 }
 
 // MarkPackageScanned marks a package as scanned.
 // Called by DependencyAnalyzer at the end of Run().
 // This method sends a notification to the completion channel for
-// any waiting WaitForAllPackages calls.
+// any waiting WaitForAllPackagesWithContext calls.
 func (t *PackageTracker) MarkPackageScanned(pkgPath string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -62,7 +56,7 @@ func (t *PackageTracker) MarkPackageScanned(pkgPath string) {
 	t.scannedPackages[pkgPath] = true
 
 	// Send notification (non-blocking)
-	// Channel may be nil if WaitForAllPackages hasn't been called yet
+	// Channel may be nil if WaitForAllPackagesWithContext hasn't been called yet
 	if t.completionChan != nil {
 		select {
 		case t.completionChan <- struct{}{}:
@@ -70,21 +64,6 @@ func (t *PackageTracker) MarkPackageScanned(pkgPath string) {
 			// Channel full, but that's okay - the status is recorded in scannedPackages
 		}
 	}
-}
-
-// WaitForAllPackages waits until all expected packages are scanned.
-// Called by AppAnalyzer after detecting annotation.App.
-// Returns error if timeout is reached before all packages are scanned.
-// Uses the default timeout configured via SetTimeout.
-func (t *PackageTracker) WaitForAllPackages(expectedPkgs []string) error {
-	t.mu.Lock()
-	timeout := t.timeout
-	t.mu.Unlock()
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	return t.WaitForAllPackagesWithContext(ctx, expectedPkgs)
 }
 
 // WaitForAllPackagesWithContext waits until all expected packages are scanned.
@@ -137,11 +116,4 @@ func (t *PackageTracker) WaitForAllPackagesWithContext(ctx context.Context, expe
 			// Poll interval to check status
 		}
 	}
-}
-
-// IsPackageScanned checks if a specific package has been scanned.
-func (t *PackageTracker) IsPackageScanned(pkgPath string) bool {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return t.scannedPackages[pkgPath]
 }
