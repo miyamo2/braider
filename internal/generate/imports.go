@@ -23,15 +23,6 @@ func (i *ImportInfo) HasAlias() bool {
 	return i.Alias != ""
 }
 
-// Go reserved keywords
-var goReservedKeywords = map[string]bool{
-	"break": true, "case": true, "chan": true, "const": true, "continue": true,
-	"default": true, "defer": true, "else": true, "fallthrough": true, "for": true,
-	"func": true, "go": true, "goto": true, "if": true, "import": true,
-	"interface": true, "map": true, "package": true, "range": true, "return": true,
-	"select": true, "struct": true, "switch": true, "type": true, "var": true,
-}
-
 // CollectImports extracts unique package paths from the dependency graph.
 // It excludes the current package and returns a sorted list of import info with aliases,
 // along with an alias map (pkgPath -> alias) for use by qualifier functions.
@@ -301,7 +292,7 @@ func generateAliases(
 			version := extractVersion(pkgPath)
 			if version != "" {
 				candidate := version + pkgName
-				if !usedAliases[candidate] && !isReservedKeyword(candidate) {
+				if !usedAliases[candidate] && !IsKeywordOrBuiltin(candidate) {
 					aliasMap[pkgPath] = candidate
 					usedAliases[candidate] = true
 					continue
@@ -317,7 +308,7 @@ func generateAliases(
 			// Fallback to numbered aliases
 			for j := 2; ; j++ {
 				candidate := pkgName + strconv.Itoa(j)
-				if !usedAliases[candidate] && !isReservedKeyword(candidate) {
+				if !usedAliases[candidate] && !IsKeywordOrBuiltin(candidate) {
 					aliasMap[pkgPath] = candidate
 					usedAliases[candidate] = true
 					break
@@ -337,11 +328,6 @@ func extractVersion(pkgPath string) string {
 		return "v" + matches[1]
 	}
 	return ""
-}
-
-// isReservedKeyword checks if a name is a Go reserved keyword.
-func isReservedKeyword(name string) bool {
-	return goReservedKeywords[name]
 }
 
 // CollectContainerImports extends CollectImports with container type imports.
