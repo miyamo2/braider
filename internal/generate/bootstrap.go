@@ -276,19 +276,26 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 			args = append(args, depVarName)
 		}
 
-		// Determine qualifier (alias takes precedence)
-		qualifier := node.PackageAlias
-		if qualifier == "" {
-			qualifier = node.PackageName
+		// Determine package qualifier for constructor call.
+		// Use the constructor function's package (ConstructorPkgName/ConstructorPkgAlias),
+		// which may differ from the return type's package (PackageName/PackageAlias)
+		// when annotation.Provide registers a function that returns a type from another package.
+		// Fall back to PackageName/PackageAlias when ConstructorPkgName is not set.
+		ctorPkgName := node.ConstructorPkgName
+		if ctorPkgName == "" {
+			ctorPkgName = node.PackageName
+		}
+		constructorQualifier := node.ConstructorPkgAlias
+		if constructorQualifier == "" {
+			constructorQualifier = ctorPkgName
 		}
 
-		// Determine package qualifier for constructor call
 		var pkgQualifier string
-		if node.PackageName == "main" && currentPkgName == "main" {
+		if ctorPkgName == "main" && currentPkgName == "main" {
 			// Same or different main - no qualifier (different binaries anyway)
 			pkgQualifier = ""
-		} else if node.PackageName != currentPkgName {
-			pkgQualifier = qualifier + "."
+		} else if ctorPkgName != currentPkgName {
+			pkgQualifier = constructorQualifier + "."
 		}
 		constructorCall := fmt.Sprintf("%s%s(%s)", pkgQualifier, node.ConstructorName, strings.Join(args, ", "))
 		inits = append(inits, fmt.Sprintf("\t%s := %s", varName, constructorCall))

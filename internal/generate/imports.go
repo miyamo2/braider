@@ -70,6 +70,16 @@ func CollectImports(
 				importSet[exprPkgPath] = true
 			}
 		}
+
+		// Also include the constructor function's package (for Provide nodes where
+		// the function is defined in a different package than the return type)
+		if node.ConstructorPkgPath != "" && node.ConstructorPkgPath != currentPackage {
+			if node.ConstructorPkgName == "main" && currentPkgName == "main" {
+				// Different main package - shouldn't import each other
+			} else {
+				importSet[node.ConstructorPkgPath] = true
+			}
+		}
 	}
 
 	// Detect collisions and generate aliases
@@ -80,6 +90,9 @@ func CollectImports(
 	for _, node := range g.Nodes {
 		if alias, exists := aliasMap[node.PackagePath]; exists {
 			node.PackageAlias = alias
+		}
+		if alias, exists := aliasMap[node.ConstructorPkgPath]; exists {
+			node.ConstructorPkgAlias = alias
 		}
 	}
 
@@ -204,6 +217,11 @@ func detectPackageCollisions(g *graph.Graph) map[string]string {
 	// Build mappings from node packages
 	for _, node := range g.Nodes {
 		addPackage(node.PackageName, node.PackagePath)
+
+		// Also include constructor function's package (may differ from type package for Provide)
+		if node.ConstructorPkgName != "" && node.ConstructorPkgPath != "" {
+			addPackage(node.ConstructorPkgName, node.ConstructorPkgPath)
+		}
 
 		// Also include packages from RegisteredType (for Typed[I] interface types)
 		if node.RegisteredType != nil {
@@ -359,6 +377,16 @@ func CollectContainerImports(
 				importSet[exprPkgPath] = true
 			}
 		}
+
+		// Also include the constructor function's package (for Provide nodes where
+		// the function is defined in a different package than the return type)
+		if node.ConstructorPkgPath != "" && node.ConstructorPkgPath != currentPackage {
+			if node.ConstructorPkgName == "main" && currentPkgName == "main" {
+				// Different main package - shouldn't import each other
+			} else {
+				importSet[node.ConstructorPkgPath] = true
+			}
+		}
 	}
 
 	// Add container type package if named and external
@@ -385,6 +413,9 @@ func CollectContainerImports(
 	for _, node := range g.Nodes {
 		if alias, exists := aliasMap[node.PackagePath]; exists {
 			node.PackageAlias = alias
+		}
+		if alias, exists := aliasMap[node.ConstructorPkgPath]; exists {
+			node.ConstructorPkgAlias = alias
 		}
 	}
 
@@ -430,6 +461,11 @@ func detectPackageCollisionsWithContainer(g *graph.Graph, containerDef *detect.C
 	// Build mappings from graph nodes
 	for _, node := range g.Nodes {
 		addPackage(node.PackageName, node.PackagePath)
+
+		// Also include constructor function's package (may differ from type package for Provide)
+		if node.ConstructorPkgName != "" && node.ConstructorPkgPath != "" {
+			addPackage(node.ConstructorPkgName, node.ConstructorPkgPath)
+		}
 
 		if node.RegisteredType != nil {
 			for _, regPkgPath := range extractPackagePaths(node.RegisteredType) {

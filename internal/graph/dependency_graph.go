@@ -34,21 +34,24 @@ type Graph struct {
 
 // Node represents an injectable type in the graph.
 type Node struct {
-	TypeName           string     // Fully qualified type name
-	PackagePath        string     // Import path
-	PackageName        string     // Actual package name from go/types.Package
-	PackageAlias       string     // Alias when name collision occurs (empty = no alias)
-	LocalName          string     // Type name without package
-	ConstructorName    string     // New<TypeName>
-	Dependencies       []string   // Types this depends on
-	InDegree           int        // Number of types that depend on this node (for Kahn's algorithm)
-	IsField            bool       // True for Inject/Provide nodes exposed as dependency struct fields; false for Variable nodes (local variables only)
-	RegisteredType     types.Type // Interface type for Typed[I], concrete type otherwise (nil = use concrete type)
-	Name               string     // Dependency name from Named[N], empty if unnamed
-	ExpressionText     string     // Formatted expression source text for Variable nodes (empty for Provider/Injector nodes)
-	ExpressionPkgs     []string   // Package paths referenced by expression (for Variable nodes; nil for others)
-	ExpressionPkgNames []string   // Package names parallel to ExpressionPkgs (for collision detection; nil for others)
-	IsQualified        bool       // Whether expression is already package-qualified (for Variable nodes; false for others)
+	TypeName            string     // Fully qualified type name
+	PackagePath         string     // Import path (of the return type / struct type)
+	PackageName         string     // Actual package name from go/types.Package (of the return type / struct type)
+	PackageAlias        string     // Alias when name collision occurs (empty = no alias)
+	LocalName           string     // Type name without package
+	ConstructorName     string     // New<TypeName>
+	ConstructorPkgPath  string     // Import path of the constructor function's package (may differ from PackagePath for Provide)
+	ConstructorPkgName  string     // Package name of the constructor function's package
+	ConstructorPkgAlias string     // Alias for the constructor's package when collision occurs (empty = no alias)
+	Dependencies        []string   // Types this depends on
+	InDegree            int        // Number of types that depend on this node (for Kahn's algorithm)
+	IsField             bool       // True for Inject/Provide nodes exposed as dependency struct fields; false for Variable nodes (local variables only)
+	RegisteredType      types.Type // Interface type for Typed[I], concrete type otherwise (nil = use concrete type)
+	Name                string     // Dependency name from Named[N], empty if unnamed
+	ExpressionText      string     // Formatted expression source text for Variable nodes (empty for Provider/Injector nodes)
+	ExpressionPkgs      []string   // Package paths referenced by expression (for Variable nodes; nil for others)
+	ExpressionPkgNames  []string   // Package names parallel to ExpressionPkgs (for collision detection; nil for others)
+	IsQualified         bool       // Whether expression is already package-qualified (for Variable nodes; false for others)
 }
 
 // UnresolvableTypeError represents a dependency type that cannot be resolved.
@@ -117,16 +120,18 @@ func (b *DependencyGraphBuilder) BuildGraph(
 	for _, provider := range providers {
 		nodeKey := makeNodeKey(provider.TypeName, provider.Name)
 		node := &Node{
-			TypeName:        provider.TypeName,
-			PackagePath:     provider.PackagePath,
-			PackageName:     provider.PackageName,
-			LocalName:       provider.LocalName,
-			ConstructorName: provider.ConstructorName,
-			Dependencies:    []string{},
-			InDegree:        0,
-			IsField:         true, // Providers are fields in dependency struct
-			RegisteredType:  provider.RegisteredType,
-			Name:            provider.Name,
+			TypeName:           provider.TypeName,
+			PackagePath:        provider.PackagePath,
+			PackageName:        provider.PackageName,
+			LocalName:          provider.LocalName,
+			ConstructorName:    provider.ConstructorName,
+			ConstructorPkgPath: provider.ConstructorPkgPath,
+			ConstructorPkgName: provider.ConstructorPkgName,
+			Dependencies:       []string{},
+			InDegree:           0,
+			IsField:            true, // Providers are fields in dependency struct
+			RegisteredType:     provider.RegisteredType,
+			Name:               provider.Name,
 		}
 		graph.Nodes[nodeKey] = node
 	}
@@ -154,19 +159,22 @@ func (b *DependencyGraphBuilder) BuildGraph(
 	}
 
 	// Add injector nodes (IsField = true)
+	// For injectors, the constructor is always in the same package as the type.
 	for _, injector := range injectors {
 		nodeKey := makeNodeKey(injector.TypeName, injector.Name)
 		node := &Node{
-			TypeName:        injector.TypeName,
-			PackagePath:     injector.PackagePath,
-			PackageName:     injector.PackageName,
-			LocalName:       injector.LocalName,
-			ConstructorName: injector.ConstructorName,
-			Dependencies:    []string{},
-			InDegree:        0,
-			IsField:         true, // Injectors are fields in dependency struct
-			RegisteredType:  injector.RegisteredType,
-			Name:            injector.Name,
+			TypeName:           injector.TypeName,
+			PackagePath:        injector.PackagePath,
+			PackageName:        injector.PackageName,
+			LocalName:          injector.LocalName,
+			ConstructorName:    injector.ConstructorName,
+			ConstructorPkgPath: injector.PackagePath,
+			ConstructorPkgName: injector.PackageName,
+			Dependencies:       []string{},
+			InDegree:           0,
+			IsField:            true, // Injectors are fields in dependency struct
+			RegisteredType:     injector.RegisteredType,
+			Name:               injector.Name,
 		}
 		graph.Nodes[nodeKey] = node
 	}

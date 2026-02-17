@@ -60,6 +60,15 @@ func ComputeGraphHash(g *graph.Graph) string {
 			h.Write([]byte{0})
 		}
 
+		// ConstructorPkgPath (for cross-package Provide nodes — affects generated code)
+		// Only included when it differs from PackagePath (i.e., the constructor
+		// function lives in a different package than the return type).
+		// When equal or empty, no bytes are written, preserving existing hash values.
+		if node.ConstructorPkgPath != "" && node.ConstructorPkgPath != node.PackagePath {
+			h.Write([]byte(node.ConstructorPkgPath))
+			h.Write([]byte{0})
+		}
+
 		// Add dependencies in sorted order
 		sortedDeps := make([]string, len(node.Dependencies))
 		copy(sortedDeps, node.Dependencies)
@@ -114,6 +123,15 @@ func ComputeContainerHash(g *graph.Graph, containerDef *detect.ContainerDefiniti
 		// ExpressionText (for Variable nodes — affects generated code)
 		if node.ExpressionText != "" {
 			h.Write([]byte(node.ExpressionText))
+			h.Write([]byte{0})
+		}
+
+		// ConstructorPkgPath (for cross-package Provide nodes — affects generated code)
+		// Only included when it differs from PackagePath (i.e., the constructor
+		// function lives in a different package than the return type).
+		// When equal or empty, no bytes are written, preserving existing hash values.
+		if node.ConstructorPkgPath != "" && node.ConstructorPkgPath != node.PackagePath {
+			h.Write([]byte(node.ConstructorPkgPath))
 			h.Write([]byte{0})
 		}
 
