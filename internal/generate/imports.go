@@ -85,7 +85,7 @@ func CollectImports(
 		if node.ConstructorPkgPath != "" && node.ConstructorPkgPath != currentPackage {
 			if node.ConstructorPkgName == "main" && currentPkgName == "main" {
 				// Different main package - shouldn't import each other
-			} else if node.ConstructorPkgName != currentPkgName || node.ConstructorPkgPath != node.PackagePath {
+			} else {
 				importSet[node.ConstructorPkgPath] = true
 			}
 		}
@@ -397,7 +397,7 @@ func CollectContainerImports(
 		if node.ConstructorPkgPath != "" && node.ConstructorPkgPath != currentPackage {
 			if node.ConstructorPkgName == "main" && currentPkgName == "main" {
 				// Different main package - shouldn't import each other
-			} else if node.ConstructorPkgName != currentPkgName || node.ConstructorPkgPath != node.PackagePath {
+			} else {
 				importSet[node.ConstructorPkgPath] = true
 			}
 		}

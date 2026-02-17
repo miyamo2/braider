@@ -13,7 +13,7 @@ func main() {
 	_ = dependency
 }
 
-// braider:hash:5a566e155363866e
+// braider:hash:00a86fc632256129
 var dependency = func() struct {
 	client *ext.Client
 } {

@@ -767,3 +767,76 @@ func TestComputeContainerHash_EmptyContainerDefMatchesGraphHash(t *testing.T) {
 		t.Errorf("ComputeContainerHash with empty fields = %s, ComputeGraphHash = %s; expected equal", emptyContainerHash, graphHash)
 	}
 }
+
+func TestComputeGraphHash_ConstructorPkgPathChanges(t *testing.T) {
+	// Two nodes with the same ConstructorName/TypeName but different
+	// ConstructorPkgPath values should produce different hashes.
+	graph1 := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.Service": {
+				TypeName:           "example.com/pkg.Service",
+				PackagePath:        "example.com/pkg",
+				LocalName:          "Service",
+				ConstructorName:    "NewService",
+				ConstructorPkgPath: "example.com/provider",
+				Dependencies:       []string{},
+				IsField:            true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.Service": {},
+		},
+	}
+
+	graph2 := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.Service": {
+				TypeName:           "example.com/pkg.Service",
+				PackagePath:        "example.com/pkg",
+				LocalName:          "Service",
+				ConstructorName:    "NewService",
+				ConstructorPkgPath: "example.com/other", // Different package
+				Dependencies:       []string{},
+				IsField:            true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.Service": {},
+		},
+	}
+
+	hash1 := ComputeGraphHash(graph1)
+	hash2 := ComputeGraphHash(graph2)
+
+	if hash1 == hash2 {
+		t.Errorf("ComputeGraphHash() did not detect ConstructorPkgPath change: hash1=%s, hash2=%s", hash1, hash2)
+	}
+}
+
+func TestComputeGraphHash_EmptyConstructorPkgPathPreservesHash(t *testing.T) {
+	// When ConstructorPkgPath is empty (same-package providers), the hash
+	// should be identical to not having the field at all.
+	graphEmpty := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.Service": {
+				TypeName:           "example.com/pkg.Service",
+				PackagePath:        "example.com/pkg",
+				LocalName:          "Service",
+				ConstructorName:    "NewService",
+				ConstructorPkgPath: "", // Empty - same package
+				Dependencies:       []string{},
+				IsField:            true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.Service": {},
+		},
+	}
+
+	hash1 := ComputeGraphHash(graphEmpty)
+	hash2 := ComputeGraphHash(graphEmpty)
+
+	if hash1 != hash2 {
+		t.Errorf("ComputeGraphHash() not deterministic for empty ConstructorPkgPath: hash1=%s, hash2=%s", hash1, hash2)
+	}
+}
