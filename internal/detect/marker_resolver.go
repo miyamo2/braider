@@ -4,9 +4,11 @@ import (
 	"debug/buildinfo"
 	"fmt"
 	"go/types"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 
 	"github.com/miyamo2/braider/pkg/annotation"
@@ -106,6 +108,38 @@ func ResolveMarkers() (*MarkerInterfaces, error) {
 			VariableDefault:       lookupMarkerInterface(annPkg, "VariableDefault"),
 			VariableTyped:         lookupMarkerInterface(annPkg, "VariableTyped"),
 			VariableNamed:         lookupMarkerInterface(annPkg, "VariableNamed"),
+		}
+
+		// Validate that all marker interfaces were successfully resolved.
+		missing := map[string]bool{
+			"App":                      resolvedMarkers.App == nil,
+			"AppDefault":               resolvedMarkers.AppDefault == nil,
+			"AppContainer":             resolvedMarkers.AppContainer == nil,
+			"Injectable":               resolvedMarkers.Injectable == nil,
+			"Provider":                 resolvedMarkers.Provider == nil,
+			"Variable":                 resolvedMarkers.Variable == nil,
+			"InjectableDefault":        resolvedMarkers.InjectableDefault == nil,
+			"InjectableTyped":          resolvedMarkers.InjectableTyped == nil,
+			"InjectableNamed":          resolvedMarkers.InjectableNamed == nil,
+			"InjectableWithoutCtor":    resolvedMarkers.InjectableWithoutCtor == nil,
+			"ProviderDefault":          resolvedMarkers.ProviderDefault == nil,
+			"ProviderTyped":            resolvedMarkers.ProviderTyped == nil,
+			"ProviderNamed":            resolvedMarkers.ProviderNamed == nil,
+			"VariableDefault":          resolvedMarkers.VariableDefault == nil,
+			"VariableTyped":            resolvedMarkers.VariableTyped == nil,
+			"VariableNamed":            resolvedMarkers.VariableNamed == nil,
+		}
+		names := slices.Sorted(maps.Keys(missing))
+		var missingNames []string
+		for _, name := range names {
+			if missing[name] {
+				missingNames = append(missingNames, name)
+			}
+		}
+		if len(missingNames) > 0 {
+			resolvedMarkers = nil
+			resolvedMarkersErr = fmt.Errorf("failed to resolve marker interfaces: %v", missingNames)
+			return
 		}
 	})
 	return resolvedMarkers, resolvedMarkersErr
