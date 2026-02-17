@@ -247,20 +247,30 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 			registeredType = provider.ReturnType
 		}
 
+		// Determine the constructor function's package (may differ from return type's package)
+		constructorPkgPath := provider.ProviderFuncPkgPath
+		constructorPkgName := provider.ProviderFuncPkgName
+		if constructorPkgPath == "" {
+			constructorPkgPath = pass.Pkg.Path()
+			constructorPkgName = pass.Pkg.Name()
+		}
+
 		// Register to GlobalProviderRegistry
 		if err := r.provideRegistry.Register(
 			&registry.ProviderInfo{
-				TypeName:        typeName,
-				PackagePath:     typePkgPath,
-				PackageName:     typePkgName,
-				LocalName:       provider.ReturnTypeName,
-				ConstructorName: provider.ProviderFuncName,
-				Dependencies:    dependencies,
-				Implements:      provider.Implements,
-				IsPending:       false,
-				RegisteredType:  registeredType,
-				Name:            metadata.Name,
-				OptionMetadata:  metadata,
+				TypeName:           typeName,
+				PackagePath:        typePkgPath,
+				PackageName:        typePkgName,
+				LocalName:          provider.ReturnTypeName,
+				ConstructorName:    provider.ProviderFuncName,
+				ConstructorPkgPath: constructorPkgPath,
+				ConstructorPkgName: constructorPkgName,
+				Dependencies:       dependencies,
+				Implements:         provider.Implements,
+				IsPending:          false,
+				RegisteredType:     registeredType,
+				Name:               metadata.Name,
+				OptionMetadata:     metadata,
 			},
 		); err != nil {
 			existingLocation := pass.Pkg.Path()

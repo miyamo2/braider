@@ -227,6 +227,12 @@ func TestIntegration(t *testing.T) {
 			depPackages:   []string{"provide_named/repository"},
 			appSuggestFix: true,
 		},
+		{
+			name:          "ProvideCrossType",
+			testdir:       "provide_cross_type",
+			depPackages:   []string{"provide_cross_type/ext", "provide_cross_type/provider"},
+			appSuggestFix: true,
+		},
 
 		// --- Variable annotation ---
 		{
