@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 
 	"github.com/miyamo2/braider/internal/analyzer"
 	"github.com/miyamo2/braider/internal/detect"
@@ -62,7 +63,10 @@ var dependency = func() struct {
 } {
 	cancelCauseFunc := bootstrapCancel
 	context := bootstrapCtx
-	markerInterfaces := detect.ResolveMarkers()
+	markerInterfaces, err := detect.ResolveMarkers()
+	if err != nil {
+		log.Fatalf("braider: failed to resolve marker interfaces: %v", err)
+	}
 	appDetector := detect.NewAppDetector(markerInterfaces)
 	appOptionExtractor := detect.NewAppOptionExtractorImpl(markerInterfaces)
 	constructorAnalyzer := detect.NewConstructorAnalyzer()

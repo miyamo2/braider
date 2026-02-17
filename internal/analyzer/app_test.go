@@ -37,7 +37,7 @@ func (m *mockPackageLoader) LoadPackage(pkgPath string) (*packages.Package, erro
 }
 
 // setupTestDependencies creates all required dependencies for AppAnalyzer-only tests (Group E).
-func setupTestDependencies() (
+func setupTestDependencies(t *testing.T) (
 	*registry.ProviderRegistry,
 	*registry.InjectorRegistry,
 	*registry.PackageTracker,
@@ -53,18 +53,23 @@ func setupTestDependencies() (
 	graph.ContainerValidator,
 	graph.ContainerResolver,
 ) {
+	t.Helper()
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
 	providerRegistry := registry.NewProviderRegistry()
 	injectorRegistry := registry.NewInjectorRegistry()
 	packageTracker := registry.NewPackageTracker()
 	bootstrapCtx, bootstrapCancel := context.WithCancelCause(context.Background())
-	appDetector := detect.NewAppDetector(detect.ResolveMarkers())
+	appDetector := detect.NewAppDetector(markers)
 	interfaceRegistry := graph.NewInterfaceRegistry()
 	graphBuilder := graph.NewDependencyGraphBuilder(interfaceRegistry)
 	sorter := graph.NewTopologicalSorter()
 	bootstrapGenerator := generate.NewBootstrapGenerator(generate.NewCodeFormatter())
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
-	appOptionExtractor := detect.NewAppOptionExtractorImpl(detect.ResolveMarkers())
+	appOptionExtractor := detect.NewAppOptionExtractorImpl(markers)
 	containerValidator := graph.NewContainerValidatorImpl(interfaceRegistry)
 	containerResolver := graph.NewContainerResolverImpl(interfaceRegistry)
 
@@ -75,7 +80,7 @@ func setupTestDependencies() (
 
 func TestAppAnalyzer_ContextCancellation(t *testing.T) {
 	providerRegistry, injectorRegistry, packageTracker, bootstrapCtx, bootstrapCancel, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter, appOptionExtractor, containerValidator, containerResolver := setupTestDependencies()
+		bootstrapGen, fixBuilder, diagnosticEmitter, appOptionExtractor, containerValidator, containerResolver := setupTestDependencies(t)
 
 	injectorRegistry.Register(
 		&registry.InjectorInfo{
@@ -110,7 +115,7 @@ func TestAppAnalyzer_ContextCancellation(t *testing.T) {
 
 func TestAppAnalyzer_MissingConstructor(t *testing.T) {
 	providerRegistry, injectorRegistry, packageTracker, bootstrapCtx, _, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter, appOptionExtractor, containerValidator, containerResolver := setupTestDependencies()
+		bootstrapGen, fixBuilder, diagnosticEmitter, appOptionExtractor, containerValidator, containerResolver := setupTestDependencies(t)
 
 	providerRegistry.Register(
 		&registry.ProviderInfo{
@@ -141,7 +146,7 @@ func TestAppAnalyzer_MissingConstructor(t *testing.T) {
 
 func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
 	providerRegistry, injectorRegistry, packageTracker, bootstrapCtx, _, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter, appOptionExtractor, containerValidator, containerResolver := setupTestDependencies()
+		bootstrapGen, fixBuilder, diagnosticEmitter, appOptionExtractor, containerValidator, containerResolver := setupTestDependencies(t)
 
 	injectorRegistry.Register(
 		&registry.InjectorInfo{

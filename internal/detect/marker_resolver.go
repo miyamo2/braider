@@ -2,6 +2,7 @@ package detect
 
 import (
 	"debug/buildinfo"
+	"fmt"
 	"go/types"
 	"os"
 	"path/filepath"
@@ -18,23 +19,26 @@ var _ = annotation.Provide[provide.Default](ResolveMarkers)
 var (
 	resolvedModulePathOnce sync.Once
 	resolvedModulePath     string
+	resolvedModulePathErr  error
 )
 
 // resolveModulePath uses debug/buildinfo to determine the module path
 // of the running binary, enabling support for forked repositories.
-func resolveModulePath() string {
+func resolveModulePath() (string, error) {
 	resolvedModulePathOnce.Do(func() {
 		exe, err := os.Executable()
 		if err != nil {
+			resolvedModulePathErr = fmt.Errorf("failed to locate braider executable: %w", err)
 			return
 		}
 		info, err := buildinfo.ReadFile(exe)
 		if err != nil {
+			resolvedModulePathErr = fmt.Errorf("failed to read build info from %s: %w", exe, err)
 			return
 		}
 		resolvedModulePath = info.Main.Path
 	})
-	return resolvedModulePath
+	return resolvedModulePath, resolvedModulePathErr
 }
 
 // MarkerInterfaces holds resolved marker interfaces from internal/annotation.
@@ -61,20 +65,27 @@ type MarkerInterfaces struct {
 var (
 	resolveMarkersOnce sync.Once
 	resolvedMarkers    *MarkerInterfaces
+	resolvedMarkersErr error
 )
 
 // ResolveMarkers loads the internal/annotation package via packages.Load and
-// returns the resolved marker interfaces. Returns nil if resolution fails.
+// returns the resolved marker interfaces. Returns an error if resolution fails.
 // Thread-safe; result is computed once and cached.
-func ResolveMarkers() *MarkerInterfaces {
+func ResolveMarkers() (*MarkerInterfaces, error) {
 	resolveMarkersOnce.Do(func() {
-		modPath := resolveModulePath()
+		modPath, err := resolveModulePath()
+		if err != nil {
+			resolvedMarkersErr = fmt.Errorf("failed to resolve module path: %w", err)
+			return
+		}
 		if modPath == "" {
+			resolvedMarkersErr = fmt.Errorf("module path is empty: binary may not contain module information")
 			return
 		}
 
-		annPkg := loadInternalAnnotationPkg(modPath)
-		if annPkg == nil {
+		annPkg, err := loadInternalAnnotationPkg(modPath)
+		if err != nil {
+			resolvedMarkersErr = fmt.Errorf("failed to load annotation package: %w", err)
 			return
 		}
 
@@ -97,17 +108,17 @@ func ResolveMarkers() *MarkerInterfaces {
 			VariableNamed:         lookupMarkerInterface(annPkg, "VariableNamed"),
 		}
 	})
-	return resolvedMarkers
+	return resolvedMarkers, resolvedMarkersErr
 }
 
 // loadInternalAnnotationPkg loads the internal/annotation package using
 // packages.Load with the source directory obtained from runtime.Caller.
 // This works regardless of the analyzed module's identity because it loads
 // from the braider module's own source tree (local build or module cache).
-func loadInternalAnnotationPkg(modulePath string) *types.Package {
+func loadInternalAnnotationPkg(modulePath string) (*types.Package, error) {
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
-		return nil
+		return nil, fmt.Errorf("failed to determine source file location via runtime.Caller")
 	}
 	thisDir := filepath.Dir(thisFile)
 
@@ -116,22 +127,28 @@ func loadInternalAnnotationPkg(modulePath string) *types.Package {
 		Mode: packages.NeedTypes | packages.NeedName,
 	}
 	pkgs, err := packages.Load(cfg, "../annotation")
-	if err != nil || len(pkgs) == 0 {
-		return nil
+	if err != nil {
+		return nil, fmt.Errorf("failed to load annotation package from %s: %w", thisDir, err)
+	}
+	if len(pkgs) == 0 {
+		return nil, fmt.Errorf("annotation package not found in %s", thisDir)
 	}
 
 	pkg := pkgs[0]
 	if len(pkg.Errors) > 0 {
-		return nil
+		return nil, fmt.Errorf("annotation package has errors: %v", pkg.Errors[0])
 	}
 
 	// Verify the loaded package path matches the expected path
 	expectedPath := modulePath + "/internal/annotation"
-	if pkg.Types == nil || pkg.Types.Path() != expectedPath {
-		return nil
+	if pkg.Types == nil {
+		return nil, fmt.Errorf("annotation package types not loaded")
+	}
+	if pkg.Types.Path() != expectedPath {
+		return nil, fmt.Errorf("loaded package path %q does not match expected %q", pkg.Types.Path(), expectedPath)
 	}
 
-	return pkg.Types
+	return pkg.Types, nil
 }
 
 // lookupMarkerInterface looks up a named interface type from a package's scope.

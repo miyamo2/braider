@@ -147,8 +147,13 @@ func mockPassForAppOption(t *testing.T, src string, pkgs map[string]*types.Packa
 }
 
 func TestAppOptionExtractor_NilTypeArgExpr(t *testing.T) {
-	pkgs, markers := createAppOptionTestPackages()
-	extractor := detect.NewAppOptionExtractorImpl(markers)
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pkgs, testMarkers := createAppOptionTestPackages()
+	extractor := detect.NewAppOptionExtractorImpl(testMarkers)
 
 	src := `package main
 
@@ -160,7 +165,7 @@ func main() {}
 `
 	pass, _ := mockPassForAppOption(t, src, pkgs)
 
-	detector := detect.NewAppDetector(detect.ResolveMarkers())
+	detector := detect.NewAppDetector(markers)
 	apps := detector.DetectAppAnnotations(pass)
 
 	if len(apps) != 1 {
@@ -186,8 +191,13 @@ func main() {}
 }
 
 func TestAppOptionExtractor_AppDefault(t *testing.T) {
-	pkgs, markers := createAppOptionTestPackages()
-	extractor := detect.NewAppOptionExtractorImpl(markers)
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pkgs, testMarkers := createAppOptionTestPackages()
+	extractor := detect.NewAppOptionExtractorImpl(testMarkers)
 
 	src := `package main
 
@@ -202,7 +212,7 @@ func main() {}
 `
 	pass, _ := mockPassForAppOption(t, src, pkgs)
 
-	detector := detect.NewAppDetector(detect.ResolveMarkers())
+	detector := detect.NewAppDetector(markers)
 	apps := detector.DetectAppAnnotations(pass)
 
 	if len(apps) != 1 {
@@ -227,8 +237,13 @@ func main() {}
 }
 
 func TestAppOptionExtractor_ContainerWithNamedStruct(t *testing.T) {
-	pkgs, markers := createAppOptionTestPackages()
-	extractor := detect.NewAppOptionExtractorImpl(markers)
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pkgs, testMarkers := createAppOptionTestPackages()
+	extractor := detect.NewAppOptionExtractorImpl(testMarkers)
 
 	// We need to test that when the type argument resolves to app.Container[NamedStruct],
 	// we get a ContainerDefinition. Since we can't easily create generic instantiation
@@ -248,7 +263,7 @@ func main() {}
 `
 	pass, _ := mockPassForAppOption(t, src, pkgs)
 
-	detector := detect.NewAppDetector(detect.ResolveMarkers())
+	detector := detect.NewAppDetector(markers)
 	apps := detector.DetectAppAnnotations(pass)
 
 	if len(apps) != 1 {
@@ -324,8 +339,13 @@ func TestAppOptionExtractor_UnresolvableTypeArg(t *testing.T) {
 }
 
 func TestAppOptionExtractor_MixedOptionWithDefault(t *testing.T) {
-	pkgs, markers := createAppOptionTestPackages()
-	extractor := detect.NewAppOptionExtractorImpl(markers)
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pkgs, testMarkers := createAppOptionTestPackages()
+	extractor := detect.NewAppOptionExtractorImpl(testMarkers)
 
 	// Test mixed option that embeds app.Default
 	src := `package main
@@ -341,7 +361,7 @@ func main() {}
 `
 	pass, _ := mockPassForAppOption(t, src, pkgs)
 
-	detector := detect.NewAppDetector(detect.ResolveMarkers())
+	detector := detect.NewAppDetector(markers)
 	apps := detector.DetectAppAnnotations(pass)
 
 	if len(apps) != 1 {
@@ -366,8 +386,13 @@ func main() {}
 }
 
 func TestAppOptionExtractor_MixedOptionWithContainer(t *testing.T) {
-	pkgs, markers := createAppOptionTestPackages()
-	extractor := detect.NewAppOptionExtractorImpl(markers)
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pkgs, testMarkers := createAppOptionTestPackages()
+	extractor := detect.NewAppOptionExtractorImpl(testMarkers)
 
 	// Test mixed option that embeds app.Container
 	src := `package main
@@ -383,7 +408,7 @@ func main() {}
 `
 	pass, _ := mockPassForAppOption(t, src, pkgs)
 
-	detector := detect.NewAppDetector(detect.ResolveMarkers())
+	detector := detect.NewAppDetector(markers)
 	apps := detector.DetectAppAnnotations(pass)
 
 	if len(apps) != 1 {

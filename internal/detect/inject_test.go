@@ -262,6 +262,11 @@ type Repository interface{}
 		},
 	}
 
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pass, file := mockPass(t, tt.src, tt.pkgs)
@@ -284,7 +289,7 @@ type Repository interface{}
 				t.Fatal("MyService struct not found")
 			}
 
-			detector := detect.NewInjectDetector(detect.ResolveMarkers())
+			detector := detect.NewInjectDetector(markers)
 			result := detector.HasInjectAnnotation(pass, structType)
 
 			if result != tt.expected {
@@ -369,6 +374,11 @@ type Repository interface{}
 		},
 	}
 
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pass, file := mockPass(t, tt.src, tt.pkgs)
@@ -391,7 +401,7 @@ type Repository interface{}
 				t.Fatal("MyService struct not found")
 			}
 
-			detector := detect.NewInjectDetector(detect.ResolveMarkers())
+			detector := detect.NewInjectDetector(markers)
 			field := detector.FindInjectField(pass, structType)
 
 			if tt.expectNil {
@@ -468,7 +478,11 @@ type Repository interface{}
 	}
 
 	// When Types map is empty and TypeOf returns nil, should return nil (no inject found)
-	detector := detect.NewInjectDetector(detect.ResolveMarkers())
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	detector := detect.NewInjectDetector(markers)
 	field := detector.FindInjectField(pass, structType)
 
 	// Should return nil because type information is not available
@@ -512,7 +526,11 @@ type Repository interface{}
 		t.Fatal("MyService struct not found")
 	}
 
-	detector := detect.NewInjectDetector(detect.ResolveMarkers())
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	detector := detect.NewInjectDetector(markers)
 
 	if !detector.HasInjectAnnotation(pass, structType) {
 		t.Error("HasInjectAnnotation() = false, want true for aliased import")
@@ -561,6 +579,11 @@ type Repository interface{}
 		},
 	}
 
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pass, file := mockPass(t, tt.src, tt.pkgs)
@@ -582,7 +605,7 @@ type Repository interface{}
 				t.Fatal("MyService struct not found")
 			}
 
-			detector := detect.NewInjectDetector(detect.ResolveMarkers())
+			detector := detect.NewInjectDetector(markers)
 			hasInject := detector.HasInjectAnnotation(pass, structType)
 
 			if hasInject != tt.expectInject {
@@ -600,7 +623,11 @@ func TestInjectDetector_FindInjectField_NilStructFields(t *testing.T) {
 		Fields: nil, // Explicitly nil
 	}
 
-	detector := detect.NewInjectDetector(detect.ResolveMarkers())
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	detector := detect.NewInjectDetector(markers)
 	field := detector.FindInjectField(pass, structType)
 
 	if field != nil {
@@ -648,6 +675,11 @@ type MyService struct {
 		},
 	}
 
+	markers, err := detect.ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pass, file := mockPass(t, tt.src, tt.pkgs)
@@ -669,7 +701,7 @@ type MyService struct {
 				t.Fatal("MyService struct not found")
 			}
 
-			detector := detect.NewInjectDetector(detect.ResolveMarkers())
+			detector := detect.NewInjectDetector(markers)
 			hasInject := detector.HasInjectAnnotation(pass, structType)
 
 			if hasInject != tt.expectInject {

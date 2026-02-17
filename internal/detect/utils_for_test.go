@@ -127,7 +127,11 @@ func FindInjectableField(t *testing.T, pkg *packages.Package) (ast.Expr, *ast.St
 func FindVariableCall(t *testing.T, pkg *packages.Package) (*ast.CallExpr, types.Type) {
 	t.Helper()
 
-	detector := NewVariableCallDetector(ResolveMarkers())
+	markers, err := ResolveMarkers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	detector := NewVariableCallDetector(markers)
 	pass := &analysis.Pass{
 		Fset:      pkg.Fset,
 		Files:     pkg.Syntax,
