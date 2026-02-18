@@ -156,27 +156,28 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 			}
 			lastImportEnd := allImportDecls[len(allImportDecls)-1].End()
 
-			unifiedBlock := b.buildUnifiedImportBlock(sortedImports)
-
-			edits = append(
-				edits, analysis.TextEdit{
-					Pos:     firstImportStart,
-					End:     lastImportEnd,
-					NewText: []byte(unifiedBlock),
-				},
-			)
+			if unifiedBlock, err := b.buildUnifiedImportBlock(sortedImports); err == nil {
+				edits = append(
+					edits, analysis.TextEdit{
+						Pos:     firstImportStart,
+						End:     lastImportEnd,
+						NewText: []byte(unifiedBlock),
+					},
+				)
+			}
 		} else {
 			// Case 2: Import doesn't exist - insert new import block
-			unifiedBlock := b.buildUnifiedImportBlock(sortedImports)
 			insertPos := b.findImportInsertionPoint(file, nil)
 
-			edits = append(
-				edits, analysis.TextEdit{
-					Pos:     insertPos,
-					End:     insertPos,
-					NewText: []byte("\n\n" + unifiedBlock),
-				},
-			)
+			if unifiedBlock, err := b.buildUnifiedImportBlock(sortedImports); err == nil {
+				edits = append(
+					edits, analysis.TextEdit{
+						Pos:     insertPos,
+						End:     insertPos,
+						NewText: []byte("\n\n" + unifiedBlock),
+					},
+				)
+			}
 		}
 	}
 
@@ -257,27 +258,28 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 				}
 				lastImportEnd := allImportDecls[len(allImportDecls)-1].End()
 
-				unifiedBlock := b.buildUnifiedImportBlock(sortedImports)
-
-				edits = append(
-					edits, analysis.TextEdit{
-						Pos:     firstImportStart,
-						End:     lastImportEnd,
-						NewText: []byte(unifiedBlock),
-					},
-				)
+				if unifiedBlock, err := b.buildUnifiedImportBlock(sortedImports); err == nil {
+					edits = append(
+						edits, analysis.TextEdit{
+							Pos:     firstImportStart,
+							End:     lastImportEnd,
+							NewText: []byte(unifiedBlock),
+						},
+					)
+				}
 			} else {
 				// Case 2: Import doesn't exist - insert new import block
-				unifiedBlock := b.buildUnifiedImportBlock(sortedImports)
 				insertPos := b.findImportInsertionPoint(file, nil)
 
-				edits = append(
-					edits, analysis.TextEdit{
-						Pos:     insertPos,
-						End:     insertPos,
-						NewText: []byte("\n\n" + unifiedBlock),
-					},
-				)
+				if unifiedBlock, err := b.buildUnifiedImportBlock(sortedImports); err == nil {
+					edits = append(
+						edits, analysis.TextEdit{
+							Pos:     insertPos,
+							End:     insertPos,
+							NewText: []byte("\n\n" + unifiedBlock),
+						},
+					)
+				}
 			}
 		}
 	}
@@ -457,12 +459,8 @@ func (b *suggestedFixBuilder) hasImportDiff(existingPaths map[string]bool, sorte
 // buildUnifiedImportBlock generates a unified import block.
 // Always uses import (...) syntax, even for single import.
 // Imports should be pre-sorted alphabetically.
-func (b *suggestedFixBuilder) buildUnifiedImportBlock(sortedImports []generate.ImportInfo) string {
-	result, err := generate.RenderImportBlock(sortedImports)
-	if err != nil {
-		return ""
-	}
-	return result
+func (b *suggestedFixBuilder) buildUnifiedImportBlock(sortedImports []generate.ImportInfo) (string, error) {
+	return generate.RenderImportBlock(sortedImports)
 }
 
 // findImportInsertionPoint determines where to insert new imports.
