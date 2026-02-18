@@ -57,7 +57,7 @@ func buildIntegrationDeps(t *testing.T) (
 
 	// Generation components
 	constructorGenerator := generate.NewConstructorGenerator()
-	bootstrapGenerator := generate.NewBootstrapGenerator(generate.NewCodeFormatter())
+	bootstrapGenerator := generate.NewBootstrapGenerator()
 
 	// Report components
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()

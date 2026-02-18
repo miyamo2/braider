@@ -38,10 +38,9 @@ var dependency = func() struct {
 	injectDetector          detect.InjectDetector
 	provideCallDetector     detect.ProvideCallDetector
 	structDetector          detect.StructDetector
-	variableCallDetector    detect.VariableCallDetector
-	codeFormatter           generate.CodeFormatter
-	bootstrapGenerator      generate.BootstrapGenerator
-	constructorGenerator    generate.ConstructorGenerator
+	variableCallDetector detect.VariableCallDetector
+	bootstrapGenerator   generate.BootstrapGenerator
+	constructorGenerator generate.ConstructorGenerator
 	interfaceRegistry       *graph.InterfaceRegistry
 	containerValidator      graph.ContainerValidator
 	containerResolver       graph.ContainerResolver
@@ -75,8 +74,7 @@ var dependency = func() struct {
 	provideCallDetector := detect.NewProvideCallDetector(markerInterfaces)
 	structDetector := detect.NewStructDetector(injectDetector)
 	variableCallDetector := detect.NewVariableCallDetector(markerInterfaces)
-	codeFormatter := generate.NewCodeFormatter()
-	bootstrapGenerator := generate.NewBootstrapGenerator(codeFormatter)
+	bootstrapGenerator := generate.NewBootstrapGenerator()
 	constructorGenerator := generate.NewConstructorGenerator()
 	interfaceRegistry := graph.NewInterfaceRegistry()
 	containerValidator := graph.NewContainerValidatorImpl(interfaceRegistry)
@@ -136,10 +134,9 @@ var dependency = func() struct {
 		injectDetector          detect.InjectDetector
 		provideCallDetector     detect.ProvideCallDetector
 		structDetector          detect.StructDetector
-		variableCallDetector    detect.VariableCallDetector
-		codeFormatter           generate.CodeFormatter
-		bootstrapGenerator      generate.BootstrapGenerator
-		constructorGenerator    generate.ConstructorGenerator
+		variableCallDetector detect.VariableCallDetector
+		bootstrapGenerator   generate.BootstrapGenerator
+		constructorGenerator generate.ConstructorGenerator
 		interfaceRegistry       *graph.InterfaceRegistry
 		containerValidator      graph.ContainerValidator
 		containerResolver       graph.ContainerResolver
@@ -167,7 +164,6 @@ var dependency = func() struct {
 		provideCallDetector:     provideCallDetector,
 		structDetector:          structDetector,
 		variableCallDetector:    variableCallDetector,
-		codeFormatter:           codeFormatter,
 		bootstrapGenerator:      bootstrapGenerator,
 		constructorGenerator:    constructorGenerator,
 		interfaceRegistry:       interfaceRegistry,

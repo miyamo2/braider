@@ -162,7 +162,7 @@ func TestBootstrapGenerator_InterfaceTypedVariables(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g, sortedTypes := tt.setupGraph()
 
-			bg := NewBootstrapGenerator(NewCodeFormatter())
+			bg := NewBootstrapGenerator()
 			pass := &analysis.Pass{
 				Pkg: types.NewPackage("example.com/main", "main"),
 			}
@@ -304,7 +304,7 @@ func TestBootstrapGenerator_NamedVariableNaming(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g, sortedTypes := tt.setupGraph()
 
-			bg := NewBootstrapGenerator(NewCodeFormatter())
+			bg := NewBootstrapGenerator()
 			pass := &analysis.Pass{
 				Pkg: types.NewPackage("example.com/main", "main"),
 			}
@@ -480,7 +480,7 @@ func TestBootstrapGenerator_TopologicalSortPreservation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g, sortedTypes := tt.setupGraph()
 
-			bg := NewBootstrapGenerator(NewCodeFormatter())
+			bg := NewBootstrapGenerator()
 			pass := &analysis.Pass{
 				Pkg: types.NewPackage("example.com/main", "main"),
 			}

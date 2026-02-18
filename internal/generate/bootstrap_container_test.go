@@ -22,7 +22,7 @@ func makeNamedType(pkgPath, pkgName, typeName string) *types.Named {
 }
 
 func TestBootstrapGenerator_GenerateContainerBootstrap_NilInputs(t *testing.T) {
-	bg := NewBootstrapGenerator(NewCodeFormatter())
+	bg := NewBootstrapGenerator()
 	pass := &analysis.Pass{
 		Pkg: types.NewPackage("main", "main"),
 	}
@@ -39,7 +39,7 @@ func TestBootstrapGenerator_GenerateContainerBootstrap_NilInputs(t *testing.T) {
 }
 
 func TestBootstrapGenerator_GenerateContainerBootstrap_NamedContainer(t *testing.T) {
-	bg := NewBootstrapGenerator(NewCodeFormatter())
+	bg := NewBootstrapGenerator()
 	pass := &analysis.Pass{
 		Pkg: types.NewPackage("main", "main"),
 	}
@@ -131,7 +131,7 @@ func TestBootstrapGenerator_GenerateContainerBootstrap_NamedContainer(t *testing
 }
 
 func TestBootstrapGenerator_GenerateContainerBootstrap_SamePackageContainer(t *testing.T) {
-	bg := NewBootstrapGenerator(NewCodeFormatter())
+	bg := NewBootstrapGenerator()
 	pass := &analysis.Pass{
 		Pkg: types.NewPackage("main", "main"),
 	}
@@ -197,7 +197,7 @@ func TestBootstrapGenerator_GenerateContainerBootstrap_SamePackageContainer(t *t
 }
 
 func TestBootstrapGenerator_GenerateContainerBootstrap_MultipleFields(t *testing.T) {
-	bg := NewBootstrapGenerator(NewCodeFormatter())
+	bg := NewBootstrapGenerator()
 	pass := &analysis.Pass{
 		Pkg: types.NewPackage("main", "main"),
 	}
@@ -274,7 +274,7 @@ func TestBootstrapGenerator_GenerateContainerBootstrap_MultipleFields(t *testing
 }
 
 func TestBootstrapGenerator_GenerateContainerBootstrap_WithVariableNode(t *testing.T) {
-	bg := NewBootstrapGenerator(NewCodeFormatter())
+	bg := NewBootstrapGenerator()
 	pass := &analysis.Pass{
 		Pkg: types.NewPackage("main", "main"),
 	}
@@ -343,7 +343,7 @@ func TestBootstrapGenerator_GenerateContainerBootstrap_WithVariableNode(t *testi
 }
 
 func TestBootstrapGenerator_CheckContainerBootstrapCurrent(t *testing.T) {
-	bg := NewBootstrapGenerator(NewCodeFormatter())
+	bg := NewBootstrapGenerator()
 
 	g := &graph.Graph{
 		Nodes: map[string]*graph.Node{

@@ -458,21 +458,11 @@ func (b *suggestedFixBuilder) hasImportDiff(existingPaths map[string]bool, sorte
 // Always uses import (...) syntax, even for single import.
 // Imports should be pre-sorted alphabetically.
 func (b *suggestedFixBuilder) buildUnifiedImportBlock(sortedImports []generate.ImportInfo) string {
-	if len(sortedImports) == 0 {
+	result, err := generate.RenderImportBlock(sortedImports)
+	if err != nil {
 		return ""
 	}
-
-	var sb strings.Builder
-	sb.WriteString("import (\n")
-	for _, imp := range sortedImports {
-		if imp.HasAlias() {
-			fmt.Fprintf(&sb, "\t%s %q\n", imp.Alias, imp.Path)
-		} else {
-			fmt.Fprintf(&sb, "\t%q\n", imp.Path)
-		}
-	}
-	sb.WriteString(")\n")
-	return sb.String()
+	return result
 }
 
 // findImportInsertionPoint determines where to insert new imports.

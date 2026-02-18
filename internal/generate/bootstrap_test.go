@@ -391,7 +391,7 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bg := NewBootstrapGenerator(NewCodeFormatter())
+			bg := NewBootstrapGenerator()
 
 			// Create minimal pass
 			pass := &analysis.Pass{
@@ -677,7 +677,7 @@ func TestBootstrapGenerator_GenerateBootstrap_VariableExpressionAssignment(t *te
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bg := NewBootstrapGenerator(NewCodeFormatter())
+			bg := NewBootstrapGenerator()
 
 			currentPkg := tt.currentPkg
 			if currentPkg == "" {
@@ -782,7 +782,7 @@ var (
 				Files: []*ast.File{file},
 			}
 
-			bg := NewBootstrapGenerator(NewCodeFormatter())
+			bg := NewBootstrapGenerator()
 			existing := bg.DetectExistingBootstrap(pass)
 
 			got := existing != nil
@@ -837,7 +837,7 @@ var dependency = func() struct {
 		Files: []*ast.File{file},
 	}
 
-	bg := NewBootstrapGenerator(NewCodeFormatter())
+	bg := NewBootstrapGenerator()
 	existing := bg.DetectExistingBootstrap(pass)
 	if existing == nil {
 		t.Fatal("Failed to detect existing bootstrap")
@@ -1034,7 +1034,7 @@ func TestExtractHashFromComments(t *testing.T) {
 				Files: []*ast.File{file},
 			}
 
-			bg := NewBootstrapGenerator(NewCodeFormatter())
+			bg := NewBootstrapGenerator()
 			existing := bg.DetectExistingBootstrap(pass)
 
 			if existing == nil && tt.want != "" {
