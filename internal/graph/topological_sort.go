@@ -124,11 +124,6 @@ func (s *TopologicalSorter) findCycle(graph *Graph, inDegrees map[string]int) []
 		}
 	}
 
-	if len(candidates) == 0 {
-		// This shouldn't happen if caller detected cycle correctly
-		return []string{}
-	}
-
 	// Sort alphabetically to ensure deterministic starting node
 	sort.Strings(candidates)
 	startNode := candidates[0]

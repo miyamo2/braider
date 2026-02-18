@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"go/ast"
 	"go/types"
-	"iter"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/analysis/passes/inspect"
+	"golang.org/x/tools/go/ast/inspector"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -59,11 +60,15 @@ func LoadTestPackage(t *testing.T, relativeDir string) (*packages.Package, *anal
 
 	pkg := pkgs[0]
 
+	insp := inspector.New(pkg.Syntax)
 	pass := &analysis.Pass{
 		Fset:      pkg.Fset,
 		Files:     pkg.Syntax,
 		TypesInfo: pkg.TypesInfo,
 		Pkg:       pkg.Types,
+		ResultOf: map[*analysis.Analyzer]interface{}{
+			inspect.Analyzer: insp,
+		},
 	}
 
 	return pkg, pass
@@ -132,11 +137,15 @@ func FindVariableCall(t *testing.T, pkg *packages.Package) (*ast.CallExpr, types
 		t.Fatal(err)
 	}
 	detector := NewVariableCallDetector(markers)
+	insp := inspector.New(pkg.Syntax)
 	pass := &analysis.Pass{
 		Fset:      pkg.Fset,
 		Files:     pkg.Syntax,
 		TypesInfo: pkg.TypesInfo,
 		Pkg:       pkg.Types,
+		ResultOf: map[*analysis.Analyzer]interface{}{
+			inspect.Analyzer: insp,
+		},
 	}
 
 	candidates, errs := detector.DetectVariables(pass)
@@ -160,11 +169,15 @@ func FindProvideCall(t *testing.T, pkg *packages.Package) (*ast.CallExpr, types.
 		t.Fatal(err)
 	}
 	detector := NewProvideCallDetector(markers)
+	insp := inspector.New(pkg.Syntax)
 	pass := &analysis.Pass{
 		Fset:      pkg.Fset,
 		Files:     pkg.Syntax,
 		TypesInfo: pkg.TypesInfo,
 		Pkg:       pkg.Types,
+		ResultOf: map[*analysis.Analyzer]interface{}{
+			inspect.Analyzer: insp,
+		},
 	}
 
 	candidates := detector.DetectProviders(pass)
@@ -224,11 +237,6 @@ func (m *MockPackageLoader) LoadPackage(pkgPath string) (*packages.Package, erro
 
 // LoadModulePackageNames implements the loader.PackageLoader interface (not used in tests).
 func (m *MockPackageLoader) LoadModulePackageNames(dir string) ([]string, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-// LoadModulePackageAST implements the loader.PackageLoader interface (not used in tests).
-func (m *MockPackageLoader) LoadModulePackageAST(dir string) (iter.Seq[*packages.Package], error) {
 	return nil, fmt.Errorf("not implemented")
 }
 

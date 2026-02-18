@@ -8,21 +8,6 @@ import (
 	"github.com/miyamo2/braider/internal/detect"
 )
 
-func TestContainerResolver_ResolveFields_NilInputs(t *testing.T) {
-	reg := NewInterfaceRegistry()
-	r := NewContainerResolverImpl(reg)
-
-	_, err := r.ResolveFields(nil, &Graph{})
-	if err == nil {
-		t.Error("expected error for nil containerDef")
-	}
-
-	_, err = r.ResolveFields(&detect.ContainerDefinition{}, nil)
-	if err == nil {
-		t.Error("expected error for nil graph")
-	}
-}
-
 func TestContainerResolver_ResolveFields_ConcreteType(t *testing.T) {
 	reg := NewInterfaceRegistry()
 	r := NewContainerResolverImpl(reg)

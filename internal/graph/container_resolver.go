@@ -39,10 +39,6 @@ func (r *containerResolverImpl) ResolveFields(
 	containerDef *detect.ContainerDefinition,
 	g *Graph,
 ) ([]detect.ResolvedContainerField, error) {
-	if containerDef == nil || g == nil {
-		return nil, fmt.Errorf("nil containerDef or graph")
-	}
-
 	resolved := make([]detect.ResolvedContainerField, 0, len(containerDef.Fields))
 
 	for _, field := range containerDef.Fields {

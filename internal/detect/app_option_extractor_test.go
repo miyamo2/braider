@@ -10,6 +10,8 @@ import (
 
 	"github.com/miyamo2/braider/internal/detect"
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/analysis/passes/inspect"
+	"golang.org/x/tools/go/ast/inspector"
 )
 
 // testAppMarkers holds the marker interfaces created from fake internal/annotation types.
@@ -136,11 +138,17 @@ func mockPassForAppOption(t *testing.T, src string, pkgs map[string]*types.Packa
 
 	pkg, _ := conf.Check("main", fset, []*ast.File{file}, info)
 
+	// Create Inspector
+	insp := inspector.New([]*ast.File{file})
+
 	pass := &analysis.Pass{
 		Fset:      fset,
 		Files:     []*ast.File{file},
 		Pkg:       pkg,
 		TypesInfo: info,
+		ResultOf: map[*analysis.Analyzer]any{
+			inspect.Analyzer: insp,
+		},
 	}
 
 	return pass, file

@@ -131,18 +131,6 @@ func (r *VariableRegistry) GetAll() []*VariableInfo {
 	return result
 }
 
-// Get retrieves a variable by fully qualified type name.
-// Returns nil if not found.
-func (r *VariableRegistry) Get(typeName string) *VariableInfo {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	inner, ok := r.variables[typeName]
-	if !ok {
-		return nil
-	}
-	return inner[""]
-}
-
 // GetByName retrieves a named variable by fully qualified type name and name.
 // Returns (info, true) if found with matching name, (nil, false) otherwise.
 // This supports named dependency lookup for Variable[variable.Named[N]] annotations.

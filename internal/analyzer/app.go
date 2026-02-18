@@ -217,7 +217,7 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) (interf
 
 	existingBootstrap := r.bootstrapGen.DetectExistingBootstrap(pass)
 
-	if optionErr == nil && optionMeta.ContainerDef != nil {
+	if optionMeta.ContainerDef != nil {
 		// Container mode
 		containerDef := optionMeta.ContainerDef
 

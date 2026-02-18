@@ -21,9 +21,9 @@ func TestProviderRegistry_Register(t *testing.T) {
 
 			r.Register(info)
 
-			got := r.Get("example.com/repo.UserRepository")
-			if got == nil {
-				t.Fatal("expected provider to be registered, got nil")
+			got, ok := r.GetByName("example.com/repo.UserRepository", "")
+			if !ok {
+				t.Fatal("expected provider to be registered, got ok=false")
 			}
 			if got.TypeName != info.TypeName {
 				t.Errorf("TypeName = %q, want %q", got.TypeName, info.TypeName)
@@ -59,9 +59,9 @@ func TestProviderRegistry_Register(t *testing.T) {
 			r.Register(info1)
 			r.Register(info2)
 
-			got := r.Get("example.com/repo.UserRepository")
-			if got == nil {
-				t.Fatal("expected provider to be registered, got nil")
+			got, ok := r.GetByName("example.com/repo.UserRepository", "")
+			if !ok {
+				t.Fatal("expected provider to be registered, got ok=false")
 			}
 			if got.ConstructorName != "NewUserRepositoryV2" {
 				t.Errorf("ConstructorName = %q, want %q", got.ConstructorName, "NewUserRepositoryV2")
@@ -172,9 +172,12 @@ func TestProviderRegistry_Get(t *testing.T) {
 		"returns nil when provider not found", func(t *testing.T) {
 			r := NewProviderRegistry()
 
-			got := r.Get("nonexistent.Type")
+			got, ok := r.GetByName("nonexistent.Type", "")
+			if ok {
+				t.Errorf("GetByName(nonexistent) returned ok=true, want false")
+			}
 			if got != nil {
-				t.Errorf("Get(nonexistent) = %v, want nil", got)
+				t.Errorf("GetByName(nonexistent) = %v, want nil", got)
 			}
 		},
 	)
@@ -191,9 +194,9 @@ func TestProviderRegistry_Get(t *testing.T) {
 			}
 			r.Register(info)
 
-			got := r.Get("example.com/repo.UserRepository")
-			if got == nil {
-				t.Fatal("expected provider, got nil")
+			got, ok := r.GetByName("example.com/repo.UserRepository", "")
+			if !ok {
+				t.Fatal("expected provider, got ok=false")
 			}
 			if got.TypeName != info.TypeName {
 				t.Errorf("TypeName = %q, want %q", got.TypeName, info.TypeName)
@@ -240,7 +243,7 @@ func TestProviderRegistry_ThreadSafety(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			for range numOperations {
-				_ = r.Get("example.com/pkg.Type" + string(rune('A'+id%26)))
+				_, _ = r.GetByName("example.com/pkg.Type"+string(rune('A'+id%26)), "")
 			}
 		}(i)
 	}
@@ -275,9 +278,9 @@ func TestGlobalProviderRegistry(t *testing.T) {
 
 	r.Register(info)
 
-	got := r.Get("example.com/repo.TestRepository")
-	if got == nil {
-		t.Fatal("GlobalProviderRegistry.Get() returned nil")
+	got, ok := r.GetByName("example.com/repo.TestRepository", "")
+	if !ok {
+		t.Fatal("GlobalProviderRegistry.GetByName() returned ok=false")
 	}
 	if got.TypeName != info.TypeName {
 		t.Errorf("TypeName = %q, want %q", got.TypeName, info.TypeName)

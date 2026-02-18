@@ -100,34 +100,18 @@ func (d *variableCallDetector) DetectVariables(pass *analysis.Pass) ([]VariableC
 	var candidates []VariableCandidate
 	var errors []VariableDetectionError
 
-	// Use inspector if available, otherwise iterate files manually
-	var insp *inspector.Inspector
-	if pass.ResultOf != nil {
-		if result, ok := pass.ResultOf[inspect.Analyzer]; ok {
-			insp = result.(*inspector.Inspector)
-		}
+	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+
+	nodeFilter := []ast.Node{
+		(*ast.GenDecl)(nil),
 	}
 
-	if insp != nil {
-		nodeFilter := []ast.Node{
-			(*ast.GenDecl)(nil),
-		}
-
-		insp.Preorder(
-			nodeFilter, func(n ast.Node) {
-				genDecl := n.(*ast.GenDecl)
-				candidates, errors = d.processGenDecl(pass, genDecl, candidates, errors)
-			},
-		)
-	} else {
-		for _, file := range pass.Files {
-			for _, decl := range file.Decls {
-				if genDecl, ok := decl.(*ast.GenDecl); ok {
-					candidates, errors = d.processGenDecl(pass, genDecl, candidates, errors)
-				}
-			}
-		}
-	}
+	insp.Preorder(
+		nodeFilter, func(n ast.Node) {
+			genDecl := n.(*ast.GenDecl)
+			candidates, errors = d.processGenDecl(pass, genDecl, candidates, errors)
+		},
+	)
 
 	return candidates, errors
 }
@@ -173,13 +157,6 @@ func (d *variableCallDetector) isVariableCall(pass *analysis.Pass, callExpr *ast
 	switch fun := callExpr.Fun.(type) {
 	case *ast.IndexExpr:
 		// annotation.Variable[T](value) - single type parameter
-		sel, ok := fun.X.(*ast.SelectorExpr)
-		if !ok {
-			return false
-		}
-		selExpr = sel
-	case *ast.IndexListExpr:
-		// annotation.Variable[T1, T2, ...](value) - multiple type parameters (future-proof)
 		sel, ok := fun.X.(*ast.SelectorExpr)
 		if !ok {
 			return false

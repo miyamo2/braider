@@ -59,12 +59,7 @@ type AppValidationError struct {
 }
 
 func (e *AppValidationError) Error() string {
-	switch e.Type {
-	case NonMainReference:
-		return fmt.Sprintf("annotation.App must reference main function, got %s", e.FuncName)
-	default:
-		return "invalid App annotation"
-	}
+	return fmt.Sprintf("annotation.App must reference main function, got %s", e.FuncName)
 }
 
 // appDetector is the default implementation of AppDetector.
@@ -86,38 +81,20 @@ func NewAppDetector(markers *MarkerInterfaces) *appDetector {
 func (d *appDetector) DetectAppAnnotations(pass *analysis.Pass) []*AppAnnotation {
 	var apps []*AppAnnotation
 
-	// Use inspector if available, otherwise iterate files manually
-	var insp *inspector.Inspector
-	if pass.ResultOf != nil {
-		if result, ok := pass.ResultOf[inspect.Analyzer]; ok {
-			insp = result.(*inspector.Inspector)
-		}
+	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+
+	nodeFilter := []ast.Node{
+		(*ast.GenDecl)(nil),
 	}
 
-	if insp != nil {
-		// Use inspector for efficient traversal
-		nodeFilter := []ast.Node{
-			(*ast.GenDecl)(nil),
-		}
-
-		insp.Preorder(
-			nodeFilter, func(n ast.Node) {
-				genDecl := n.(*ast.GenDecl)
-				// Find the file containing this declaration
-				file := d.findFileForNode(pass, genDecl)
-				apps = d.processGenDecl(pass, genDecl, apps, file)
-			},
-		)
-	} else {
-		// Fallback: iterate files manually
-		for _, file := range pass.Files {
-			for _, decl := range file.Decls {
-				if genDecl, ok := decl.(*ast.GenDecl); ok {
-					apps = d.processGenDecl(pass, genDecl, apps, file)
-				}
-			}
-		}
-	}
+	insp.Preorder(
+		nodeFilter, func(n ast.Node) {
+			genDecl := n.(*ast.GenDecl)
+			// Find the file containing this declaration
+			file := d.findFileForNode(pass, genDecl)
+			apps = d.processGenDecl(pass, genDecl, apps, file)
+		},
+	)
 
 	return apps
 }
@@ -208,16 +185,6 @@ func (d *appDetector) isAppCall(pass *analysis.Pass, call *ast.CallExpr) (bool, 
 			return false, nil
 		}
 		typeArgExpr = fun.Index
-	case *ast.IndexListExpr:
-		// Defensive: multi-type-arg annotation.App[T1, T2](main) — not expected but handled
-		var ok bool
-		sel, ok = fun.X.(*ast.SelectorExpr)
-		if !ok {
-			return false, nil
-		}
-		if len(fun.Indices) > 0 {
-			typeArgExpr = fun.Indices[0]
-		}
 	default:
 		return false, nil
 	}
@@ -257,11 +224,6 @@ func (d *appDetector) ValidateAppAnnotations(pass *analysis.Pass, apps []*AppAnn
 
 		// Verify the identifier resolves to the main function
 		obj := pass.TypesInfo.Uses[app.MainFunc]
-		if obj == nil {
-			// Check Defs in case it's a forward reference
-			obj = pass.TypesInfo.Defs[app.MainFunc]
-		}
-
 		if obj == nil {
 			return &AppValidationError{
 				Type:      NonMainReference,
@@ -304,12 +266,6 @@ func (d *appDetector) DeduplicateAppsByFile(apps []*AppAnnotation) []*AppAnnotat
 	var result []*AppAnnotation
 
 	for _, app := range apps {
-		if app.File == nil {
-			// Fallback: file not set, include app
-			result = append(result, app)
-			continue
-		}
-
 		if _, exists := fileToApp[app.File]; !exists {
 			fileToApp[app.File] = app
 			result = append(result, app)

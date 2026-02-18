@@ -2,7 +2,6 @@
 package loader
 
 import (
-	"iter"
 	"os"
 	"path/filepath"
 	"sync"
@@ -17,10 +16,6 @@ type PackageLoader interface {
 	// LoadModulePackageNames loads all packages in the module.
 	// Returns a list of package paths for synchronization with PackageTracker.
 	LoadModulePackageNames(dir string) ([]string, error)
-
-	// LoadModulePackageAST loads all packages in the module with full AST.
-	// Returns packages suitable for AST analysis and validation.
-	LoadModulePackageAST(dir string) (iter.Seq[*packages.Package], error)
 
 	// LoadPackage loads a single package by its import path.
 	// Returns the package with full AST for analysis.
@@ -73,65 +68,6 @@ func (l *packageLoader) LoadModulePackageNames(dir string) ([]string, error) {
 	}
 
 	return paths, nil
-}
-
-// LoadModulePackageAST loads all packages in the module with full AST.
-// Returns only packages belonging to the module, not external packages loaded via LoadPackage.
-func (l *packageLoader) LoadModulePackageAST(dir string) (iter.Seq[*packages.Package], error) {
-	moduleRoot, err := l.FindModuleRoot(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	if v, ok := l.modulePkgPaths.Load(moduleRoot); ok {
-		paths := v.([]string)
-		// Check if pkgCache has data (pkgCache may be empty after lightweight load)
-		if len(paths) > 0 {
-			if _, cached := l.pkgCache.Load(paths[0]); cached {
-				return l.packagesByPaths(paths), nil
-			}
-		} else {
-			// Return empty iter.Seq for empty modules (no packages)
-			return l.packagesByPaths(paths), nil
-		}
-		// Fall through to full load if pkgCache is empty
-	}
-
-	cfg := &packages.Config{
-		Mode: packages.NeedSyntax | packages.NeedTypes | packages.NeedName | packages.NeedFiles,
-		Dir:  moduleRoot,
-	}
-
-	// Load all packages recursively with full AST
-	pkgs, err := packages.Load(cfg, "./...")
-	if err != nil {
-		return nil, err
-	}
-
-	var paths []string
-	for _, pkg := range pkgs {
-		if pkg.PkgPath != "" {
-			l.pkgCache.Store(pkg.PkgPath, pkg)
-			paths = append(paths, pkg.PkgPath)
-		}
-	}
-
-	l.modulePkgPaths.Store(moduleRoot, paths)
-
-	return l.packagesByPaths(paths), nil
-}
-
-// packagesByPaths returns cached packages matching the given paths.
-func (l *packageLoader) packagesByPaths(paths []string) iter.Seq[*packages.Package] {
-	return func(yield func(*packages.Package) bool) {
-		for _, path := range paths {
-			if v, ok := l.pkgCache.Load(path); ok {
-				if !yield(v.(*packages.Package)) {
-					return
-				}
-			}
-		}
-	}
 }
 
 // LoadPackage loads a single package by its import path.

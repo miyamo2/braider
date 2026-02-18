@@ -50,36 +50,18 @@ func NewStructDetector(injectDetector InjectDetector) *structDetector {
 func (d *structDetector) DetectCandidates(pass *analysis.Pass) []ConstructorCandidate {
 	var candidates []ConstructorCandidate
 
-	// Use inspector if available, otherwise iterate files manually
-	var insp *inspector.Inspector
-	if pass.ResultOf != nil {
-		if result, ok := pass.ResultOf[inspect.Analyzer]; ok {
-			insp = result.(*inspector.Inspector)
-		}
+	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+
+	nodeFilter := []ast.Node{
+		(*ast.GenDecl)(nil),
 	}
 
-	if insp != nil {
-		// Use inspector for efficient traversal
-		nodeFilter := []ast.Node{
-			(*ast.GenDecl)(nil),
-		}
-
-		insp.Preorder(
-			nodeFilter, func(n ast.Node) {
-				genDecl := n.(*ast.GenDecl)
-				candidates = d.processGenDecl(pass, genDecl, candidates)
-			},
-		)
-	} else {
-		// Fallback: iterate files manually
-		for _, file := range pass.Files {
-			for _, decl := range file.Decls {
-				if genDecl, ok := decl.(*ast.GenDecl); ok {
-					candidates = d.processGenDecl(pass, genDecl, candidates)
-				}
-			}
-		}
-	}
+	insp.Preorder(
+		nodeFilter, func(n ast.Node) {
+			genDecl := n.(*ast.GenDecl)
+			candidates = d.processGenDecl(pass, genDecl, candidates)
+		},
+	)
 
 	return candidates
 }

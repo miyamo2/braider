@@ -66,34 +66,18 @@ func NewProvideCallDetector(markers *MarkerInterfaces) *provideCallDetector {
 func (d *provideCallDetector) DetectProviders(pass *analysis.Pass) []ProviderCandidate {
 	var candidates []ProviderCandidate
 
-	// Use inspector if available, otherwise iterate files manually
-	var insp *inspector.Inspector
-	if pass.ResultOf != nil {
-		if result, ok := pass.ResultOf[inspect.Analyzer]; ok {
-			insp = result.(*inspector.Inspector)
-		}
+	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+
+	nodeFilter := []ast.Node{
+		(*ast.GenDecl)(nil),
 	}
 
-	if insp != nil {
-		nodeFilter := []ast.Node{
-			(*ast.GenDecl)(nil),
-		}
-
-		insp.Preorder(
-			nodeFilter, func(n ast.Node) {
-				genDecl := n.(*ast.GenDecl)
-				candidates = d.processGenDecl(pass, genDecl, candidates)
-			},
-		)
-	} else {
-		for _, file := range pass.Files {
-			for _, decl := range file.Decls {
-				if genDecl, ok := decl.(*ast.GenDecl); ok {
-					candidates = d.processGenDecl(pass, genDecl, candidates)
-				}
-			}
-		}
-	}
+	insp.Preorder(
+		nodeFilter, func(n ast.Node) {
+			genDecl := n.(*ast.GenDecl)
+			candidates = d.processGenDecl(pass, genDecl, candidates)
+		},
+	)
 
 	return candidates
 }
@@ -141,15 +125,8 @@ func (d *provideCallDetector) isProvideCall(pass *analysis.Pass, callExpr *ast.C
 			return false
 		}
 		selExpr = sel
-	case *ast.IndexListExpr:
-		// annotation.Provide[T1, T2, ...](fn) - multiple type parameters (future-proof)
-		sel, ok := fun.X.(*ast.SelectorExpr)
-		if !ok {
-			return false
-		}
-		selExpr = sel
 	case *ast.SelectorExpr:
-		// annotation.Provide(fn) - no type parameter (non-generic, shouldn't happen but handle)
+		// annotation.Provide(fn) - no type parameter (non-generic)
 		selExpr = fun
 	default:
 		return false

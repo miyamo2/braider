@@ -26,9 +26,9 @@ func TestVariableRegistry_Register(t *testing.T) {
 				t.Fatalf("Register() returned error: %v", err)
 			}
 
-			got := r.Get("os.File")
-			if got == nil {
-				t.Fatal("expected variable to be registered, got nil")
+			got, ok := r.GetByName("os.File", "")
+			if !ok {
+				t.Fatal("expected variable to be registered, got ok=false")
 			}
 			if got.TypeName != info.TypeName {
 				t.Errorf("TypeName = %q, want %q", got.TypeName, info.TypeName)
@@ -72,9 +72,9 @@ func TestVariableRegistry_Register(t *testing.T) {
 			r.Register(info1)
 			r.Register(info2)
 
-			got := r.Get("os.File")
-			if got == nil {
-				t.Fatal("expected variable to be registered, got nil")
+			got, ok := r.GetByName("os.File", "")
+			if !ok {
+				t.Fatal("expected variable to be registered, got ok=false")
 			}
 			if got.ExpressionText != "os.Stderr" {
 				t.Errorf("ExpressionText = %q, want %q", got.ExpressionText, "os.Stderr")
@@ -323,9 +323,12 @@ func TestVariableRegistry_Get(t *testing.T) {
 		"returns nil when variable not found", func(t *testing.T) {
 			r := NewVariableRegistry()
 
-			got := r.Get("nonexistent.Type")
+			got, ok := r.GetByName("nonexistent.Type", "")
+			if ok {
+				t.Errorf("GetByName(nonexistent) returned ok=true, want false")
+			}
 			if got != nil {
-				t.Errorf("Get(nonexistent) = %v, want nil", got)
+				t.Errorf("GetByName(nonexistent) = %v, want nil", got)
 			}
 		},
 	)
@@ -344,9 +347,9 @@ func TestVariableRegistry_Get(t *testing.T) {
 			}
 			r.Register(info)
 
-			got := r.Get("os.File")
-			if got == nil {
-				t.Fatal("expected variable, got nil")
+			got, ok := r.GetByName("os.File", "")
+			if !ok {
+				t.Fatal("expected variable, got ok=false")
 			}
 			if got.TypeName != info.TypeName {
 				t.Errorf("TypeName = %q, want %q", got.TypeName, info.TypeName)
@@ -543,9 +546,9 @@ func TestVariableRegistry_MetadataStorage(t *testing.T) {
 		}
 		r.Register(info)
 
-		got := r.Get("os.File")
-		if got == nil {
-			t.Fatal("expected variable, got nil")
+		got, ok := r.GetByName("os.File", "")
+		if !ok {
+			t.Fatal("expected variable, got ok=false")
 		}
 		if len(got.Dependencies) != 0 {
 			t.Errorf("Dependencies should be empty, got %v", got.Dependencies)
@@ -638,7 +641,7 @@ func TestVariableRegistry_ThreadSafety(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			for range numOperations {
-				_ = r.Get("example.com/pkg.Type" + string(rune('A'+id%26)))
+				_, _ = r.GetByName("example.com/pkg.Type"+string(rune('A'+id%26)), "")
 			}
 		}(i)
 	}
@@ -771,9 +774,9 @@ func TestGlobalVariableRegistry(t *testing.T) {
 
 	r.Register(info)
 
-	got := r.Get("os.File")
-	if got == nil {
-		t.Fatal("VariableRegistry.Get() returned nil")
+	got, ok := r.GetByName("os.File", "")
+	if !ok {
+		t.Fatal("VariableRegistry.GetByName() returned ok=false")
 	}
 	if got.TypeName != info.TypeName {
 		t.Errorf("TypeName = %q, want %q", got.TypeName, info.TypeName)

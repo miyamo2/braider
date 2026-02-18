@@ -42,11 +42,17 @@ func mockPass(t *testing.T, src string, additionalPkgs map[string]*types.Package
 
 	pkg, _ := conf.Check("test", fset, []*ast.File{file}, info)
 
+	// Create Inspector
+	insp := inspector.New([]*ast.File{file})
+
 	pass := &analysis.Pass{
 		Fset:      fset,
 		Files:     []*ast.File{file},
 		Pkg:       pkg,
 		TypesInfo: info,
+		ResultOf: map[*analysis.Analyzer]interface{}{
+			inspect.Analyzer: insp,
+		},
 	}
 
 	return pass, file
