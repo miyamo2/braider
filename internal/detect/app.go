@@ -59,7 +59,12 @@ type AppValidationError struct {
 }
 
 func (e *AppValidationError) Error() string {
-	return fmt.Sprintf("annotation.App must reference main function, got %s", e.FuncName)
+	switch e.Type {
+	case NonMainReference:
+		return fmt.Sprintf("annotation.App must reference main function, got %s", e.FuncName)
+	default:
+		return "invalid App annotation"
+	}
 }
 
 // appDetector is the default implementation of AppDetector.
