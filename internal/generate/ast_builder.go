@@ -22,16 +22,6 @@ func astSelector(pkg, name string) *ast.SelectorExpr {
 	}
 }
 
-// astStar creates a pointer type expression (*X).
-func astStar(x ast.Expr) *ast.StarExpr {
-	return &ast.StarExpr{X: x}
-}
-
-// astAddr creates an address-of expression (&X).
-func astAddr(x ast.Expr) *ast.UnaryExpr {
-	return &ast.UnaryExpr{Op: token.AND, X: x}
-}
-
 // astCommentGroup creates a CommentGroup from lines.
 // Each line should include the "//" prefix (e.g., "// foo").
 func astCommentGroup(lines ...string) *ast.CommentGroup {
@@ -42,40 +32,11 @@ func astCommentGroup(lines ...string) *ast.CommentGroup {
 	return &ast.CommentGroup{List: list}
 }
 
-// astField creates a struct or parameter field.
-// names may be nil for unnamed fields (e.g., return type fields).
-func astField(names []*ast.Ident, typ ast.Expr) *ast.Field {
-	return &ast.Field{
-		Names: names,
-		Type:  typ,
-	}
-}
-
-// astFieldList creates a field list from fields.
-func astFieldList(fields ...*ast.Field) *ast.FieldList {
-	return &ast.FieldList{List: fields}
-}
-
 // astStructType creates an anonymous struct type.
 func astStructType(fields ...*ast.Field) *ast.StructType {
 	return &ast.StructType{
 		Fields: &ast.FieldList{List: fields},
 	}
-}
-
-// astKeyValue creates a key-value expression (key: value).
-func astKeyValue(key, value ast.Expr) *ast.KeyValueExpr {
-	return &ast.KeyValueExpr{Key: key, Value: value}
-}
-
-// astCompositeLit creates a composite literal (Type{elts...}).
-func astCompositeLit(typ ast.Expr, elts ...ast.Expr) *ast.CompositeLit {
-	return &ast.CompositeLit{Type: typ, Elts: elts}
-}
-
-// astCallExpr creates a function call expression (fun(args...)).
-func astCallExpr(fun ast.Expr, args ...ast.Expr) *ast.CallExpr {
-	return &ast.CallExpr{Fun: fun, Args: args}
 }
 
 // astShortVar creates a short variable declaration (name := value).
@@ -94,21 +55,6 @@ func astBlankAssign(value ast.Expr) *ast.AssignStmt {
 		Tok: token.ASSIGN,
 		Rhs: []ast.Expr{value},
 	}
-}
-
-// astReturnStmt creates a return statement.
-func astReturnStmt(results ...ast.Expr) *ast.ReturnStmt {
-	return &ast.ReturnStmt{Results: results}
-}
-
-// astBlockStmt creates a block statement.
-func astBlockStmt(stmts ...ast.Stmt) *ast.BlockStmt {
-	return &ast.BlockStmt{List: stmts}
-}
-
-// astExprStmt wraps an expression as a statement.
-func astExprStmt(expr ast.Expr) *ast.ExprStmt {
-	return &ast.ExprStmt{X: expr}
 }
 
 // astFuncDecl creates a function declaration.

@@ -4,6 +4,7 @@ package generate
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
 	"go/types"
 
 	"github.com/miyamo2/braider/internal/detect"
@@ -59,7 +60,7 @@ func (g *constructorGenerator) GenerateConstructor(
 	structName := candidate.TypeSpec.Name.Name
 	funcName := "New" + ToUpperCamelCase(structName)
 
-	returnTypeExpr := astStar(astIdent(structName))
+	returnTypeExpr := &ast.StarExpr{X: &ast.Ident{Name: structName}}
 	funcDecl := g.buildConstructorAST(funcName, structName, fields, returnTypeExpr, nil)
 
 	code, err := renderDecl(funcDecl)
@@ -163,9 +164,9 @@ func (g *constructorGenerator) buildConstructorAST(
 		paramName := g.resolveParamName(field.Name, dependencyNames)
 		typ := field.TypeExpr
 		if typ == nil {
-			typ = astIdent("")
+			typ = &ast.Ident{Name: "any"}
 		}
-		params = append(params, astField([]*ast.Ident{astIdent(paramName)}, typ))
+		params = append(params, &ast.Field{Names: []*ast.Ident{{Name: paramName}}, Type: typ})
 	}
 
 	// Build body: return &StructName{field: param, ...}
@@ -174,19 +175,23 @@ func (g *constructorGenerator) buildConstructorAST(
 		var elts []ast.Expr
 		for _, field := range fields {
 			paramName := g.resolveParamName(field.Name, dependencyNames)
-			elts = append(elts, astKeyValue(astIdent(field.Name), astIdent(paramName)))
+			elts = append(elts, &ast.KeyValueExpr{Key: &ast.Ident{Name: field.Name}, Value: &ast.Ident{Name: paramName}})
 		}
-		body = astBlockStmt(
-			astReturnStmt(astAddr(astCompositeLit(astIdent(structName), elts...))),
-		)
+		body = &ast.BlockStmt{List: []ast.Stmt{
+			&ast.ReturnStmt{Results: []ast.Expr{
+				&ast.UnaryExpr{Op: token.AND, X: &ast.CompositeLit{Type: &ast.Ident{Name: structName}, Elts: elts}},
+			}},
+		}}
 	} else {
-		body = astBlockStmt(
-			astReturnStmt(astAddr(astCompositeLit(astIdent(structName)))),
-		)
+		body = &ast.BlockStmt{List: []ast.Stmt{
+			&ast.ReturnStmt{Results: []ast.Expr{
+				&ast.UnaryExpr{Op: token.AND, X: &ast.CompositeLit{Type: &ast.Ident{Name: structName}}},
+			}},
+		}}
 	}
 
-	paramList := astFieldList(params...)
-	resultList := astFieldList(astField(nil, returnTypeExpr))
+	paramList := &ast.FieldList{List: params}
+	resultList := &ast.FieldList{List: []*ast.Field{{Type: returnTypeExpr}}}
 
 	return astFuncDecl(doc, funcName, paramList, resultList, body)
 }
@@ -207,7 +212,7 @@ func (g *constructorGenerator) resolveParamName(fieldName string, dependencyName
 func (g *constructorGenerator) determineReturnTypeExpr(structName string, info *registry.InjectorInfo) ast.Expr {
 	if info == nil || info.OptionMetadata.TypedInterface == nil {
 		// Default: return pointer to struct
-		return astStar(astIdent(structName))
+		return &ast.StarExpr{X: &ast.Ident{Name: structName}}
 	}
 
 	// Typed[I] option: return interface type
