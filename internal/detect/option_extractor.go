@@ -183,11 +183,6 @@ func (e *optionExtractorImpl) extractMetadataFromOptionType(
 		}
 	}
 
-	// Check for conflicting options
-	if metadata.IsDefault && metadata.WithoutConstructor {
-		return OptionMetadata{}, fmt.Errorf("conflicting options: cannot use both Default and WithoutConstructor")
-	}
-
 	return metadata, nil
 }
 

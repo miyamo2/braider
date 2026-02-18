@@ -64,9 +64,9 @@ func TestProviderInfo_OptionMetadataFields(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		got := r.Get("example.com/repo.OrderRepository")
-		if got == nil {
-			t.Fatal("expected provider to be registered, got nil")
+		got, ok := r.GetByName("example.com/repo.OrderRepository", "")
+		if !ok {
+			t.Fatal("expected provider to be registered, got ok=false")
 		}
 		if !got.OptionMetadata.IsDefault {
 			t.Error("OptionMetadata.IsDefault should be true")
@@ -91,9 +91,9 @@ func TestProviderInfo_OptionMetadataFields(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		got := r.Get("example.com/repo.BasicRepository")
-		if got == nil {
-			t.Fatal("expected provider to be registered, got nil")
+		got, ok := r.GetByName("example.com/repo.BasicRepository", "")
+		if !ok {
+			t.Fatal("expected provider to be registered, got ok=false")
 		}
 		if got.Name != "" {
 			t.Errorf("Name should be empty, got %q", got.Name)

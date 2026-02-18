@@ -203,8 +203,8 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) (interf
 	// Phase 5: Extract app option to determine mode (default vs container)
 	optionMeta, optionErr := r.appOptionExtractor.ExtractAppOption(pass, apps[0])
 
-	// Handle container-related option extraction errors (e.g. non-struct type parameter)
-	if optionErr != nil && !optionMeta.IsDefault {
+	// Handle option extraction errors (e.g. non-struct type parameter)
+	if optionErr != nil {
 		r.diagnosticEmitter.EmitGraphBuildError(reporter, apps[0].Pos, optionErr.Error())
 		return nil, nil
 	}
@@ -217,7 +217,7 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) (interf
 
 	existingBootstrap := r.bootstrapGen.DetectExistingBootstrap(pass)
 
-	if optionErr == nil && optionMeta.ContainerDef != nil {
+	if optionMeta.ContainerDef != nil {
 		// Container mode
 		containerDef := optionMeta.ContainerDef
 

@@ -4,7 +4,6 @@ package graph
 
 import (
 	"fmt"
-	"go/token"
 	"strings"
 
 	"github.com/miyamo2/braider/internal/registry"
@@ -78,7 +77,6 @@ func (r *InterfaceRegistry) Resolve(ifaceType string) (string, error) {
 	if !ok || len(impls) == 0 {
 		return "", &UnresolvedInterfaceError{
 			InterfaceType: ifaceType,
-			ParameterPos:  token.NoPos,
 		}
 	}
 
@@ -108,8 +106,7 @@ func (e *AmbiguousImplementationError) Error() string {
 
 // UnresolvedInterfaceError indicates no injectable struct implements a required interface.
 type UnresolvedInterfaceError struct {
-	InterfaceType string    // Fully qualified interface type name
-	ParameterPos  token.Pos // Position of the constructor parameter
+	InterfaceType string // Fully qualified interface type name
 }
 
 func (e *UnresolvedInterfaceError) Error() string {

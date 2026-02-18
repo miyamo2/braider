@@ -47,20 +47,6 @@ func (v *containerValidatorImpl) Validate(
 	containerDef *detect.ContainerDefinition,
 	g *Graph,
 ) []ContainerValidationError {
-	if containerDef == nil || g == nil {
-		return nil
-	}
-
-	// Defensive: ensure StructType is actually a struct
-	if containerDef.StructType == nil {
-		return []ContainerValidationError{
-			{
-				Pos:     containerDef.Pos,
-				Message: "container type parameter must be a struct type",
-			},
-		}
-	}
-
 	var errors []ContainerValidationError
 
 	for _, field := range containerDef.Fields {

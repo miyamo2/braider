@@ -3,7 +3,6 @@ package analyzer
 import (
 	"context"
 	"fmt"
-	"iter"
 	"strings"
 	"testing"
 
@@ -22,10 +21,6 @@ type mockPackageLoader struct{}
 
 func (m *mockPackageLoader) LoadModulePackageNames(dir string) ([]string, error) {
 	return []string{}, nil
-}
-
-func (m *mockPackageLoader) LoadModulePackageAST(dir string) (iter.Seq[*packages.Package], error) {
-	return func(yield func(*packages.Package) bool) {}, nil
 }
 
 func (m *mockPackageLoader) FindModuleRoot(dir string) (string, error) {

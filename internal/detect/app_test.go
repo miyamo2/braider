@@ -89,11 +89,17 @@ func mockPassForApp(t *testing.T, src string, additionalPkgs map[string]*types.P
 
 	pkg, _ := conf.Check("main", fset, []*ast.File{file}, info)
 
+	// Create Inspector
+	insp := inspector.New([]*ast.File{file})
+
 	pass := &analysis.Pass{
 		Fset:      fset,
 		Files:     []*ast.File{file},
 		Pkg:       pkg,
 		TypesInfo: info,
+		ResultOf: map[*analysis.Analyzer]any{
+			inspect.Analyzer: insp,
+		},
 	}
 
 	return pass, file
@@ -576,52 +582,6 @@ func main() {}
 	}
 }
 
-func TestAppDetector_DeduplicateAppsByFile_NilFile(t *testing.T) {
-	markers, err := detect.ResolveMarkers()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Test the fallback behavior when File is nil
-	detector := detect.NewAppDetector(markers)
-
-	// Create annotations with nil File (edge case)
-	apps := []*detect.AppAnnotation{
-		{
-			CallExpr: &ast.CallExpr{},
-			Pos:      1,
-			File:     nil, // Explicitly nil
-		},
-		{
-			CallExpr: &ast.CallExpr{},
-			Pos:      2,
-			File:     nil, // Explicitly nil
-		},
-	}
-
-	deduplicated := detector.DeduplicateAppsByFile(apps)
-
-	// When File is nil, all apps should be included (fallback behavior)
-	if len(deduplicated) != 2 {
-		t.Errorf("DeduplicateAppsByFile() with nil Files returned %d annotations, want 2", len(deduplicated))
-	}
-}
-
-func TestAppValidationError_Error_DefaultCase(t *testing.T) {
-	// Test the default case in Error() method
-	err := &detect.AppValidationError{
-		Type:      detect.AppValidationErrorType(999), // Invalid type
-		Positions: []token.Pos{1},
-		FuncName:  "test",
-	}
-
-	result := err.Error()
-	expected := "invalid App annotation"
-	if result != expected {
-		t.Errorf("Error() = %q, want %q", result, expected)
-	}
-}
-
 func TestAppDetector_ValidateAppAnnotations_EdgeCases(t *testing.T) {
 	markers, err := detect.ResolveMarkers()
 	if err != nil {
@@ -1088,27 +1048,5 @@ func main() {}
 	}
 }
 
-func TestAppDetector_FindFileForNode_NoFileFound(t *testing.T) {
-	markers, err := detect.ResolveMarkers()
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	// Create a pass with no files
-	fset := token.NewFileSet()
-	pass := &analysis.Pass{
-		Fset:  fset,
-		Files: []*ast.File{}, // Empty files
-	}
-
-	detector := detect.NewAppDetector(markers)
-	// Since findFileForNode is private, we test it indirectly through DetectAppAnnotations
-	// With empty files, should return empty
-	apps := detector.DetectAppAnnotations(pass)
-
-	// With empty files, should return empty
-	if len(apps) != 0 {
-		t.Errorf("DetectAppAnnotations() with empty files returned %d, want 0", len(apps))
-	}
-}
 

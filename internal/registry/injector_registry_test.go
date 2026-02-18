@@ -21,9 +21,9 @@ func TestInjectorRegistry_Register(t *testing.T) {
 
 			r.Register(info)
 
-			got := r.Get("example.com/service.UserService")
-			if got == nil {
-				t.Fatal("expected injector to be registered, got nil")
+			got, ok := r.GetByName("example.com/service.UserService", "")
+			if !ok {
+				t.Fatal("expected injector to be registered, got ok=false")
 			}
 			if got.TypeName != info.TypeName {
 				t.Errorf("TypeName = %q, want %q", got.TypeName, info.TypeName)
@@ -59,9 +59,9 @@ func TestInjectorRegistry_Register(t *testing.T) {
 			r.Register(info1)
 			r.Register(info2)
 
-			got := r.Get("example.com/service.UserService")
-			if got == nil {
-				t.Fatal("expected injector to be registered, got nil")
+			got, ok := r.GetByName("example.com/service.UserService", "")
+			if !ok {
+				t.Fatal("expected injector to be registered, got ok=false")
 			}
 			if got.ConstructorName != "NewUserServiceV2" {
 				t.Errorf("ConstructorName = %q, want %q", got.ConstructorName, "NewUserServiceV2")
@@ -172,9 +172,12 @@ func TestInjectorRegistry_Get(t *testing.T) {
 		"returns nil when injector not found", func(t *testing.T) {
 			r := NewInjectorRegistry()
 
-			got := r.Get("nonexistent.Type")
+			got, ok := r.GetByName("nonexistent.Type", "")
+			if ok {
+				t.Errorf("GetByName(nonexistent) returned ok=true, want false")
+			}
 			if got != nil {
-				t.Errorf("Get(nonexistent) = %v, want nil", got)
+				t.Errorf("GetByName(nonexistent) = %v, want nil", got)
 			}
 		},
 	)
@@ -191,9 +194,9 @@ func TestInjectorRegistry_Get(t *testing.T) {
 			}
 			r.Register(info)
 
-			got := r.Get("example.com/service.UserService")
-			if got == nil {
-				t.Fatal("expected injector, got nil")
+			got, ok := r.GetByName("example.com/service.UserService", "")
+			if !ok {
+				t.Fatal("expected injector, got ok=false")
 			}
 			if got.TypeName != info.TypeName {
 				t.Errorf("TypeName = %q, want %q", got.TypeName, info.TypeName)
@@ -240,7 +243,7 @@ func TestInjectorRegistry_ThreadSafety(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			for range numOperations {
-				_ = r.Get("example.com/pkg.Type" + string(rune('A'+id%26)))
+				_, _ = r.GetByName("example.com/pkg.Type"+string(rune('A'+id%26)), "")
 			}
 		}(i)
 	}
@@ -275,9 +278,9 @@ func TestGlobalInjectorRegistry(t *testing.T) {
 
 	r.Register(info)
 
-	got := r.Get("example.com/service.TestService")
-	if got == nil {
-		t.Fatal("GlobalInjectorRegistry.Get() returned nil")
+	got, ok := r.GetByName("example.com/service.TestService", "")
+	if !ok {
+		t.Fatal("GlobalInjectorRegistry.GetByName() returned ok=false")
 	}
 	if got.TypeName != info.TypeName {
 		t.Errorf("TypeName = %q, want %q", got.TypeName, info.TypeName)

@@ -26,38 +26,6 @@ func makeTestInterfaceType(pkgPath, pkgName, typeName string) *types.Named {
 	return named
 }
 
-func TestContainerValidator_Validate_NilInputs(t *testing.T) {
-	reg := NewInterfaceRegistry()
-	v := NewContainerValidatorImpl(reg)
-
-	// nil containerDef
-	if errs := v.Validate(nil, &Graph{}); len(errs) != 0 {
-		t.Errorf("expected no errors for nil containerDef, got %d", len(errs))
-	}
-
-	// nil graph
-	if errs := v.Validate(&detect.ContainerDefinition{}, nil); len(errs) != 0 {
-		t.Errorf("expected no errors for nil graph, got %d", len(errs))
-	}
-}
-
-func TestContainerValidator_Validate_NilStructType(t *testing.T) {
-	reg := NewInterfaceRegistry()
-	v := NewContainerValidatorImpl(reg)
-
-	def := &detect.ContainerDefinition{
-		Pos:        token.NoPos,
-		StructType: nil,
-	}
-	errs := v.Validate(def, &Graph{Nodes: map[string]*Node{}})
-	if len(errs) != 1 {
-		t.Fatalf("expected 1 error, got %d", len(errs))
-	}
-	if errs[0].Message != "container type parameter must be a struct type" {
-		t.Errorf("unexpected message: %s", errs[0].Message)
-	}
-}
-
 func TestContainerValidator_Validate_BraiderTagDash(t *testing.T) {
 	reg := NewInterfaceRegistry()
 	v := NewContainerValidatorImpl(reg)

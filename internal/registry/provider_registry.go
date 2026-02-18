@@ -132,18 +132,6 @@ func (r *ProviderRegistry) GetAll() []*ProviderInfo {
 	return result
 }
 
-// Get retrieves a provider by fully qualified type name.
-// Returns nil if not found.
-func (r *ProviderRegistry) Get(typeName string) *ProviderInfo {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	inner, ok := r.providers[typeName]
-	if !ok {
-		return nil
-	}
-	return inner[""]
-}
-
 // GetByName retrieves a named provider by fully qualified type name and name.
 // Returns (info, true) if found with matching name, (nil, false) otherwise.
 // This supports named dependency lookup for Provider[provide.Named[N]] annotations.

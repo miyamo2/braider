@@ -118,18 +118,6 @@ func (r *InjectorRegistry) GetAll() []*InjectorInfo {
 	return result
 }
 
-// Get retrieves an injector by fully qualified type name.
-// Returns nil if not found.
-func (r *InjectorRegistry) Get(typeName string) *InjectorInfo {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	inner, ok := r.injectors[typeName]
-	if !ok {
-		return nil
-	}
-	return inner[""]
-}
-
 // GetByName retrieves a named injector by fully qualified type name and name.
 // Returns (info, true) if found with matching name, (nil, false) otherwise.
 // This supports named dependency lookup for Injectable[inject.Named[N]] annotations.

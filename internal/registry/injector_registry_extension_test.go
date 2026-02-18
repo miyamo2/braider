@@ -64,9 +64,9 @@ func TestInjectorInfo_OptionMetadataFields(t *testing.T) {
 			t.Fatalf("Register() returned error: %v", err)
 		}
 
-		got := r.Get("example.com/service.OrderService")
-		if got == nil {
-			t.Fatal("expected injector to be registered, got nil")
+		got, ok := r.GetByName("example.com/service.OrderService", "")
+		if !ok {
+			t.Fatal("expected injector to be registered, got ok=false")
 		}
 		if !got.OptionMetadata.IsDefault {
 			t.Error("OptionMetadata.IsDefault should be true")
@@ -90,9 +90,9 @@ func TestInjectorInfo_OptionMetadataFields(t *testing.T) {
 			t.Fatalf("Register() returned error: %v", err)
 		}
 
-		got := r.Get("example.com/service.CustomService")
-		if got == nil {
-			t.Fatal("expected injector to be registered, got nil")
+		got, ok := r.GetByName("example.com/service.CustomService", "")
+		if !ok {
+			t.Fatal("expected injector to be registered, got ok=false")
 		}
 		if !got.OptionMetadata.WithoutConstructor {
 			t.Error("OptionMetadata.WithoutConstructor should be true")
@@ -117,9 +117,9 @@ func TestInjectorInfo_OptionMetadataFields(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		got := r.Get("example.com/service.BasicService")
-		if got == nil {
-			t.Fatal("expected injector to be registered, got nil")
+		got, ok := r.GetByName("example.com/service.BasicService", "")
+		if !ok {
+			t.Fatal("expected injector to be registered, got ok=false")
 		}
 		if got.Name != "" {
 			t.Errorf("Name should be empty, got %q", got.Name)
