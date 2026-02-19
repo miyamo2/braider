@@ -33,7 +33,7 @@ type SuggestedFixBuilder interface {
 		app *detect.AppAnnotation,
 		bootstrap *generate.GeneratedBootstrap,
 		mainFunc *ast.FuncDecl,
-	) analysis.SuggestedFix
+	) (analysis.SuggestedFix, error)
 
 	// BuildBootstrapReplacementFix creates a SuggestedFix for replacing existing bootstrap code.
 	// Replaces existing dependency variable and updates main reference if needed.
@@ -42,7 +42,7 @@ type SuggestedFixBuilder interface {
 		existing *ast.GenDecl,
 		bootstrap *generate.GeneratedBootstrap,
 		mainFunc *ast.FuncDecl,
-	) analysis.SuggestedFix
+	) (analysis.SuggestedFix, error)
 }
 
 // suggestedFixBuilder is the default implementation of SuggestedFixBuilder.
@@ -134,7 +134,7 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 	app *detect.AppAnnotation,
 	bootstrap *generate.GeneratedBootstrap,
 	mainFunc *ast.FuncDecl,
-) analysis.SuggestedFix {
+) (analysis.SuggestedFix, error) {
 	var edits []analysis.TextEdit
 
 	// Phase 1: Handle imports (if needed)
@@ -156,28 +156,32 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 			}
 			lastImportEnd := allImportDecls[len(allImportDecls)-1].End()
 
-			if unifiedBlock, err := b.buildUnifiedImportBlock(sortedImports); err == nil {
-				edits = append(
-					edits, analysis.TextEdit{
-						Pos:     firstImportStart,
-						End:     lastImportEnd,
-						NewText: []byte(unifiedBlock),
-					},
-				)
+			unifiedBlock, err := b.buildUnifiedImportBlock(sortedImports)
+			if err != nil {
+				return analysis.SuggestedFix{}, fmt.Errorf("failed to build import block: %w", err)
 			}
+			edits = append(
+				edits, analysis.TextEdit{
+					Pos:     firstImportStart,
+					End:     lastImportEnd,
+					NewText: []byte(unifiedBlock),
+				},
+			)
 		} else {
 			// Case 2: Import doesn't exist - insert new import block
 			insertPos := b.findImportInsertionPoint(file, nil)
 
-			if unifiedBlock, err := b.buildUnifiedImportBlock(sortedImports); err == nil {
-				edits = append(
-					edits, analysis.TextEdit{
-						Pos:     insertPos,
-						End:     insertPos,
-						NewText: []byte("\n\n" + unifiedBlock),
-					},
-				)
+			unifiedBlock, err := b.buildUnifiedImportBlock(sortedImports)
+			if err != nil {
+				return analysis.SuggestedFix{}, fmt.Errorf("failed to build import block: %w", err)
 			}
+			edits = append(
+				edits, analysis.TextEdit{
+					Pos:     insertPos,
+					End:     insertPos,
+					NewText: []byte("\n\n" + unifiedBlock),
+				},
+			)
 		}
 	}
 
@@ -213,7 +217,7 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 	return analysis.SuggestedFix{
 		Message:   "generate bootstrap code",
 		TextEdits: edits,
-	}
+	}, nil
 }
 
 // BuildBootstrapReplacementFix creates a SuggestedFix for replacing existing bootstrap code.
@@ -222,7 +226,7 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 	existing *ast.GenDecl,
 	bootstrap *generate.GeneratedBootstrap,
 	mainFunc *ast.FuncDecl,
-) analysis.SuggestedFix {
+) (analysis.SuggestedFix, error) {
 	var edits []analysis.TextEdit
 
 	// Phase 1: Handle imports (if needed)
@@ -258,28 +262,32 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 				}
 				lastImportEnd := allImportDecls[len(allImportDecls)-1].End()
 
-				if unifiedBlock, err := b.buildUnifiedImportBlock(sortedImports); err == nil {
-					edits = append(
-						edits, analysis.TextEdit{
-							Pos:     firstImportStart,
-							End:     lastImportEnd,
-							NewText: []byte(unifiedBlock),
-						},
-					)
+				unifiedBlock, err := b.buildUnifiedImportBlock(sortedImports)
+				if err != nil {
+					return analysis.SuggestedFix{}, fmt.Errorf("failed to build import block: %w", err)
 				}
+				edits = append(
+					edits, analysis.TextEdit{
+						Pos:     firstImportStart,
+						End:     lastImportEnd,
+						NewText: []byte(unifiedBlock),
+					},
+				)
 			} else {
 				// Case 2: Import doesn't exist - insert new import block
 				insertPos := b.findImportInsertionPoint(file, nil)
 
-				if unifiedBlock, err := b.buildUnifiedImportBlock(sortedImports); err == nil {
-					edits = append(
-						edits, analysis.TextEdit{
-							Pos:     insertPos,
-							End:     insertPos,
-							NewText: []byte("\n\n" + unifiedBlock),
-						},
-					)
+				unifiedBlock, err := b.buildUnifiedImportBlock(sortedImports)
+				if err != nil {
+					return analysis.SuggestedFix{}, fmt.Errorf("failed to build import block: %w", err)
 				}
+				edits = append(
+					edits, analysis.TextEdit{
+						Pos:     insertPos,
+						End:     insertPos,
+						NewText: []byte("\n\n" + unifiedBlock),
+					},
+				)
 			}
 		}
 	}
@@ -311,7 +319,7 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 	return analysis.SuggestedFix{
 		Message:   "update bootstrap code",
 		TextEdits: edits,
-	}
+	}, nil
 }
 
 // findBootstrapInsertionPoint finds the position to insert bootstrap code.

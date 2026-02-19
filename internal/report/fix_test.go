@@ -331,7 +331,10 @@ func main() {}
 			}
 
 			builder := report.NewSuggestedFixBuilder()
-			fix := builder.BuildBootstrapFix(pass, app, bootstrap, mainFunc)
+			fix, err := builder.BuildBootstrapFix(pass, app, bootstrap, mainFunc)
+			if err != nil {
+				t.Fatalf("BuildBootstrapFix() error = %v", err)
+			}
 
 			if fix.Message != "generate bootstrap code" {
 				t.Errorf("Message = %q, want %q", fix.Message, "generate bootstrap code")
@@ -428,7 +431,10 @@ func main() {
 	}
 
 	builder := report.NewSuggestedFixBuilder()
-	fix := builder.BuildBootstrapReplacementFix(pass, existingDecl, bootstrap, mainFunc)
+	fix, err := builder.BuildBootstrapReplacementFix(pass, existingDecl, bootstrap, mainFunc)
+	if err != nil {
+		t.Fatalf("BuildBootstrapReplacementFix() error = %v", err)
+	}
 
 	if fix.Message != "update bootstrap code" {
 		t.Errorf("Message = %q, want %q", fix.Message, "update bootstrap code")
@@ -622,7 +628,10 @@ func main() {}`,
 			}
 
 			builder := report.NewSuggestedFixBuilder()
-			fix := builder.BuildBootstrapFix(pass, app, bootstrap, mainFunc)
+			fix, err := builder.BuildBootstrapFix(pass, app, bootstrap, mainFunc)
+			if err != nil {
+				t.Fatalf("BuildBootstrapFix() error = %v", err)
+			}
 
 			// Check for import edit
 			importEditFound := false
@@ -750,7 +759,10 @@ func main() {}`,
 			}
 
 			builder := report.NewSuggestedFixBuilder()
-			fix := builder.BuildBootstrapReplacementFix(pass, existingDecl, bootstrap, mainFunc)
+			fix, err := builder.BuildBootstrapReplacementFix(pass, existingDecl, bootstrap, mainFunc)
+			if err != nil {
+				t.Fatalf("BuildBootstrapReplacementFix() error = %v", err)
+			}
 
 			// Check for import edit
 			importEditFound := false
@@ -824,7 +836,10 @@ func TestImportBlockGofmtCompatible(t *testing.T) {
 				Imports:       tt.imports,
 			}
 
-			fix := builder.BuildBootstrapFix(pass, app, bootstrap, nil)
+			fix, err := builder.BuildBootstrapFix(pass, app, bootstrap, nil)
+			if err != nil {
+				t.Fatalf("BuildBootstrapFix() error = %v", err)
+			}
 
 			// Extract import text from TextEdit
 			var importText string
@@ -902,7 +917,10 @@ func main() {}`
 	}
 
 	builder := report.NewSuggestedFixBuilder()
-	fix := builder.BuildBootstrapFix(pass, app, bootstrap, mainFunc)
+	fix, err := builder.BuildBootstrapFix(pass, app, bootstrap, mainFunc)
+	if err != nil {
+		t.Fatalf("BuildBootstrapFix() error = %v", err)
+	}
 
 	// Find import edit
 	var importEdit *analysis.TextEdit
@@ -982,7 +1000,10 @@ func main() {}`
 	}
 
 	builder := report.NewSuggestedFixBuilder()
-	fix := builder.BuildBootstrapFix(pass, app, bootstrap, mainFunc)
+	fix, err := builder.BuildBootstrapFix(pass, app, bootstrap, mainFunc)
+	if err != nil {
+		t.Fatalf("BuildBootstrapFix() error = %v", err)
+	}
 
 	// Find import edit
 	var importEdit *analysis.TextEdit

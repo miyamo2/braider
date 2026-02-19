@@ -73,7 +73,7 @@ var (
 )
 
 // MustResolveMarkers loads the internal/annotation package via packages.Load and
-// returns the resolved marker interfaces. panic resolution fails.
+// returns the resolved marker interfaces. Panics if resolution fails.
 // Thread-safe; result is computed once and cached.
 func MustResolveMarkers() *MarkerInterfaces {
 	v, err := ResolveMarkers()
