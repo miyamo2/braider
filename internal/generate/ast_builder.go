@@ -110,16 +110,6 @@ func clearPositions(node ast.Node) {
 	)
 }
 
-// renderNode formats an AST node using format.Node and returns the string.
-func renderNode(node ast.Node) (string, error) {
-	var buf bytes.Buffer
-	fset := token.NewFileSet()
-	if err := format.Node(&buf, fset, node); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
-}
-
 // renderDecl formats an AST declaration (FuncDecl, GenDecl) as Go source.
 // It wraps the declaration in a dummy file, assigns synthetic line-based
 // positions to produce multi-line layout for composite literals and proper

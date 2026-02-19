@@ -71,22 +71,24 @@ func TestParseExprString(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			expr, err := parseExprString(tt.input)
-			if tt.wantErr {
-				if err == nil {
-					t.Errorf("parseExprString(%q) expected error, got nil", tt.input)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				expr, err := parseExprString(tt.input)
+				if tt.wantErr {
+					if err == nil {
+						t.Errorf("parseExprString(%q) expected error, got nil", tt.input)
+					}
+					return
 				}
-				return
-			}
-			if err != nil {
-				t.Errorf("parseExprString(%q) unexpected error: %v", tt.input, err)
-				return
-			}
-			if expr == nil {
-				t.Errorf("parseExprString(%q) returned nil expr", tt.input)
-			}
-		})
+				if err != nil {
+					t.Errorf("parseExprString(%q) unexpected error: %v", tt.input, err)
+					return
+				}
+				if expr == nil {
+					t.Errorf("parseExprString(%q) returned nil expr", tt.input)
+				}
+			},
+		)
 	}
 }
 
@@ -253,46 +255,12 @@ func TestClearPositions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			clearPositions(tt.node)
-			tt.checkFn(t, tt.node)
-		})
-	}
-}
-
-func TestRenderNode(t *testing.T) {
-	tests := []struct {
-		name string
-		node ast.Node
-		want string
-	}{
-		{
-			name: "simple identifier",
-			node: &ast.Ident{Name: "foo"},
-			want: "foo",
-		},
-		{
-			name: "selector expression",
-			node: &ast.SelectorExpr{X: &ast.Ident{Name: "pkg"}, Sel: &ast.Ident{Name: "Type"}},
-			want: "pkg.Type",
-		},
-		{
-			name: "star expression",
-			node: &ast.StarExpr{X: &ast.Ident{Name: "Foo"}},
-			want: "*Foo",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := renderNode(tt.node)
-			if err != nil {
-				t.Fatalf("renderNode() error: %v", err)
-			}
-			if got != tt.want {
-				t.Errorf("renderNode() = %q, want %q", got, tt.want)
-			}
-		})
+		t.Run(
+			tt.name, func(t *testing.T) {
+				clearPositions(tt.node)
+				tt.checkFn(t, tt.node)
+			},
+		)
 	}
 }
 
@@ -327,14 +295,16 @@ func TestRenderDecl(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := renderDecl(tt.decl)
-			if err != nil {
-				t.Fatalf("renderDecl() error: %v", err)
-			}
-			if !strings.Contains(got, tt.contains) {
-				t.Errorf("renderDecl() = %q, want to contain %q", got, tt.contains)
-			}
-		})
+		t.Run(
+			tt.name, func(t *testing.T) {
+				got, err := renderDecl(tt.decl)
+				if err != nil {
+					t.Fatalf("renderDecl() error: %v", err)
+				}
+				if !strings.Contains(got, tt.contains) {
+					t.Errorf("renderDecl() = %q, want to contain %q", got, tt.contains)
+				}
+			},
+		)
 	}
 }
