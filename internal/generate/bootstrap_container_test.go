@@ -342,6 +342,372 @@ func TestBootstrapGenerator_GenerateContainerBootstrap_WithVariableNode(t *testi
 	}
 }
 
+func TestBootstrapGenerator_GenerateContainerBootstrap_AnonymousContainer(t *testing.T) {
+	bg := NewBootstrapGenerator()
+	pass := &analysis.Pass{
+		Pkg: types.NewPackage("main", "main"),
+	}
+
+	svcType := makeNamedType("example.com/pkg", "pkg", "UserService")
+
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.UserService": {
+				TypeName:        "example.com/pkg.UserService",
+				PackagePath:     "example.com/pkg",
+				PackageName:     "pkg",
+				LocalName:       "UserService",
+				ConstructorName: "NewUserService",
+				Dependencies:    []string{},
+				IsField:         true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.UserService": {},
+		},
+	}
+	sortedTypes := []string{"example.com/pkg.UserService"}
+
+	// Anonymous container (IsNamed=false)
+	containerDef := &detect.ContainerDefinition{
+		IsNamed:    false,
+		StructType: types.NewStruct(nil, nil),
+		Fields: []detect.ContainerField{
+			{Name: "Svc", Type: svcType, Pos: token.NoPos},
+		},
+	}
+
+	resolvedFields := []detect.ResolvedContainerField{
+		{FieldName: "Svc", NodeKey: "example.com/pkg.UserService", VarName: "userService"},
+	}
+
+	bootstrap, err := bg.GenerateContainerBootstrap(pass, g, sortedTypes, containerDef, resolvedFields)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bootstrap == nil {
+		t.Fatal("bootstrap is nil")
+	}
+	// Anonymous struct should appear in the output
+	if !strings.Contains(bootstrap.DependencyVar, "struct") {
+		t.Errorf("expected anonymous struct in output, got: %s", bootstrap.DependencyVar)
+	}
+	if !strings.Contains(bootstrap.DependencyVar, "Svc") {
+		t.Errorf("expected Svc field, got: %s", bootstrap.DependencyVar)
+	}
+}
+
+func TestBootstrapGenerator_GenerateContainerBootstrap_WithExistingBootstrapInFiles(t *testing.T) {
+	bg := NewBootstrapGenerator()
+
+	svcType := makeNamedType("example.com/pkg", "pkg", "UserService")
+
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.UserService": {
+				TypeName:        "example.com/pkg.UserService",
+				PackagePath:     "example.com/pkg",
+				PackageName:     "pkg",
+				LocalName:       "UserService",
+				ConstructorName: "NewUserService",
+				Dependencies:    []string{},
+				IsField:         true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.UserService": {},
+		},
+	}
+
+	containerDef := &detect.ContainerDefinition{
+		IsNamed:     true,
+		TypeName:    "main.AppContainer",
+		PackagePath: "main",
+		PackageName: "main",
+		LocalName:   "AppContainer",
+		StructType:  types.NewStruct(nil, nil),
+		Fields: []detect.ContainerField{
+			{Name: "Svc", Type: svcType, Pos: token.NoPos},
+		},
+	}
+
+	resolvedFields := []detect.ResolvedContainerField{
+		{FieldName: "Svc", NodeKey: "example.com/pkg.UserService", VarName: "userService"},
+	}
+
+	// Parse a source file containing an existing bootstrap declaration
+	source := `package main
+
+import "example.com/pkg"
+
+// braider:hash:oldhash
+var dependency = func() AppContainer {
+	userService := pkg.NewUserService()
+	return AppContainer{Svc: userService}
+}()
+
+func main() {}
+`
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "main.go", source, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("Failed to parse source: %v", err)
+	}
+
+	pass := &analysis.Pass{
+		Pkg:   types.NewPackage("main", "main"),
+		Files: []*goast.File{file},
+		Fset:  fset,
+	}
+
+	sortedTypes := []string{"example.com/pkg.UserService"}
+
+	bootstrap, err := bg.GenerateContainerBootstrap(pass, g, sortedTypes, containerDef, resolvedFields)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bootstrap == nil {
+		t.Fatal("bootstrap is nil")
+	}
+	if bootstrap.Hash == "" {
+		t.Error("hash is empty")
+	}
+}
+
+func TestBootstrapGenerator_GenerateContainerBootstrap_NotDependedUponVariable(t *testing.T) {
+	bg := NewBootstrapGenerator()
+	pass := &analysis.Pass{
+		Pkg: types.NewPackage("main", "main"),
+	}
+
+	svcType := makeNamedType("example.com/pkg", "pkg", "UserService")
+
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"os.File": {
+				TypeName:       "os.File",
+				PackagePath:    "os",
+				PackageName:    "os",
+				LocalName:      "File",
+				Dependencies:   []string{},
+				IsField:        false,
+				ExpressionText: "os.Stdout",
+				IsQualified:    true,
+			},
+			"example.com/pkg.UserService": {
+				TypeName:        "example.com/pkg.UserService",
+				PackagePath:     "example.com/pkg",
+				PackageName:     "pkg",
+				LocalName:       "UserService",
+				ConstructorName: "NewUserService",
+				Dependencies:    []string{},
+				IsField:         true,
+			},
+		},
+		Edges: map[string][]string{
+			"os.File":                     {},
+			"example.com/pkg.UserService": {},
+		},
+	}
+	sortedTypes := []string{"os.File", "example.com/pkg.UserService"}
+
+	containerDef := &detect.ContainerDefinition{
+		IsNamed:     true,
+		TypeName:    "main.AppContainer",
+		PackagePath: "main",
+		PackageName: "main",
+		LocalName:   "AppContainer",
+		StructType:  types.NewStruct(nil, nil),
+		Fields: []detect.ContainerField{
+			{Name: "Svc", Type: svcType, Pos: token.NoPos},
+		},
+	}
+
+	// Only Svc is resolved - os.File is not depended upon by anyone
+	resolvedFields := []detect.ResolvedContainerField{
+		{FieldName: "Svc", NodeKey: "example.com/pkg.UserService", VarName: "userService"},
+	}
+
+	bootstrap, err := bg.GenerateContainerBootstrap(pass, g, sortedTypes, containerDef, resolvedFields)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Variable not depended upon should use blank assignment
+	if !strings.Contains(bootstrap.DependencyVar, "_ = os.Stdout") {
+		t.Errorf("expected blank assignment for unused variable, got: %s", bootstrap.DependencyVar)
+	}
+}
+
+func TestBootstrapGenerator_GenerateContainerBootstrap_MainPackageConstructor(t *testing.T) {
+	bg := NewBootstrapGenerator()
+	pass := &analysis.Pass{
+		Pkg: types.NewPackage("main", "main"),
+	}
+
+	svcType := makeNamedType("main", "main", "UserService")
+
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"main.UserService": {
+				TypeName:        "main.UserService",
+				PackagePath:     "main",
+				PackageName:     "main",
+				LocalName:       "UserService",
+				ConstructorName: "NewUserService",
+				Dependencies:    []string{},
+				IsField:         true,
+			},
+		},
+		Edges: map[string][]string{
+			"main.UserService": {},
+		},
+	}
+	sortedTypes := []string{"main.UserService"}
+
+	containerDef := &detect.ContainerDefinition{
+		IsNamed:     true,
+		TypeName:    "main.AppContainer",
+		PackagePath: "main",
+		PackageName: "main",
+		LocalName:   "AppContainer",
+		StructType:  types.NewStruct(nil, nil),
+		Fields: []detect.ContainerField{
+			{Name: "Svc", Type: svcType, Pos: token.NoPos},
+		},
+	}
+
+	resolvedFields := []detect.ResolvedContainerField{
+		{FieldName: "Svc", NodeKey: "main.UserService", VarName: "userService"},
+	}
+
+	bootstrap, err := bg.GenerateContainerBootstrap(pass, g, sortedTypes, containerDef, resolvedFields)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Main package constructor should not be qualified
+	if !strings.Contains(bootstrap.DependencyVar, "userService := NewUserService()") {
+		t.Errorf("expected unqualified main constructor, got: %s", bootstrap.DependencyVar)
+	}
+}
+
+func TestBootstrapGenerator_GenerateContainerBootstrap_WithPackageAlias(t *testing.T) {
+	bg := NewBootstrapGenerator()
+	pass := &analysis.Pass{
+		Pkg: types.NewPackage("main", "main"),
+	}
+
+	svcType := makeNamedType("example.com/pkg", "pkg", "UserService")
+
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.UserService": {
+				TypeName:        "example.com/pkg.UserService",
+				PackagePath:     "example.com/pkg",
+				PackageName:     "pkg",
+				LocalName:       "UserService",
+				ConstructorName: "NewUserService",
+				PackageAlias:    "mypkg",
+				Dependencies:    []string{},
+				IsField:         true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.UserService": {},
+		},
+	}
+	sortedTypes := []string{"example.com/pkg.UserService"}
+
+	containerDef := &detect.ContainerDefinition{
+		IsNamed:     true,
+		TypeName:    "main.AppContainer",
+		PackagePath: "main",
+		PackageName: "main",
+		LocalName:   "AppContainer",
+		StructType:  types.NewStruct(nil, nil),
+		Fields: []detect.ContainerField{
+			{Name: "Svc", Type: svcType, Pos: token.NoPos},
+		},
+	}
+
+	resolvedFields := []detect.ResolvedContainerField{
+		{FieldName: "Svc", NodeKey: "example.com/pkg.UserService", VarName: "userService"},
+	}
+
+	bootstrap, err := bg.GenerateContainerBootstrap(pass, g, sortedTypes, containerDef, resolvedFields)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Should use the package alias
+	if !strings.Contains(bootstrap.DependencyVar, "mypkg.NewUserService()") {
+		t.Errorf("expected aliased constructor call, got: %s", bootstrap.DependencyVar)
+	}
+}
+
+func TestBootstrapGenerator_GenerateContainerBootstrap_DepFallback(t *testing.T) {
+	bg := NewBootstrapGenerator()
+	pass := &analysis.Pass{
+		Pkg: types.NewPackage("main", "main"),
+	}
+
+	svcType := makeNamedType("example.com/pkg", "pkg", "UserService")
+
+	g := &graph.Graph{
+		Nodes: map[string]*graph.Node{
+			"example.com/pkg.Logger": {
+				TypeName:        "example.com/pkg.Logger",
+				PackagePath:     "example.com/pkg",
+				PackageName:     "pkg",
+				LocalName:       "Logger",
+				ConstructorName: "NewLogger",
+				Dependencies:    []string{},
+				IsField:         true,
+			},
+			"example.com/pkg.UserService": {
+				TypeName:        "example.com/pkg.UserService",
+				PackagePath:     "example.com/pkg",
+				PackageName:     "pkg",
+				LocalName:       "UserService",
+				ConstructorName: "NewUserService",
+				Dependencies:    []string{"example.com/pkg.Logger"},
+				IsField:         true,
+			},
+		},
+		Edges: map[string][]string{
+			"example.com/pkg.Logger":      {},
+			"example.com/pkg.UserService": {"example.com/pkg.Logger"},
+		},
+	}
+	// Note: sortedTypes only includes UserService - Logger is not in the sortedTypes
+	// This means Logger won't have an entry in varNames from the main loop,
+	// triggering the fallback resolution in buildContainerConstructorCallExpr
+	sortedTypes := []string{"example.com/pkg.UserService"}
+
+	containerDef := &detect.ContainerDefinition{
+		IsNamed:     true,
+		TypeName:    "main.AppContainer",
+		PackagePath: "main",
+		PackageName: "main",
+		LocalName:   "AppContainer",
+		StructType:  types.NewStruct(nil, nil),
+		Fields: []detect.ContainerField{
+			{Name: "Svc", Type: svcType, Pos: token.NoPos},
+		},
+	}
+
+	resolvedFields := []detect.ResolvedContainerField{
+		{FieldName: "Svc", NodeKey: "example.com/pkg.UserService", VarName: "userService"},
+	}
+
+	bootstrap, err := bg.GenerateContainerBootstrap(pass, g, sortedTypes, containerDef, resolvedFields)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// UserService should have logger as dependency via fallback
+	if !strings.Contains(bootstrap.DependencyVar, "NewUserService(logger)") {
+		t.Errorf("expected constructor with fallback dep, got: %s", bootstrap.DependencyVar)
+	}
+}
+
 func TestBootstrapGenerator_CheckContainerBootstrapCurrent(t *testing.T) {
 	bg := NewBootstrapGenerator()
 

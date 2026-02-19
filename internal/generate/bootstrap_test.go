@@ -65,6 +65,37 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 			},
 		},
 		{
+			name: "inject with named interface RegisteredType",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"example.com/pkg.Service": {
+						TypeName:        "example.com/pkg.Service",
+						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
+						LocalName:       "Service",
+						ConstructorName: "NewService",
+						Dependencies:    []string{},
+						IsField:         true,
+						RegisteredType:  makeNamedInterfaceType("example.com/domain", "domain", "ServiceIface"),
+					},
+				},
+				Edges: map[string][]string{
+					"example.com/pkg.Service": {},
+				},
+			},
+			sortedTypes: []string{"example.com/pkg.Service"},
+			wantErr:     false,
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				// Should use the named interface type for the field
+				if !strings.Contains(bootstrap.DependencyVar, "domain.ServiceIface") {
+					t.Errorf("missing named interface type in field, got: %s", bootstrap.DependencyVar)
+				}
+			},
+		},
+		{
 			name: "inject with interface RegisteredType",
 			graph: &graph.Graph{
 				Nodes: map[string]*graph.Node{
@@ -384,6 +415,36 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 				}
 				if !strings.Contains(bootstrap.DependencyVar, "c := pkg.NewC(b)") {
 					t.Error("missing NewC call with b")
+				}
+			},
+		},
+		{
+			name: "main package constructor",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"main.Handler": {
+						TypeName:        "main.Handler",
+						PackagePath:     "main",
+						PackageName:     "main",
+						LocalName:       "Handler",
+						ConstructorName: "NewHandler",
+						Dependencies:    []string{},
+						IsField:         true,
+					},
+				},
+				Edges: map[string][]string{
+					"main.Handler": {},
+				},
+			},
+			sortedTypes: []string{"main.Handler"},
+			wantErr:     false,
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				// Main package constructors should not be qualified
+				if !strings.Contains(bootstrap.DependencyVar, "handler := NewHandler()") {
+					t.Errorf("expected unqualified constructor for main package, got: %s", bootstrap.DependencyVar)
 				}
 			},
 		},
@@ -1134,4 +1195,13 @@ func TestRewriteExpressionAliases(t *testing.T) {
 			}
 		})
 	}
+}
+
+func makeNamedInterfaceType(pkgPath, pkgName, typeName string) *types.Named {
+	pkg := types.NewPackage(pkgPath, pkgName)
+	obj := types.NewTypeName(token.NoPos, pkg, typeName, nil)
+	iface := types.NewInterfaceType(nil, nil)
+	iface.Complete()
+	named := types.NewNamed(obj, iface, nil)
+	return named
 }

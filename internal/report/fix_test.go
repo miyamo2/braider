@@ -958,6 +958,111 @@ func main() {}`
 	}
 }
 
+func TestBuildBootstrapFix_FallbackLastFunction(t *testing.T) {
+	// Source with no "main" function - uses "last function" fallback
+	src := `package main
+
+func helper() {}
+`
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "test.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("ParseFile() error = %v", err)
+	}
+
+	pass := &analysis.Pass{
+		Fset:  fset,
+		Files: []*ast.File{file},
+	}
+
+	app := &detect.AppAnnotation{
+		File: file,
+		Pos:  token.Pos(1),
+	}
+
+	bootstrap := &generate.GeneratedBootstrap{
+		DependencyVar: "var dependency = struct{}{}",
+		MainReference: "_ = dependency",
+		Hash:          "abc123",
+		Imports:       []generate.ImportInfo{},
+	}
+
+	builder := report.NewSuggestedFixBuilder()
+	fix, err := builder.BuildBootstrapFix(pass, app, bootstrap, nil) // nil mainFunc
+	if err != nil {
+		t.Fatalf("BuildBootstrapFix() error = %v", err)
+	}
+
+	// Should still produce at least 1 edit (dependency var)
+	if len(fix.TextEdits) < 1 {
+		t.Errorf("expected at least 1 TextEdit, got %d", len(fix.TextEdits))
+	}
+
+	// Verify dependency variable edit exists
+	dependencyVarFound := false
+	for _, edit := range fix.TextEdits {
+		if strings.Contains(string(edit.NewText), "var dependency") {
+			dependencyVarFound = true
+			break
+		}
+	}
+	if !dependencyVarFound {
+		t.Error("dependency variable edit not found")
+	}
+}
+
+func TestBuildBootstrapFix_FallbackEndOfFile(t *testing.T) {
+	// Source with no functions at all - uses "end of file" fallback
+	src := `package main
+
+var x = 1
+`
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "test.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("ParseFile() error = %v", err)
+	}
+
+	pass := &analysis.Pass{
+		Fset:  fset,
+		Files: []*ast.File{file},
+	}
+
+	app := &detect.AppAnnotation{
+		File: file,
+		Pos:  token.Pos(1),
+	}
+
+	bootstrap := &generate.GeneratedBootstrap{
+		DependencyVar: "var dependency = struct{}{}",
+		MainReference: "_ = dependency",
+		Hash:          "abc123",
+		Imports:       []generate.ImportInfo{},
+	}
+
+	builder := report.NewSuggestedFixBuilder()
+	fix, err := builder.BuildBootstrapFix(pass, app, bootstrap, nil) // nil mainFunc
+	if err != nil {
+		t.Fatalf("BuildBootstrapFix() error = %v", err)
+	}
+
+	// Should still produce at least 1 edit (dependency var)
+	if len(fix.TextEdits) < 1 {
+		t.Errorf("expected at least 1 TextEdit, got %d", len(fix.TextEdits))
+	}
+
+	dependencyVarFound := false
+	for _, edit := range fix.TextEdits {
+		if strings.Contains(string(edit.NewText), "var dependency") {
+			dependencyVarFound = true
+			break
+		}
+	}
+	if !dependencyVarFound {
+		t.Error("dependency variable edit not found")
+	}
+}
+
 func TestBuildBootstrapFix_ImportWithDocComment(t *testing.T) {
 	src := `package main
 

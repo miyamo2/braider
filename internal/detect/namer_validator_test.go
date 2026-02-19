@@ -289,6 +289,127 @@ func TestIsValidGoIdentifier(t *testing.T) {
 	}
 }
 
+func TestUnquoteStringLiteral_Backtick(t *testing.T) {
+	got, err := unquoteStringLiteral("`rawName`")
+	if err != nil {
+		t.Fatalf("unquoteStringLiteral() error = %v", err)
+	}
+	if got != "rawName" {
+		t.Errorf("unquoteStringLiteral(`rawName`) = %q, want %q", got, "rawName")
+	}
+}
+
+func TestUnquoteStringLiteral_DoubleQuote(t *testing.T) {
+	got, err := unquoteStringLiteral(`"quotedName"`)
+	if err != nil {
+		t.Fatalf("unquoteStringLiteral() error = %v", err)
+	}
+	if got != "quotedName" {
+		t.Errorf(`unquoteStringLiteral("quotedName") = %q, want %q`, got, "quotedName")
+	}
+}
+
+func TestValidateLiteralReturn_NilBody(t *testing.T) {
+	v := &namerValidatorImpl{}
+	decl := &ast.FuncDecl{
+		Name: &ast.Ident{Name: "Name"},
+		Type: &ast.FuncType{Params: &ast.FieldList{}},
+		Body: nil,
+	}
+	_, err := v.validateLiteralReturn(decl)
+	if err == nil {
+		t.Error("expected error for nil body")
+	}
+	if !containsStr(err.Error(), "no body") {
+		t.Errorf("error = %v, want 'no body'", err)
+	}
+}
+
+func TestValidateLiteralReturn_NoReturnStatement(t *testing.T) {
+	v := &namerValidatorImpl{}
+	decl := &ast.FuncDecl{
+		Name: &ast.Ident{Name: "Name"},
+		Type: &ast.FuncType{Params: &ast.FieldList{}},
+		Body: &ast.BlockStmt{List: []ast.Stmt{}},
+	}
+	_, err := v.validateLiteralReturn(decl)
+	if err == nil {
+		t.Error("expected error for no return statement")
+	}
+	if !containsStr(err.Error(), "no return statement") {
+		t.Errorf("error = %v, want 'no return statement'", err)
+	}
+}
+
+func TestValidateLiteralReturn_NonStringKind(t *testing.T) {
+	v := &namerValidatorImpl{}
+	decl := &ast.FuncDecl{
+		Name: &ast.Ident{Name: "Name"},
+		Type: &ast.FuncType{Params: &ast.FieldList{}},
+		Body: &ast.BlockStmt{
+			List: []ast.Stmt{
+				&ast.ReturnStmt{
+					Results: []ast.Expr{
+						&ast.BasicLit{Kind: token.INT, Value: "42"},
+					},
+				},
+			},
+		},
+	}
+	_, err := v.validateLiteralReturn(decl)
+	if err == nil {
+		t.Error("expected error for non-string literal")
+	}
+	if !containsStr(err.Error(), "hardcoded string literal") {
+		t.Errorf("error = %v, want 'hardcoded string literal'", err)
+	}
+}
+
+func TestValidateLiteralReturn_EmptyString(t *testing.T) {
+	v := &namerValidatorImpl{}
+	decl := &ast.FuncDecl{
+		Name: &ast.Ident{Name: "Name"},
+		Type: &ast.FuncType{Params: &ast.FieldList{}},
+		Body: &ast.BlockStmt{
+			List: []ast.Stmt{
+				&ast.ReturnStmt{
+					Results: []ast.Expr{
+						&ast.BasicLit{Kind: token.STRING, Value: `""`},
+					},
+				},
+			},
+		},
+	}
+	_, err := v.validateLiteralReturn(decl)
+	if err == nil {
+		t.Error("expected error for empty string literal")
+	}
+	if !containsStr(err.Error(), "non-empty") {
+		t.Errorf("error = %v, want 'non-empty'", err)
+	}
+}
+
+func TestIsExported(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		expect bool
+	}{
+		{"empty string", "", false},
+		{"lowercase", "foo", false},
+		{"uppercase", "Foo", true},
+		{"underscore", "_foo", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isExported(tt.input)
+			if got != tt.expect {
+				t.Errorf("isExported(%q) = %v, want %v", tt.input, got, tt.expect)
+			}
+		})
+	}
+}
+
 // Helper function
 func containsStr(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {

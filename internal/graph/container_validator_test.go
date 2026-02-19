@@ -401,6 +401,65 @@ func TestContainerValidator_Validate_MultipleFields(t *testing.T) {
 	}
 }
 
+func TestContainerValidator_Validate_InterfaceFieldNilRegistry(t *testing.T) {
+	v := NewContainerValidatorImpl(nil) // nil registry
+
+	ifaceType := makeTestInterfaceType("example.com/pkg", "pkg", "Repository")
+
+	def := &detect.ContainerDefinition{
+		StructType: types.NewStruct(nil, nil),
+		Fields: []detect.ContainerField{
+			{
+				Name: "Repo",
+				Type: ifaceType,
+				Pos:  token.NoPos,
+			},
+		},
+	}
+	g := &Graph{Nodes: map[string]*Node{}}
+	errs := v.Validate(def, g)
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 error, got %d", len(errs))
+	}
+	if errs[0].Message != "no matching dependency found in the graph (interface registry unavailable)" {
+		t.Errorf("unexpected message: %s", errs[0].Message)
+	}
+}
+
+func TestContainerValidator_Validate_NamedFieldInterfaceResolution(t *testing.T) {
+	reg := NewInterfaceRegistry()
+	reg.interfaces["example.com/pkg.Repository"] = []string{"example.com/pkg.RepositoryImpl"}
+
+	v := NewContainerValidatorImpl(reg)
+
+	ifaceType := makeTestInterfaceType("example.com/pkg", "pkg", "Repository")
+
+	def := &detect.ContainerDefinition{
+		StructType: types.NewStruct(nil, nil),
+		Fields: []detect.ContainerField{
+			{
+				Name:          "Repo",
+				Type:          ifaceType,
+				HasBraiderTag: true,
+				Tag:           "primary",
+				Pos:           token.NoPos,
+			},
+		},
+	}
+	g := &Graph{
+		Nodes: map[string]*Node{
+			"example.com/pkg.RepositoryImpl#primary": {
+				TypeName: "example.com/pkg.RepositoryImpl",
+				Name:     "primary",
+			},
+		},
+	}
+	errs := v.Validate(def, g)
+	if len(errs) != 0 {
+		t.Errorf("expected no errors, got %d: %v", len(errs), errs)
+	}
+}
+
 func TestFullyQualifiedTypeName(t *testing.T) {
 	tests := []struct {
 		name     string

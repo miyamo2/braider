@@ -264,6 +264,273 @@ func TestClearPositions(t *testing.T) {
 	}
 }
 
+func TestAstImportSpec(t *testing.T) {
+	tests := []struct {
+		name      string
+		alias     string
+		path      string
+		wantAlias bool
+	}{
+		{
+			name:      "without alias",
+			alias:     "",
+			path:      "fmt",
+			wantAlias: false,
+		},
+		{
+			name:      "with alias",
+			alias:     "myfmt",
+			path:      "fmt",
+			wantAlias: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := astImportSpec(tt.alias, tt.path)
+			if spec.Path == nil {
+				t.Fatal("Path is nil")
+			}
+			wantPath := `"` + tt.path + `"`
+			if spec.Path.Value != wantPath {
+				t.Errorf("Path.Value = %q, want %q", spec.Path.Value, wantPath)
+			}
+			if tt.wantAlias {
+				if spec.Name == nil {
+					t.Fatal("Name is nil, want alias")
+				}
+				if spec.Name.Name != tt.alias {
+					t.Errorf("Name.Name = %q, want %q", spec.Name.Name, tt.alias)
+				}
+			} else {
+				if spec.Name != nil {
+					t.Errorf("Name = %v, want nil for no alias", spec.Name)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderImportBlock(t *testing.T) {
+	tests := []struct {
+		name     string
+		imports  []ImportInfo
+		wantErr  bool
+		contains []string
+		isEmpty  bool
+	}{
+		{
+			name:    "empty list",
+			imports: nil,
+			isEmpty: true,
+		},
+		{
+			name:     "single import",
+			imports:  []ImportInfo{{Path: "fmt", Alias: ""}},
+			contains: []string{`"fmt"`},
+		},
+		{
+			name:     "import with alias",
+			imports:  []ImportInfo{{Path: "example.com/pkg", Alias: "mypkg"}},
+			contains: []string{`mypkg "example.com/pkg"`},
+		},
+		{
+			name: "multiple imports",
+			imports: []ImportInfo{
+				{Path: "fmt", Alias: ""},
+				{Path: "os", Alias: ""},
+			},
+			contains: []string{`"fmt"`, `"os"`},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := RenderImportBlock(tt.imports)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("RenderImportBlock() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.isEmpty {
+				if got != "" {
+					t.Errorf("RenderImportBlock() = %q, want empty", got)
+				}
+				return
+			}
+			for _, s := range tt.contains {
+				if !strings.Contains(got, s) {
+					t.Errorf("RenderImportBlock() = %q, want to contain %q", got, s)
+				}
+			}
+		})
+	}
+}
+
+func TestAssignImportSpecPositions(t *testing.T) {
+	tests := []struct {
+		name      string
+		alias     string
+		path      string
+		wantAlias bool
+	}{
+		{
+			name:      "without alias name",
+			alias:     "",
+			path:      "fmt",
+			wantAlias: false,
+		},
+		{
+			name:      "with alias name",
+			alias:     "myfmt",
+			path:      "fmt",
+			wantAlias: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := astImportSpec(tt.alias, tt.path)
+			fset := token.NewFileSet()
+			pa := newPosAssigner(fset, 10)
+			assignImportSpecPositions(spec, pa)
+
+			if spec.Path.ValuePos == token.NoPos {
+				t.Error("Path.ValuePos should be assigned, got NoPos")
+			}
+			if tt.wantAlias {
+				if spec.Name == nil {
+					t.Fatal("Name is nil")
+				}
+				if spec.Name.NamePos == token.NoPos {
+					t.Error("Name.NamePos should be assigned, got NoPos")
+				}
+			}
+		})
+	}
+}
+
+func TestAssignExprInline(t *testing.T) {
+	linePos := token.Pos(100)
+
+	tests := []struct {
+		name    string
+		expr    ast.Expr
+		checkFn func(t *testing.T, expr ast.Expr)
+	}{
+		{
+			name: "nil expr",
+			expr: nil,
+			checkFn: func(t *testing.T, expr ast.Expr) {
+				// Should not panic
+			},
+		},
+		{
+			name: "MapType",
+			expr: &ast.MapType{Key: &ast.Ident{Name: "string"}, Value: &ast.Ident{Name: "int"}},
+			checkFn: func(t *testing.T, expr ast.Expr) {
+				x := expr.(*ast.MapType)
+				if x.Map != linePos {
+					t.Errorf("MapType.Map = %v, want %v", x.Map, linePos)
+				}
+			},
+		},
+		{
+			name: "ChanType",
+			expr: &ast.ChanType{Dir: ast.SEND, Value: &ast.Ident{Name: "int"}},
+			checkFn: func(t *testing.T, expr ast.Expr) {
+				x := expr.(*ast.ChanType)
+				if x.Begin != linePos {
+					t.Errorf("ChanType.Begin = %v, want %v", x.Begin, linePos)
+				}
+			},
+		},
+		{
+			name: "ParenExpr",
+			expr: &ast.ParenExpr{X: &ast.Ident{Name: "x"}},
+			checkFn: func(t *testing.T, expr ast.Expr) {
+				x := expr.(*ast.ParenExpr)
+				if x.Lparen != linePos {
+					t.Errorf("ParenExpr.Lparen = %v, want %v", x.Lparen, linePos)
+				}
+				if x.Rparen != linePos {
+					t.Errorf("ParenExpr.Rparen = %v, want %v", x.Rparen, linePos)
+				}
+			},
+		},
+		{
+			name: "Ellipsis",
+			expr: &ast.Ellipsis{Elt: &ast.Ident{Name: "int"}},
+			checkFn: func(t *testing.T, expr ast.Expr) {
+				x := expr.(*ast.Ellipsis)
+				if x.Ellipsis != linePos {
+					t.Errorf("Ellipsis.Ellipsis = %v, want %v", x.Ellipsis, linePos)
+				}
+			},
+		},
+		{
+			name: "InterfaceType",
+			expr: &ast.InterfaceType{Methods: &ast.FieldList{}},
+			checkFn: func(t *testing.T, expr ast.Expr) {
+				x := expr.(*ast.InterfaceType)
+				if x.Interface != linePos {
+					t.Errorf("InterfaceType.Interface = %v, want %v", x.Interface, linePos)
+				}
+			},
+		},
+		{
+			name: "StructType",
+			expr: &ast.StructType{Fields: &ast.FieldList{}},
+			checkFn: func(t *testing.T, expr ast.Expr) {
+				x := expr.(*ast.StructType)
+				if x.Struct != linePos {
+					t.Errorf("StructType.Struct = %v, want %v", x.Struct, linePos)
+				}
+			},
+		},
+		{
+			name: "FuncType",
+			expr: &ast.FuncType{Params: &ast.FieldList{}},
+			checkFn: func(t *testing.T, expr ast.Expr) {
+				x := expr.(*ast.FuncType)
+				if x.Func != linePos {
+					t.Errorf("FuncType.Func = %v, want %v", x.Func, linePos)
+				}
+			},
+		},
+		{
+			name: "CallExpr",
+			expr: &ast.CallExpr{Fun: &ast.Ident{Name: "foo"}},
+			checkFn: func(t *testing.T, expr ast.Expr) {
+				x := expr.(*ast.CallExpr)
+				if x.Lparen != linePos {
+					t.Errorf("CallExpr.Lparen = %v, want %v", x.Lparen, linePos)
+				}
+				if x.Rparen != linePos {
+					t.Errorf("CallExpr.Rparen = %v, want %v", x.Rparen, linePos)
+				}
+			},
+		},
+		{
+			name: "UnaryExpr",
+			expr: &ast.UnaryExpr{Op: token.AND, X: &ast.Ident{Name: "x"}},
+			checkFn: func(t *testing.T, expr ast.Expr) {
+				x := expr.(*ast.UnaryExpr)
+				if x.OpPos != linePos {
+					t.Errorf("UnaryExpr.OpPos = %v, want %v", x.OpPos, linePos)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assignExprInline(tt.expr, linePos)
+			if tt.expr != nil {
+				tt.checkFn(t, tt.expr)
+			}
+		})
+	}
+}
+
 func TestRenderDecl(t *testing.T) {
 	tests := []struct {
 		name     string

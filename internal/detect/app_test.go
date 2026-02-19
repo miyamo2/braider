@@ -383,6 +383,13 @@ func TestAppValidationError_Error(t *testing.T) {
 			},
 			expected: "annotation.App must reference main function, got init",
 		},
+		{
+			name: "unknown error type (default)",
+			err: &detect.AppValidationError{
+				Type: detect.AppValidationErrorType(99),
+			},
+			expected: "invalid App annotation",
+		},
 	}
 
 	for _, tt := range tests {

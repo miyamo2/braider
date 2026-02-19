@@ -266,6 +266,38 @@ func TestInjectorRegistry_ThreadSafety(t *testing.T) {
 	}
 }
 
+func TestInjectorInfo_GetTypeName(t *testing.T) {
+	info := &InjectorInfo{TypeName: "example.com/pkg.Service"}
+	if got := info.GetTypeName(); got != "example.com/pkg.Service" {
+		t.Errorf("GetTypeName() = %q, want %q", got, "example.com/pkg.Service")
+	}
+}
+
+func TestInjectorInfo_GetDependencies(t *testing.T) {
+	deps := []string{"example.com/pkg.Repo", "example.com/pkg.Logger"}
+	info := &InjectorInfo{Dependencies: deps}
+	got := info.GetDependencies()
+	if len(got) != 2 {
+		t.Fatalf("GetDependencies() len = %d, want 2", len(got))
+	}
+	if got[0] != "example.com/pkg.Repo" || got[1] != "example.com/pkg.Logger" {
+		t.Errorf("GetDependencies() = %v, want %v", got, deps)
+	}
+}
+
+func TestInjectorInfo_GetName(t *testing.T) {
+	info := &InjectorInfo{Name: "primaryDB"}
+	if got := info.GetName(); got != "primaryDB" {
+		t.Errorf("GetName() = %q, want %q", got, "primaryDB")
+	}
+
+	// Empty name
+	info2 := &InjectorInfo{}
+	if got := info2.GetName(); got != "" {
+		t.Errorf("GetName() = %q, want empty string", got)
+	}
+}
+
 func TestGlobalInjectorRegistry(t *testing.T) {
 	r := NewInjectorRegistry()
 

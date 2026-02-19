@@ -476,6 +476,15 @@ func createMockPassForGraph(t *testing.T) *analysis.Pass {
 	}
 }
 
+// TestUnresolvableTypeError_Error tests the Error() method of UnresolvableTypeError.
+func TestUnresolvableTypeError_Error(t *testing.T) {
+	err := &UnresolvableTypeError{TypeName: "example.com/pkg.MissingType"}
+	want := "unresolvable dependency type: example.com/pkg.MissingType"
+	if err.Error() != want {
+		t.Errorf("Error() = %q, want %q", err.Error(), want)
+	}
+}
+
 // TestDependencyGraph_BuildGraph_PointerDependencies tests that pointer-type dependencies are
 // resolved by stripping the "*" prefix and matching against the concrete type node.
 func TestDependencyGraph_BuildGraph_PointerDependencies(t *testing.T) {

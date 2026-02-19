@@ -266,6 +266,38 @@ func TestProviderRegistry_ThreadSafety(t *testing.T) {
 	}
 }
 
+func TestProviderInfo_GetTypeName(t *testing.T) {
+	info := &ProviderInfo{TypeName: "example.com/pkg.Repository"}
+	if got := info.GetTypeName(); got != "example.com/pkg.Repository" {
+		t.Errorf("GetTypeName() = %q, want %q", got, "example.com/pkg.Repository")
+	}
+}
+
+func TestProviderInfo_GetDependencies(t *testing.T) {
+	deps := []string{"example.com/pkg.DB", "example.com/pkg.Config"}
+	info := &ProviderInfo{Dependencies: deps}
+	got := info.GetDependencies()
+	if len(got) != 2 {
+		t.Fatalf("GetDependencies() len = %d, want 2", len(got))
+	}
+	if got[0] != "example.com/pkg.DB" || got[1] != "example.com/pkg.Config" {
+		t.Errorf("GetDependencies() = %v, want %v", got, deps)
+	}
+}
+
+func TestProviderInfo_GetName(t *testing.T) {
+	info := &ProviderInfo{Name: "userRepo"}
+	if got := info.GetName(); got != "userRepo" {
+		t.Errorf("GetName() = %q, want %q", got, "userRepo")
+	}
+
+	// Empty name
+	info2 := &ProviderInfo{}
+	if got := info2.GetName(); got != "" {
+		t.Errorf("GetName() = %q, want empty string", got)
+	}
+}
+
 func TestGlobalProviderRegistry(t *testing.T) {
 	r := NewProviderRegistry()
 
