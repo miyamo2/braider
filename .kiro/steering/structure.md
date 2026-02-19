@@ -26,7 +26,7 @@ This self-hosting pattern means braider's own `cmd/braider/main.go` contains bra
 **Location**: `internal/analyzer/testdata/`
 **Purpose**: Go source files used as test inputs for analysistest
 **Pattern**: Organized by test category and analyzer:
-- `testdata/bootstrapgen/` - App annotation scenarios (~77 cases: basic, typed_inject, named_inject, provide_typed, provide_named, struct_tag_*, container_*, circular, crosspackage, idempotent, without_constructor, error cases, etc.)
+- `testdata/bootstrapgen/` - App annotation scenarios (~78 cases: basic, typed_inject, named_inject, provide_typed, provide_named, provide_cross_type, struct_tag_*, container_*, circular, crosspackage, idempotent, without_constructor, error cases, etc.)
 - `testdata/dependency/` - Dependency analysis scenarios (basic, abstrct, cross_package, missing_constructor)
 - `testdata/constructorgen/` - Constructor generation scenarios (per-file test cases: simple, multifield, pointer, imported, aliasedimport, definedtypes, typealias, existing, struct_tag_*, uppercamel)
 - `testdata/providefunc/` - Provider function detection scenarios (legacy, directories may be empty)
@@ -90,7 +90,7 @@ Test fixtures live in `testdata/bootstrapgen/` following analysistest convention
 The internal package is split into focused subpackages:
 - `internal/analyzer/` - Analyzer definitions (`DependencyAnalyzer`, `AppAnalyzer`) and orchestration
 - `internal/annotation/` - Marker interfaces (e.g., `Injectable`, `Provider`, `Variable`, `App`, `AppOption`, `AppDefault`, `AppContainer`) embedded by the public `pkg/annotation/` types; provides the type-level contracts that detectors match against
-- `internal/detect/` - Detection logic for DI patterns (inject, provide call, variable call, app annotations, struct analysis, field analysis, constructor detection, option extraction, namer validation, app option extraction, container definition/field models)
+- `internal/detect/` - Detection logic for DI patterns (inject, provide call, variable call, app annotations, struct analysis, field analysis, constructor detection, option extraction, namer validation, app option extraction, container definition/field models, marker resolution via `MarkerInterfaces`/`ResolveMarkers`)
 - `internal/generate/` - Code generation logic (constructors, bootstrap IIFE) and utilities (AST utilities, code formatting, import management, naming conventions, keyword checking, hash generation)
 - `internal/report/` - Diagnostic and suggested fix building
 - `internal/registry/` - Global state management (provider registry, injector registry, variable registry, package tracker)
@@ -124,3 +124,4 @@ _Updated: 2026-02-14 - Sync: Updated bootstrapgen case count (~52); removed nega
 _Updated: 2026-02-15 - Sync: Provide annotations are now struct fields in bootstrap dependency struct (not local variables); only Variable nodes remain as local variables_
 _Updated: 2026-02-15 - Sync: Added internal/annotation marker interface layer; updated CLI entry point to document dogfooding pattern; added constructorgen struct_tag/uppercamel cases_
 _Updated: 2026-02-16 - Sync: App annotation now generic App[T](main) with app option type parameter; added app/ option subpackage (Default, Container[T]); added AppOptionExtractor to detector components; added container validation/resolution to graph package; added container test case categories (~77 bootstrapgen cases); added AppOption/AppDefault/AppContainer marker interfaces_
+_Updated: 2026-02-18 - Sync: Updated bootstrapgen case count to ~78; added provide_cross_type test case category; added MarkerInterfaces/ResolveMarkers to detect component description_
