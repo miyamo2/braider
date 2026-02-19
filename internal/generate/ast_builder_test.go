@@ -304,18 +304,24 @@ func TestRenderDecl(t *testing.T) {
 	}{
 		{
 			name: "function declaration",
-			decl: astFuncDecl(
-				nil,
-				"Foo",
-				&ast.FieldList{},
-				nil,
-				&ast.BlockStmt{},
-			),
+			decl: &ast.FuncDecl{
+				Name: &ast.Ident{Name: "Foo"},
+				Type: &ast.FuncType{Params: &ast.FieldList{}},
+				Body: &ast.BlockStmt{},
+			},
 			contains: "func Foo()",
 		},
 		{
 			name: "var declaration",
-			decl: astVarDecl(nil, "x", &ast.Ident{Name: "42"}),
+			decl: &ast.GenDecl{
+				Tok: token.VAR,
+				Specs: []ast.Spec{
+					&ast.ValueSpec{
+						Names:  []*ast.Ident{{Name: "x"}},
+						Values: []ast.Expr{&ast.Ident{Name: "42"}},
+					},
+				},
+			},
 			contains: "var x = 42",
 		},
 	}

@@ -10,19 +10,6 @@ import (
 	"strings"
 )
 
-// astIdent creates an *ast.Ident node.
-func astIdent(name string) *ast.Ident {
-	return &ast.Ident{Name: name}
-}
-
-// astSelector creates a selector expression (pkg.Name).
-func astSelector(pkg, name string) *ast.SelectorExpr {
-	return &ast.SelectorExpr{
-		X:   astIdent(pkg),
-		Sel: astIdent(name),
-	}
-}
-
 // astCommentGroup creates a CommentGroup from lines.
 // Each line should include the "//" prefix (e.g., "// foo").
 func astCommentGroup(lines ...string) *ast.CommentGroup {
@@ -33,87 +20,13 @@ func astCommentGroup(lines ...string) *ast.CommentGroup {
 	return &ast.CommentGroup{List: list}
 }
 
-// astStructType creates an anonymous struct type.
-func astStructType(fields ...*ast.Field) *ast.StructType {
-	return &ast.StructType{
-		Fields: &ast.FieldList{List: fields},
-	}
-}
-
-// astShortVar creates a short variable declaration (name := value).
-func astShortVar(name string, value ast.Expr) *ast.AssignStmt {
-	return &ast.AssignStmt{
-		Lhs: []ast.Expr{astIdent(name)},
-		Tok: token.DEFINE,
-		Rhs: []ast.Expr{value},
-	}
-}
-
-// astBlankAssign creates a blank assignment (_ = value).
-func astBlankAssign(value ast.Expr) *ast.AssignStmt {
-	return &ast.AssignStmt{
-		Lhs: []ast.Expr{astIdent("_")},
-		Tok: token.ASSIGN,
-		Rhs: []ast.Expr{value},
-	}
-}
-
-// astFuncDecl creates a function declaration.
-func astFuncDecl(
-	doc *ast.CommentGroup, name string, params, results *ast.FieldList, body *ast.BlockStmt,
-) *ast.FuncDecl {
-	return &ast.FuncDecl{
-		Doc:  doc,
-		Name: astIdent(name),
-		Type: &ast.FuncType{
-			Params:  params,
-			Results: results,
-		},
-		Body: body,
-	}
-}
-
-// astFuncLit creates a function literal.
-func astFuncLit(params, results *ast.FieldList, body *ast.BlockStmt) *ast.FuncLit {
-	return &ast.FuncLit{
-		Type: &ast.FuncType{
-			Params:  params,
-			Results: results,
-		},
-		Body: body,
-	}
-}
-
-// astVarDecl creates a var declaration (var name = value) with optional doc comment.
-func astVarDecl(doc *ast.CommentGroup, name string, value ast.Expr) *ast.GenDecl {
-	return &ast.GenDecl{
-		Doc: doc,
-		Tok: token.VAR,
-		Specs: []ast.Spec{
-			&ast.ValueSpec{
-				Names:  []*ast.Ident{astIdent(name)},
-				Values: []ast.Expr{value},
-			},
-		},
-	}
-}
-
-// astImportDecl creates an import declaration with parenthesized form.
-func astImportDecl(specs []ast.Spec) *ast.GenDecl {
-	return &ast.GenDecl{
-		Tok:    token.IMPORT,
-		Lparen: 1, // Non-zero to force parenthesized form
-		Specs:  specs,
-	}
-}
-
 // astImportSpec creates an import spec with optional alias.
 func astImportSpec(alias, path string) *ast.ImportSpec {
 	spec := &ast.ImportSpec{
 		Path: &ast.BasicLit{Kind: token.STRING, Value: `"` + path + `"`},
 	}
 	if alias != "" {
-		spec.Name = astIdent(alias)
+		spec.Name = &ast.Ident{Name: alias}
 	}
 	return spec
 }
@@ -214,7 +127,7 @@ func renderNode(node ast.Node) (string, error) {
 // is stripped from the output.
 func renderDecl(decl ast.Decl) (string, error) {
 	file := &ast.File{
-		Name:  astIdent("_"),
+		Name:  &ast.Ident{Name: "_"},
 		Decls: []ast.Decl{decl},
 	}
 
@@ -616,7 +529,11 @@ func RenderImportBlock(sortedImports []ImportInfo) (string, error) {
 	for _, imp := range sortedImports {
 		specs = append(specs, astImportSpec(imp.Alias, imp.Path))
 	}
-	decl := astImportDecl(specs)
+	decl := &ast.GenDecl{
+		Tok:    token.IMPORT,
+		Lparen: 1, // Non-zero to force parenthesized form
+		Specs:  specs,
+	}
 	return renderDecl(decl)
 }
 

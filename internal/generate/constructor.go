@@ -208,7 +208,15 @@ func (g *constructorGenerator) buildConstructorAST(
 	paramList := &ast.FieldList{List: params}
 	resultList := &ast.FieldList{List: []*ast.Field{{Type: returnTypeExpr}}}
 
-	return astFuncDecl(doc, funcName, paramList, resultList, body), nil
+	return &ast.FuncDecl{
+		Doc:  doc,
+		Name: &ast.Ident{Name: funcName},
+		Type: &ast.FuncType{
+			Params:  paramList,
+			Results: resultList,
+		},
+		Body: body,
+	}, nil
 }
 
 // resolveParamName returns the parameter name for a field.

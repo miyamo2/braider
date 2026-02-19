@@ -143,9 +143,9 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 				return nil, fmt.Errorf("failed to parse variable expression for %s: %w", typeName, err)
 			}
 			if _, ok := dependedUpon[typeName]; ok {
-				initStmts = append(initStmts, astShortVar(varName, exprAST))
+				initStmts = append(initStmts, &ast.AssignStmt{Lhs: []ast.Expr{&ast.Ident{Name: varName}}, Tok: token.DEFINE, Rhs: []ast.Expr{exprAST}})
 			} else {
-				initStmts = append(initStmts, astBlankAssign(exprAST))
+				initStmts = append(initStmts, &ast.AssignStmt{Lhs: []ast.Expr{&ast.Ident{Name: "_"}}, Tok: token.ASSIGN, Rhs: []ast.Expr{exprAST}})
 			}
 			continue
 		}
@@ -156,12 +156,12 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		}
 
 		callExpr := bg.buildConstructorCallExpr(node, g, fieldNames, currentPkgName)
-		initStmts = append(initStmts, astShortVar(varName, callExpr))
+		initStmts = append(initStmts, &ast.AssignStmt{Lhs: []ast.Expr{&ast.Ident{Name: varName}}, Tok: token.DEFINE, Rhs: []ast.Expr{callExpr}})
 	}
 
 	// Phase 3: Build IIFE as AST
 	// struct type for return type (used in func signature)
-	returnStructType := astStructType(astStructFields...)
+	returnStructType := &ast.StructType{Fields: &ast.FieldList{List: astStructFields}}
 
 	// Build duplicate struct type for the return composite literal
 	var returnLitFields []*ast.Field
@@ -177,7 +177,7 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		}
 		returnLitFields = append(returnLitFields, &ast.Field{Names: []*ast.Ident{{Name: fieldName}}, Type: typeExpr})
 	}
-	returnLitStructType := astStructType(returnLitFields...)
+	returnLitStructType := &ast.StructType{Fields: &ast.FieldList{List: returnLitFields}}
 
 	// Build return composite literal: struct{...}{field: field, ...}
 	var returnElts []ast.Expr
@@ -192,16 +192,27 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 	body := &ast.BlockStmt{List: allStmts}
 
 	// Build IIFE: func() struct{...} { ... }()
-	funcLit := astFuncLit(
-		&ast.FieldList{},
-		&ast.FieldList{List: []*ast.Field{{Type: returnStructType}}},
-		body,
-	)
+	funcLit := &ast.FuncLit{
+		Type: &ast.FuncType{
+			Params:  &ast.FieldList{},
+			Results: &ast.FieldList{List: []*ast.Field{{Type: returnStructType}}},
+		},
+		Body: body,
+	}
 	iife := &ast.CallExpr{Fun: funcLit}
 
 	// Build var decl with hash comment
 	hashComment := astCommentGroup(fmt.Sprintf("// braider:hash:%s", hash))
-	varDecl := astVarDecl(hashComment, "dependency", iife)
+	varDecl := &ast.GenDecl{
+		Doc: hashComment,
+		Tok: token.VAR,
+		Specs: []ast.Spec{
+			&ast.ValueSpec{
+				Names:  []*ast.Ident{{Name: "dependency"}},
+				Values: []ast.Expr{iife},
+			},
+		},
+	}
 
 	// Render
 	dependencyVar, err := renderDecl(varDecl)
@@ -250,7 +261,7 @@ func (bg *bootstrapGenerator) buildNodeTypeExpr(
 	if node.PackageName == "main" && currentPkgName == "main" {
 		return &ast.Ident{Name: node.LocalName}, nil
 	} else if node.PackageName != currentPkgName {
-		return astSelector(qualifier, node.LocalName), nil
+		return &ast.SelectorExpr{X: &ast.Ident{Name: qualifier}, Sel: &ast.Ident{Name: node.LocalName}}, nil
 	}
 	return &ast.Ident{Name: node.LocalName}, nil
 }
@@ -326,7 +337,7 @@ func (bg *bootstrapGenerator) buildConstructorCallExpr(
 	if ctorPkgName == "main" && currentPkgName == "main" {
 		funExpr = &ast.Ident{Name: node.ConstructorName}
 	} else if ctorPkgName != currentPkgName {
-		funExpr = astSelector(constructorQualifier, node.ConstructorName)
+		funExpr = &ast.SelectorExpr{X: &ast.Ident{Name: constructorQualifier}, Sel: &ast.Ident{Name: node.ConstructorName}}
 	} else {
 		funExpr = &ast.Ident{Name: node.ConstructorName}
 	}
@@ -485,9 +496,9 @@ func (bg *bootstrapGenerator) GenerateContainerBootstrap(
 				return nil, fmt.Errorf("failed to parse variable expression for %s: %w", typeName, err)
 			}
 			if _, ok := dependedUpon[typeName]; ok {
-				initStmts = append(initStmts, astShortVar(varName, exprAST))
+				initStmts = append(initStmts, &ast.AssignStmt{Lhs: []ast.Expr{&ast.Ident{Name: varName}}, Tok: token.DEFINE, Rhs: []ast.Expr{exprAST}})
 			} else {
-				initStmts = append(initStmts, astBlankAssign(exprAST))
+				initStmts = append(initStmts, &ast.AssignStmt{Lhs: []ast.Expr{&ast.Ident{Name: "_"}}, Tok: token.ASSIGN, Rhs: []ast.Expr{exprAST}})
 			}
 			continue
 		}
@@ -498,7 +509,7 @@ func (bg *bootstrapGenerator) GenerateContainerBootstrap(
 		}
 
 		callExpr := bg.buildContainerConstructorCallExpr(node, g, varNames, currentPkgName)
-		initStmts = append(initStmts, astShortVar(varName, callExpr))
+		initStmts = append(initStmts, &ast.AssignStmt{Lhs: []ast.Expr{&ast.Ident{Name: varName}}, Tok: token.DEFINE, Rhs: []ast.Expr{callExpr}})
 	}
 
 	// Build the IIFE return type as an ast.Expr
@@ -511,7 +522,7 @@ func (bg *bootstrapGenerator) GenerateContainerBootstrap(
 			if alias, ok := aliasMap[containerDef.PackagePath]; ok && alias != "" {
 				containerQualifier = alias
 			}
-			returnTypeExpr = astSelector(containerQualifier, containerDef.LocalName)
+			returnTypeExpr = &ast.SelectorExpr{X: &ast.Ident{Name: containerQualifier}, Sel: &ast.Ident{Name: containerDef.LocalName}}
 		}
 	} else {
 		// Anonymous struct type
@@ -535,7 +546,7 @@ func (bg *bootstrapGenerator) GenerateContainerBootstrap(
 			}
 			anonFields = append(anonFields, &ast.Field{Names: []*ast.Ident{{Name: field.Name}}, Type: fieldTypeExpr})
 		}
-		returnTypeExpr = astStructType(anonFields...)
+		returnTypeExpr = &ast.StructType{Fields: &ast.FieldList{List: anonFields}}
 	}
 
 	// Build return composite literal with container field assignments
@@ -554,7 +565,7 @@ func (bg *bootstrapGenerator) GenerateContainerBootstrap(
 			if alias, ok := aliasMap[containerDef.PackagePath]; ok && alias != "" {
 				containerQualifier = alias
 			}
-			returnLitType = astSelector(containerQualifier, containerDef.LocalName)
+			returnLitType = &ast.SelectorExpr{X: &ast.Ident{Name: containerQualifier}, Sel: &ast.Ident{Name: containerDef.LocalName}}
 		}
 	} else {
 		var anonFields []*ast.Field
@@ -577,7 +588,7 @@ func (bg *bootstrapGenerator) GenerateContainerBootstrap(
 			}
 			anonFields = append(anonFields, &ast.Field{Names: []*ast.Ident{{Name: field.Name}}, Type: fieldTypeExpr})
 		}
-		returnLitType = astStructType(anonFields...)
+		returnLitType = &ast.StructType{Fields: &ast.FieldList{List: anonFields}}
 	}
 
 	returnLit := &ast.CompositeLit{Type: returnLitType, Elts: returnElts}
@@ -588,16 +599,27 @@ func (bg *bootstrapGenerator) GenerateContainerBootstrap(
 	body := &ast.BlockStmt{List: allStmts}
 
 	// Build IIFE
-	funcLit := astFuncLit(
-		&ast.FieldList{},
-		&ast.FieldList{List: []*ast.Field{{Type: returnTypeExpr}}},
-		body,
-	)
+	funcLit := &ast.FuncLit{
+		Type: &ast.FuncType{
+			Params:  &ast.FieldList{},
+			Results: &ast.FieldList{List: []*ast.Field{{Type: returnTypeExpr}}},
+		},
+		Body: body,
+	}
 	iife := &ast.CallExpr{Fun: funcLit}
 
 	// Build var decl with hash comment
 	hashComment := astCommentGroup(fmt.Sprintf("// braider:hash:%s", hash))
-	varDecl := astVarDecl(hashComment, "dependency", iife)
+	varDecl := &ast.GenDecl{
+		Doc: hashComment,
+		Tok: token.VAR,
+		Specs: []ast.Spec{
+			&ast.ValueSpec{
+				Names:  []*ast.Ident{{Name: "dependency"}},
+				Values: []ast.Expr{iife},
+			},
+		},
+	}
 
 	// Render
 	dependencyVar, err := renderDecl(varDecl)
@@ -645,7 +667,7 @@ func (bg *bootstrapGenerator) buildContainerConstructorCallExpr(
 	if node.PackageName == "main" && currentPkgName == "main" {
 		funExpr = &ast.Ident{Name: node.ConstructorName}
 	} else if node.PackageName != currentPkgName {
-		funExpr = astSelector(qualifier, node.ConstructorName)
+		funExpr = &ast.SelectorExpr{X: &ast.Ident{Name: qualifier}, Sel: &ast.Ident{Name: node.ConstructorName}}
 	} else {
 		funExpr = &ast.Ident{Name: node.ConstructorName}
 	}
