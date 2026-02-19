@@ -71,7 +71,7 @@ Code generation is implemented via `analysis.SuggestedFix` rather than separate 
 ### Component-Based Architecture
 The analyzer uses composable components (detectors, generators, reporters) wired via braider's own DI annotations in `cmd/braider/main.go` (dogfooding). Each component has a single responsibility and is testable in isolation. Components are organized by concern:
 - **Annotation markers** (`internal/annotation/`): Marker interfaces (`Injectable`, `Provider`, `Variable`, `App`, `AppOption`, `AppDefault`, `AppContainer`) embedded by public `pkg/annotation/` types; defines the type-level contracts that detectors match against
-- **Detectors** (`internal/detect/`): Pattern matching (inject, provide call, variable call, app, struct, field, constructor, option extraction, namer validation, app option extraction, container definition models)
+- **Detectors** (`internal/detect/`): Pattern matching (inject, provide call, variable call, app, struct, field, constructor, option extraction, namer validation, app option extraction, container definition models, marker resolution)
 - **Generators** (`internal/generate/`): Code generation (constructors, bootstrap IIFE), utilities (imports, formatting, naming, keyword checking, hash markers for idempotency, AST utilities)
 - **Reporters** (`internal/report/`): Diagnostic and suggested fix building
 - **Registries** (`internal/registry/`): Global state for cross-package dependency tracking (provider, injector, variable, package tracker)
@@ -88,6 +88,13 @@ Uses shared registries (`ProviderRegistry`, `InjectorRegistry`, `VariableRegistr
 In the dependency graph, `Node.IsField` determines how a dependency appears in the bootstrap IIFE:
 - **IsField=true** (Injectable and Provide nodes): Become fields in the returned dependency struct, accessible to the caller
 - **IsField=false** (Variable nodes): Become local variables within the IIFE, not exposed to the caller
+
+### Cross-Package Constructor Qualification
+When a `Provide[T](fn)` registers a function that returns a type from a different package than where the function is defined, the bootstrap generator must use two separate package qualifiers:
+- **Return type's package** (`PackagePath`/`PackageName`): Used for struct field type qualification (e.g., `analysis.Analyzer`)
+- **Constructor function's package** (`ConstructorPkgPath`/`ConstructorPkgName`): Used for function call qualification (e.g., `analyzer.NewAppAnalyzer(...)`)
+
+The `Node` struct carries both sets of fields (`PackagePath`/`PackageName` and `ConstructorPkgPath`/`ConstructorPkgName`/`ConstructorPkgAlias`). Import collection and collision detection consider both packages. `ConstructorPkgPath` is included in hash computation only when it differs from `PackagePath`, preserving backward compatibility for same-package providers.
 
 ### Variable Expression Handling
 Variable annotations accept only simple identifiers (`myVar`) or package-qualified identifiers (`os.Stdout`). The detector normalizes aliased import qualifiers to declared package names (e.g., `import myos "os"` with `myos.Stdout` becomes `os.Stdout` in `ExpressionText`). During bootstrap generation, expression aliases are rewritten if package name collisions occur. Variable nodes that are not depended upon by other nodes use blank assignments (`_ =`) to avoid unused variable errors.
@@ -141,3 +148,4 @@ _Updated: 2026-02-12 - Sync: Added Variable annotation support (VariableCallDete
 _Updated: 2026-02-15 - Sync: Added Bootstrap struct field vs local variable pattern (Provide now IsField=true); added struct tag field control pattern (braider:"name", braider:"-")_
 _Updated: 2026-02-15 - Sync: Added internal/annotation marker interface layer; added dogfooding (self-hosting) pattern for cmd/braider/main.go_
 _Updated: 2026-02-16 - Sync: App annotation now generic App[T](main) with app option type parameter; added App Options and Container Definition pattern (app.Default, app.Container[T]); added AppOptionExtractor, ContainerValidator, ContainerResolver to component lists; added AppOption/AppDefault/AppContainer marker interfaces_
+_Updated: 2026-02-18 - Sync: Added cross-package constructor qualification pattern (ConstructorPkgPath/ConstructorPkgName separation from PackagePath/PackageName for Provide nodes returning types from different packages); added marker resolution to detect component list_

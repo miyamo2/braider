@@ -100,9 +100,14 @@ Container fields use `braider:"name"` struct tags to match named dependencies. F
 - Fields without a `braider` tag are matched by type (default behavior)
 - Conflicting tags (e.g., using `braider` tag on a field of an Injectable with `inject.Named` option) emit diagnostic errors
 
+### Sealed Marker Interfaces
+
+Annotation types are identified via `types.Implements` checks against sealed marker interfaces defined in `internal/annotation/`. The `detect.MarkerInterfaces` struct holds resolved `*types.Interface` values, cached by `ResolveMarkers()` (uses `debug/buildinfo` to resolve the module path dynamically, supporting forks). This replaces hard-coded package path string checks.
+
 ### Internal Package Layers
 
-- **`detect/`** — AST pattern recognition (InjectDetector, ProvideCallDetector, VariableCallDetector, AppDetector, AppOptionExtractor, StructDetector, FieldAnalyzer, ConstructorAnalyzer, OptionExtractor, NamerValidator, ContainerDefinition/ContainerField models)
+- **`annotation/`** — sealed marker interfaces (`Injectable`, `Provider`, `Variable`, `App`, and their option variants) used for `types.Implements` checks
+- **`detect/`** — AST pattern recognition (InjectDetector, ProvideCallDetector, VariableCallDetector, AppDetector, AppOptionExtractor, StructDetector, FieldAnalyzer, ConstructorAnalyzer, OptionExtractor, OptionMetadata, NamerValidator, MarkerResolver, ContainerDefinition/ContainerField models)
 - **`registry/`** — shared mutable state (ProviderRegistry, InjectorRegistry, VariableRegistry, PackageTracker)
 - **`graph/`** — DependencyGraphBuilder, TopologicalSorter, InterfaceRegistry, ContainerValidator, ContainerResolver
 - **`generate/`** — ConstructorGenerator, BootstrapGenerator, hash computation, import management
@@ -129,17 +134,17 @@ Tests use `golang.org/x/tools/go/analysis/analysistest` with testdata directorie
 
 ### Key Test Directories
 
-- `testdata/bootstrapgen/` — 77 test case directories organized by category:
+- `testdata/bootstrapgen/` — 78 test case directories organized by category:
   - Core: basic, simpleapp, multitype, crosspackage, modulewide, samefileapp, emptygraph, depinuse, depblank, pkgcollision, without_constructor
   - Interface: iface, ifacedep, crossiface, unresiface
   - Typed/Named inject: typed_inject, named_inject
-  - Provide: provide_typed, provide_named
+  - Provide: provide_typed, provide_named, provide_cross_type
   - Variable: variable_basic, variable_named, variable_typed, variable_typed_named, variable_cross_package, variable_pkg_collision, variable_alias_import, variable_ident_ext_type, variable_mixed
   - Container: container_anonymous, container_basic, container_cross_package, container_idempotent, container_iface_field, container_mixed_option, container_named, container_named_field, container_outdated, container_transitive, container_variable
   - Struct tag: struct_tag_all_excluded, struct_tag_exclude, struct_tag_idempotent, struct_tag_mixed, struct_tag_named, struct_tag_outdated, struct_tag_typed_fields
   - Idempotent: idempotent, idempotent_import, outdated, variable_idempotent, variable_outdated
   - Error: error_cases, error_duplicate_name, error_nonliteral, error_provide_typed, error_variable_*, error_struct_tag_*, error_container_*, circular, ambiguous*, missingctor, unresolvedparam, unresparam, unresolvedif, contextcancel, nonmainapp, noapp, multipleapp
-- `testdata/constructorgen/` — per-file test cases: simple, multifield, pointer, existing, imported, aliasedimport, definedtypes, typealias
+- `testdata/constructorgen/` — per-file test cases: simple, multifield, pointer, existing, imported, aliasedimport, definedtypes, typealias, struct_tag_named, struct_tag_exclude, uppercamel
 - `testdata/dependency/` — DependencyAnalyzer-only tests: basic, abstrct, cross_package, missing_constructor
 
 ## Commit Messages
