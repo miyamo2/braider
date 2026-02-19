@@ -109,7 +109,10 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		}
 		fieldNames[typeName] = fieldName
 
-		typeExpr := bg.buildNodeTypeExpr(node, currentPackage, currentPkgName, aliasMap)
+		typeExpr, err := bg.buildNodeTypeExpr(node, currentPackage, currentPkgName, aliasMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build type expression for %s: %w", typeName, err)
+		}
 		astStructFields = append(astStructFields, &ast.Field{Names: []*ast.Ident{{Name: fieldName}}, Type: typeExpr})
 		fieldNameList = append(fieldNameList, fieldName)
 	}
@@ -135,7 +138,10 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		// Variable node: emit expression assignment
 		if node.ExpressionText != "" {
 			expressionText := bg.resolveExpressionText(node, currentPackage, currentPkgName, aliasMap)
-			exprAST := parseExprString(expressionText)
+			exprAST, err := parseExprString(expressionText)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse variable expression for %s: %w", typeName, err)
+			}
 			if _, ok := dependedUpon[typeName]; ok {
 				initStmts = append(initStmts, astShortVar(varName, exprAST))
 			} else {
@@ -165,7 +171,10 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 			continue
 		}
 		fieldName := fieldNames[typeName]
-		typeExpr := bg.buildNodeTypeExpr(node, currentPackage, currentPkgName, aliasMap)
+		typeExpr, err := bg.buildNodeTypeExpr(node, currentPackage, currentPkgName, aliasMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build type expression for %s: %w", typeName, err)
+		}
 		returnLitFields = append(returnLitFields, &ast.Field{Names: []*ast.Ident{{Name: fieldName}}, Type: typeExpr})
 	}
 	returnLitStructType := astStructType(returnLitFields...)
@@ -213,7 +222,7 @@ func (bg *bootstrapGenerator) buildNodeTypeExpr(
 	node *graph.Node,
 	currentPackage, currentPkgName string,
 	aliasMap map[string]string,
-) ast.Expr {
+) (ast.Expr, error) {
 	if node.RegisteredType != nil {
 		typeStr := types.TypeString(
 			node.RegisteredType, func(p *types.Package) string {
@@ -239,11 +248,11 @@ func (bg *bootstrapGenerator) buildNodeTypeExpr(
 	}
 
 	if node.PackageName == "main" && currentPkgName == "main" {
-		return &ast.Ident{Name: node.LocalName}
+		return &ast.Ident{Name: node.LocalName}, nil
 	} else if node.PackageName != currentPkgName {
-		return astSelector(qualifier, node.LocalName)
+		return astSelector(qualifier, node.LocalName), nil
 	}
-	return &ast.Ident{Name: node.LocalName}
+	return &ast.Ident{Name: node.LocalName}, nil
 }
 
 // resolveVarName determines the variable name for a node in bootstrap code.
@@ -471,7 +480,10 @@ func (bg *bootstrapGenerator) GenerateContainerBootstrap(
 		// Variable node: emit expression assignment
 		if node.ExpressionText != "" {
 			expressionText := bg.resolveExpressionText(node, currentPackage, currentPkgName, aliasMap)
-			exprAST := parseExprString(expressionText)
+			exprAST, err := parseExprString(expressionText)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse variable expression for %s: %w", typeName, err)
+			}
 			if _, ok := dependedUpon[typeName]; ok {
 				initStmts = append(initStmts, astShortVar(varName, exprAST))
 			} else {
@@ -517,7 +529,11 @@ func (bg *bootstrapGenerator) GenerateContainerBootstrap(
 				}
 				return p.Name()
 			})
-			anonFields = append(anonFields, &ast.Field{Names: []*ast.Ident{{Name: field.Name}}, Type: parseExprString(fieldTypeStr)})
+			fieldTypeExpr, err := parseExprString(fieldTypeStr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse container field type for %s: %w", field.Name, err)
+			}
+			anonFields = append(anonFields, &ast.Field{Names: []*ast.Ident{{Name: field.Name}}, Type: fieldTypeExpr})
 		}
 		returnTypeExpr = astStructType(anonFields...)
 	}
@@ -555,7 +571,11 @@ func (bg *bootstrapGenerator) GenerateContainerBootstrap(
 				}
 				return p.Name()
 			})
-			anonFields = append(anonFields, &ast.Field{Names: []*ast.Ident{{Name: field.Name}}, Type: parseExprString(fieldTypeStr)})
+			fieldTypeExpr, err := parseExprString(fieldTypeStr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse container field type for %s: %w", field.Name, err)
+			}
+			anonFields = append(anonFields, &ast.Field{Names: []*ast.Ident{{Name: field.Name}}, Type: fieldTypeExpr})
 		}
 		returnLitType = astStructType(anonFields...)
 	}

@@ -61,7 +61,10 @@ func (g *constructorGenerator) GenerateConstructor(
 	funcName := "New" + ToUpperCamelCase(structName)
 
 	returnTypeExpr := &ast.StarExpr{X: &ast.Ident{Name: structName}}
-	funcDecl := g.buildConstructorAST(funcName, structName, fields, returnTypeExpr, nil)
+	funcDecl, err := g.buildConstructorAST(funcName, structName, fields, returnTypeExpr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build constructor AST for %s: %w", structName, err)
+	}
 
 	code, err := renderDecl(funcDecl)
 	if err != nil {
@@ -92,8 +95,14 @@ func (g *constructorGenerator) GenerateConstructorWithOptions(
 	funcName := "New" + ToUpperCamelCase(structName)
 
 	// Task 5.1: Determine return type based on options
-	returnTypeExpr := g.determineReturnTypeExpr(structName, info)
-	funcDecl := g.buildConstructorAST(funcName, structName, fields, returnTypeExpr, nil)
+	returnTypeExpr, err := g.determineReturnTypeExpr(structName, info)
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine return type for %s: %w", structName, err)
+	}
+	funcDecl, err := g.buildConstructorAST(funcName, structName, fields, returnTypeExpr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build constructor AST for %s: %w", structName, err)
+	}
 
 	code, err := renderDecl(funcDecl)
 	if err != nil {
@@ -125,8 +134,14 @@ func (g *constructorGenerator) GenerateConstructorWithNamedDeps(
 	funcName := "New" + ToUpperCamelCase(structName)
 
 	// Task 5.1: Determine return type based on options
-	returnTypeExpr := g.determineReturnTypeExpr(structName, info)
-	funcDecl := g.buildConstructorAST(funcName, structName, fields, returnTypeExpr, dependencyNames)
+	returnTypeExpr, err := g.determineReturnTypeExpr(structName, info)
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine return type for %s: %w", structName, err)
+	}
+	funcDecl, err := g.buildConstructorAST(funcName, structName, fields, returnTypeExpr, dependencyNames)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build constructor AST for %s: %w", structName, err)
+	}
 
 	code, err := renderDecl(funcDecl)
 	if err != nil {
@@ -150,7 +165,7 @@ func (g *constructorGenerator) buildConstructorAST(
 	fields []detect.FieldInfo,
 	returnTypeExpr ast.Expr,
 	dependencyNames map[string]string,
-) *ast.FuncDecl {
+) (*ast.FuncDecl, error) {
 	// Build doc comment
 	doc := astCommentGroup(
 		fmt.Sprintf("// %s is a constructor for %s.", funcName, structName),
@@ -164,7 +179,7 @@ func (g *constructorGenerator) buildConstructorAST(
 		paramName := g.resolveParamName(field.Name, dependencyNames)
 		typ := field.TypeExpr
 		if typ == nil {
-			typ = &ast.Ident{Name: "any"}
+			return nil, fmt.Errorf("field %q in struct %s has nil type expression", field.Name, structName)
 		}
 		params = append(params, &ast.Field{Names: []*ast.Ident{{Name: paramName}}, Type: typ})
 	}
@@ -193,7 +208,7 @@ func (g *constructorGenerator) buildConstructorAST(
 	paramList := &ast.FieldList{List: params}
 	resultList := &ast.FieldList{List: []*ast.Field{{Type: returnTypeExpr}}}
 
-	return astFuncDecl(doc, funcName, paramList, resultList, body)
+	return astFuncDecl(doc, funcName, paramList, resultList, body), nil
 }
 
 // resolveParamName returns the parameter name for a field.
@@ -209,10 +224,10 @@ func (g *constructorGenerator) resolveParamName(fieldName string, dependencyName
 
 // determineReturnTypeExpr determines constructor return type as an ast.Expr based on option metadata.
 // Task 5.1: Returns interface type for Typed[I] option, pointer to struct otherwise.
-func (g *constructorGenerator) determineReturnTypeExpr(structName string, info *registry.InjectorInfo) ast.Expr {
+func (g *constructorGenerator) determineReturnTypeExpr(structName string, info *registry.InjectorInfo) (ast.Expr, error) {
 	if info == nil || info.OptionMetadata.TypedInterface == nil {
 		// Default: return pointer to struct
-		return &ast.StarExpr{X: &ast.Ident{Name: structName}}
+		return &ast.StarExpr{X: &ast.Ident{Name: structName}}, nil
 	}
 
 	// Typed[I] option: return interface type

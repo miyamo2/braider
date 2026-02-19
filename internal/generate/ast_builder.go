@@ -2,6 +2,7 @@ package generate
 
 import (
 	"bytes"
+	"fmt"
 	"go/ast"
 	"go/format"
 	"go/parser"
@@ -58,7 +59,9 @@ func astBlankAssign(value ast.Expr) *ast.AssignStmt {
 }
 
 // astFuncDecl creates a function declaration.
-func astFuncDecl(doc *ast.CommentGroup, name string, params, results *ast.FieldList, body *ast.BlockStmt) *ast.FuncDecl {
+func astFuncDecl(
+	doc *ast.CommentGroup, name string, params, results *ast.FieldList, body *ast.BlockStmt,
+) *ast.FuncDecl {
 	return &ast.FuncDecl{
 		Doc:  doc,
 		Name: astIdent(name),
@@ -118,65 +121,80 @@ func astImportSpec(alias, path string) *ast.ImportSpec {
 // parseExprString parses a Go expression string into an ast.Expr.
 // Uses go/parser.ParseExpr and then clears all position information.
 // Suitable for type expressions from types.TypeString output and simple expressions.
-func parseExprString(s string) ast.Expr {
+func parseExprString(s string) (ast.Expr, error) {
 	expr, err := parser.ParseExpr(s)
 	if err != nil {
-		// Fallback: return as identifier (for very unusual types)
-		return astIdent(s)
+		return nil, fmt.Errorf("failed to parse expression %q: %w", s, err)
 	}
 	clearPositions(expr)
-	return expr
+	return expr, nil
 }
 
 // clearPositions recursively clears all position information in an AST node.
 // This prevents conflicts when embedding parsed nodes into a NoPos-based tree.
 func clearPositions(node ast.Node) {
-	ast.Inspect(node, func(n ast.Node) bool {
-		if n == nil {
-			return false
-		}
-		switch x := n.(type) {
-		case *ast.Ident:
-			x.NamePos = token.NoPos
-		case *ast.BasicLit:
-			x.ValuePos = token.NoPos
-		case *ast.StarExpr:
-			x.Star = token.NoPos
-		case *ast.UnaryExpr:
-			x.OpPos = token.NoPos
-		case *ast.BinaryExpr:
-			x.OpPos = token.NoPos
-		case *ast.SelectorExpr:
-			// Positions cleared via children
-		case *ast.ArrayType:
-			x.Lbrack = token.NoPos
-		case *ast.MapType:
-			x.Map = token.NoPos
-		case *ast.ChanType:
-			x.Begin = token.NoPos
-			x.Arrow = token.NoPos
-		case *ast.ParenExpr:
-			x.Lparen = token.NoPos
-			x.Rparen = token.NoPos
-		case *ast.FuncType:
-			x.Func = token.NoPos
-		case *ast.StructType:
-			x.Struct = token.NoPos
-		case *ast.InterfaceType:
-			x.Interface = token.NoPos
-		case *ast.Ellipsis:
-			x.Ellipsis = token.NoPos
-		case *ast.IndexExpr:
-			x.Lbrack = token.NoPos
-			x.Rbrack = token.NoPos
-		case *ast.FieldList:
-			x.Opening = token.NoPos
-			x.Closing = token.NoPos
-		case *ast.Field:
-			// Positions cleared via children
-		}
-		return true
-	})
+	ast.Inspect(
+		node, func(n ast.Node) bool {
+			if n == nil {
+				return false
+			}
+			switch x := n.(type) {
+			case *ast.Ident:
+				x.NamePos = token.NoPos
+			case *ast.BasicLit:
+				x.ValuePos = token.NoPos
+			case *ast.StarExpr:
+				x.Star = token.NoPos
+			case *ast.UnaryExpr:
+				x.OpPos = token.NoPos
+			case *ast.BinaryExpr:
+				x.OpPos = token.NoPos
+			case *ast.SelectorExpr:
+				// Positions cleared via children
+			case *ast.ArrayType:
+				x.Lbrack = token.NoPos
+			case *ast.MapType:
+				x.Map = token.NoPos
+			case *ast.ChanType:
+				x.Begin = token.NoPos
+				x.Arrow = token.NoPos
+			case *ast.ParenExpr:
+				x.Lparen = token.NoPos
+				x.Rparen = token.NoPos
+			case *ast.FuncType:
+				x.Func = token.NoPos
+			case *ast.StructType:
+				x.Struct = token.NoPos
+			case *ast.InterfaceType:
+				x.Interface = token.NoPos
+			case *ast.Ellipsis:
+				x.Ellipsis = token.NoPos
+			case *ast.IndexExpr:
+				x.Lbrack = token.NoPos
+				x.Rbrack = token.NoPos
+			case *ast.FieldList:
+				x.Opening = token.NoPos
+				x.Closing = token.NoPos
+			case *ast.Field:
+				// Positions cleared via children
+			case *ast.SliceExpr:
+				x.Lbrack = token.NoPos
+				x.Rbrack = token.NoPos
+			case *ast.TypeAssertExpr:
+				x.Lparen = token.NoPos
+				x.Rparen = token.NoPos
+			case *ast.CallExpr:
+				x.Lparen = token.NoPos
+				x.Rparen = token.NoPos
+			case *ast.CompositeLit:
+				x.Lbrace = token.NoPos
+				x.Rbrace = token.NoPos
+			case *ast.KeyValueExpr:
+				x.Colon = token.NoPos
+			}
+			return true
+		},
+	)
 }
 
 // renderNode formats an AST node using format.Node and returns the string.
@@ -271,12 +289,14 @@ func assignPositions(file *ast.File) *token.FileSet {
 
 	// Count nodes to estimate space needed
 	var nodeCount int
-	ast.Inspect(file, func(n ast.Node) bool {
-		if n != nil {
-			nodeCount++
-		}
-		return true
-	})
+	ast.Inspect(
+		file, func(n ast.Node) bool {
+			if n != nil {
+				nodeCount++
+			}
+			return true
+		},
+	)
 
 	pa := newPosAssigner(fset, nodeCount)
 
@@ -378,50 +398,52 @@ func assignExprInline(expr ast.Expr, linePos token.Pos) {
 	if expr == nil {
 		return
 	}
-	ast.Inspect(expr, func(n ast.Node) bool {
-		if n == nil {
-			return false
-		}
-		switch x := n.(type) {
-		case *ast.Ident:
-			x.NamePos = linePos
-		case *ast.BasicLit:
-			x.ValuePos = linePos
-		case *ast.StarExpr:
-			x.Star = linePos
-		case *ast.UnaryExpr:
-			x.OpPos = linePos
-		case *ast.SelectorExpr:
-			// Children handle positions
-		case *ast.ArrayType:
-			x.Lbrack = linePos
-		case *ast.MapType:
-			x.Map = linePos
-		case *ast.ChanType:
-			x.Begin = linePos
-		case *ast.ParenExpr:
-			x.Lparen = linePos
-			x.Rparen = linePos
-		case *ast.Ellipsis:
-			x.Ellipsis = linePos
-		case *ast.IndexExpr:
-			x.Lbrack = linePos
-			x.Rbrack = linePos
-		case *ast.FieldList:
-			x.Opening = linePos
-			x.Closing = linePos
-		case *ast.InterfaceType:
-			x.Interface = linePos
-		case *ast.StructType:
-			x.Struct = linePos
-		case *ast.FuncType:
-			x.Func = linePos
-		case *ast.CallExpr:
-			x.Lparen = linePos
-			x.Rparen = linePos
-		}
-		return true
-	})
+	ast.Inspect(
+		expr, func(n ast.Node) bool {
+			if n == nil {
+				return false
+			}
+			switch x := n.(type) {
+			case *ast.Ident:
+				x.NamePos = linePos
+			case *ast.BasicLit:
+				x.ValuePos = linePos
+			case *ast.StarExpr:
+				x.Star = linePos
+			case *ast.UnaryExpr:
+				x.OpPos = linePos
+			case *ast.SelectorExpr:
+				// Children handle positions
+			case *ast.ArrayType:
+				x.Lbrack = linePos
+			case *ast.MapType:
+				x.Map = linePos
+			case *ast.ChanType:
+				x.Begin = linePos
+			case *ast.ParenExpr:
+				x.Lparen = linePos
+				x.Rparen = linePos
+			case *ast.Ellipsis:
+				x.Ellipsis = linePos
+			case *ast.IndexExpr:
+				x.Lbrack = linePos
+				x.Rbrack = linePos
+			case *ast.FieldList:
+				x.Opening = linePos
+				x.Closing = linePos
+			case *ast.InterfaceType:
+				x.Interface = linePos
+			case *ast.StructType:
+				x.Struct = linePos
+			case *ast.FuncType:
+				x.Func = linePos
+			case *ast.CallExpr:
+				x.Lparen = linePos
+				x.Rparen = linePos
+			}
+			return true
+		},
+	)
 }
 
 // assignBlockStmtPositions assigns positions for statements in a block,
