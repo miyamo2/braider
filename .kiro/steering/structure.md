@@ -67,7 +67,7 @@ import (
 ### Component-Based Architecture
 The analyzer is built from composable components with clear responsibilities:
 - **Detectors**: Find DI patterns (`InjectDetector`, `ProvideCallDetector`, `VariableCallDetector`, `AppDetector`, `AppOptionExtractor`, `StructDetector`, `FieldAnalyzer`, `ConstructorAnalyzer`, `OptionExtractor`, `NamerValidator`)
-- **Generators**: Produce code (`ConstructorGenerator`, `BootstrapGenerator`)
+- **Generators**: Produce code via AST construction + `format.Node` (`ConstructorGenerator`, `BootstrapGenerator`)
 - **Reporters**: Emit diagnostics (`SuggestedFixBuilder`, `DiagnosticEmitter`)
 - **Registries**: Track state (`ProviderRegistry`, `InjectorRegistry`, `VariableRegistry`, `PackageTracker`)
 
@@ -91,7 +91,7 @@ The internal package is split into focused subpackages:
 - `internal/analyzer/` - Analyzer definitions (`DependencyAnalyzer`, `AppAnalyzer`) and orchestration
 - `internal/annotation/` - Marker interfaces (e.g., `Injectable`, `Provider`, `Variable`, `App`, `AppOption`, `AppDefault`, `AppContainer`) embedded by the public `pkg/annotation/` types; provides the type-level contracts that detectors match against
 - `internal/detect/` - Detection logic for DI patterns (inject, provide call, variable call, app annotations, struct analysis, field analysis, constructor detection, option extraction, namer validation, app option extraction, container definition/field models, marker resolution via `MarkerInterfaces`/`ResolveMarkers`)
-- `internal/generate/` - Code generation logic (constructors, bootstrap IIFE) and utilities (AST utilities, code formatting, import management, naming conventions, keyword checking, hash generation)
+- `internal/generate/` - AST-based code generation (constructors, bootstrap IIFE) and utilities (AST builder helpers, import management, naming conventions, keyword checking, hash generation)
 - `internal/report/` - Diagnostic and suggested fix building
 - `internal/registry/` - Global state management (provider registry, injector registry, variable registry, package tracker)
 - `internal/graph/` - Dependency resolution (dependency graph, interface registry, topological sort, container validation, container field resolution)
@@ -125,3 +125,4 @@ _Updated: 2026-02-15 - Sync: Provide annotations are now struct fields in bootst
 _Updated: 2026-02-15 - Sync: Added internal/annotation marker interface layer; updated CLI entry point to document dogfooding pattern; added constructorgen struct_tag/uppercamel cases_
 _Updated: 2026-02-16 - Sync: App annotation now generic App[T](main) with app option type parameter; added app/ option subpackage (Default, Container[T]); added AppOptionExtractor to detector components; added container validation/resolution to graph package; added container test case categories (~77 bootstrapgen cases); added AppOption/AppDefault/AppContainer marker interfaces_
 _Updated: 2026-02-18 - Sync: Updated bootstrapgen case count to ~78; added provide_cross_type test case category; added MarkerInterfaces/ResolveMarkers to detect component description_
+_Updated: 2026-02-20 - Sync: Generate package refactored to AST-based code generation; CodeFormatter removed; generators now use ast_builder.go helpers + format.Node instead of string concatenation_

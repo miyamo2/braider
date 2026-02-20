@@ -769,6 +769,63 @@ func TestDiagnosticEmitter_EmitContainerTypeError(t *testing.T) {
 	}
 }
 
+func TestDiagnosticEmitter_EmitDuplicateNamedDependencyWarning(t *testing.T) {
+	emitter := report.NewDiagnosticEmitter()
+	reporter := &mockReporter{}
+	pos := token.Pos(450)
+
+	emitter.EmitDuplicateNamedDependencyWarning(
+		reporter, pos, "example.com/pkg.Service", "primary",
+		"example.com/a/service.go", "example.com/b/service.go",
+	)
+
+	if len(reporter.diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+	}
+
+	d := reporter.diagnostics[0]
+
+	if d.Pos != pos {
+		t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+	}
+
+	wantMsg := `duplicate dependency name "primary" for type example.com/pkg.Service (first: example.com/a/service.go, duplicate: example.com/b/service.go)`
+	if d.Message != wantMsg {
+		t.Errorf("diagnostic.Message = %q, want %q", d.Message, wantMsg)
+	}
+
+	if len(d.SuggestedFixes) != 0 {
+		t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
+	}
+}
+
+func TestDiagnosticEmitter_EmitOptionValidationError(t *testing.T) {
+	emitter := report.NewDiagnosticEmitter()
+	reporter := &mockReporter{}
+	pos := token.Pos(460)
+
+	emitter.EmitOptionValidationError(reporter, pos, "Typed[I] requires I to be an interface")
+
+	if len(reporter.diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+	}
+
+	d := reporter.diagnostics[0]
+
+	if d.Pos != pos {
+		t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+	}
+
+	wantMsg := "option validation error: Typed[I] requires I to be an interface"
+	if d.Message != wantMsg {
+		t.Errorf("diagnostic.Message = %q, want %q", d.Message, wantMsg)
+	}
+
+	if len(d.SuggestedFixes) != 0 {
+		t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
+	}
+}
+
 func TestDiagnosticEmitter_EmitContainerFieldError(t *testing.T) {
 	tests := []struct {
 		name      string

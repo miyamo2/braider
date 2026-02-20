@@ -72,11 +72,20 @@ Code generation is implemented via `analysis.SuggestedFix` rather than separate 
 The analyzer uses composable components (detectors, generators, reporters) wired via braider's own DI annotations in `cmd/braider/main.go` (dogfooding). Each component has a single responsibility and is testable in isolation. Components are organized by concern:
 - **Annotation markers** (`internal/annotation/`): Marker interfaces (`Injectable`, `Provider`, `Variable`, `App`, `AppOption`, `AppDefault`, `AppContainer`) embedded by public `pkg/annotation/` types; defines the type-level contracts that detectors match against
 - **Detectors** (`internal/detect/`): Pattern matching (inject, provide call, variable call, app, struct, field, constructor, option extraction, namer validation, app option extraction, container definition models, marker resolution)
-- **Generators** (`internal/generate/`): Code generation (constructors, bootstrap IIFE), utilities (imports, formatting, naming, keyword checking, hash markers for idempotency, AST utilities)
+- **Generators** (`internal/generate/`): AST-based code generation (constructors, bootstrap IIFE) via `go/ast` + `format.Node`; utilities (imports, naming, keyword checking, hash markers for idempotency, AST builder helpers)
 - **Reporters** (`internal/report/`): Diagnostic and suggested fix building
 - **Registries** (`internal/registry/`): Global state for cross-package dependency tracking (provider, injector, variable, package tracker)
 - **Graph** (`internal/graph/`): Dependency graph construction, interface resolution, topological sorting, container validation, container field resolution; Variable nodes participate in graph as zero-dependency leaves
 - **Loader** (`internal/loader/`): Package loading utilities for cross-package analysis
+
+### AST-Based Code Generation
+Both constructor and bootstrap code generation build `go/ast` trees programmatically and render them via `format.Node`, rather than using string concatenation (`fmt.Sprintf`, `strings.Builder`). This approach:
+- Produces correctly formatted Go code without a separate formatting pass
+- Eliminates an entire component (`CodeFormatter`) from the dependency graph
+- Makes structural code manipulation safer (no string interpolation bugs)
+- Uses `ast_builder.go` helpers (`astIdent`, `astSelector`, `astStructType`, `astShortVar`, `astFuncDecl`, `astVarDecl`, etc.) to construct AST nodes concisely
+- Renders declarations via `renderDecl` (wraps in dummy file, assigns synthetic positions, strips package prefix) and expressions via `renderNode`
+- Import blocks use `RenderImportBlock` (shared by both generate and report packages)
 
 ### AST Inspector Pattern
 Uses `inspect.Analyzer` as a dependency for efficient AST traversal, following the recommended pattern for go/analysis tools.
@@ -149,3 +158,4 @@ _Updated: 2026-02-15 - Sync: Added Bootstrap struct field vs local variable patt
 _Updated: 2026-02-15 - Sync: Added internal/annotation marker interface layer; added dogfooding (self-hosting) pattern for cmd/braider/main.go_
 _Updated: 2026-02-16 - Sync: App annotation now generic App[T](main) with app option type parameter; added App Options and Container Definition pattern (app.Default, app.Container[T]); added AppOptionExtractor, ContainerValidator, ContainerResolver to component lists; added AppOption/AppDefault/AppContainer marker interfaces_
 _Updated: 2026-02-18 - Sync: Added cross-package constructor qualification pattern (ConstructorPkgPath/ConstructorPkgName separation from PackagePath/PackageName for Provide nodes returning types from different packages); added marker resolution to detect component list_
+_Updated: 2026-02-20 - Sync: Code generation refactored from string concatenation to AST-based approach (go/ast + format.Node); CodeFormatter component removed; added AST-Based Code Generation technical decision; generate package now uses ast_builder.go helpers and renderDecl/renderNode; report package delegates import rendering to generate.RenderImportBlock_

@@ -241,6 +241,137 @@ func TestContainerResolver_ResolveFields_MultipleFields(t *testing.T) {
 	}
 }
 
+func TestContainerResolver_ResolveFields_InterfaceNilRegistry(t *testing.T) {
+	r := NewContainerResolverImpl(nil) // nil registry
+
+	ifaceType := makeTestInterfaceType("example.com/pkg", "pkg", "Repository")
+
+	def := &detect.ContainerDefinition{
+		StructType: types.NewStruct(nil, nil),
+		Fields: []detect.ContainerField{
+			{
+				Name: "Repo",
+				Type: ifaceType,
+				Pos:  token.NoPos,
+			},
+		},
+	}
+	g := &Graph{Nodes: map[string]*Node{}}
+
+	_, err := r.ResolveFields(def, g)
+	if err == nil {
+		t.Error("expected error for nil interface registry")
+	}
+}
+
+func TestContainerResolver_ResolveFields_NamedFieldInterfaceResolution(t *testing.T) {
+	reg := NewInterfaceRegistry()
+	reg.interfaces["example.com/pkg.Repository"] = []string{"example.com/pkg.RepositoryImpl"}
+
+	r := NewContainerResolverImpl(reg)
+
+	ifaceType := makeTestInterfaceType("example.com/pkg", "pkg", "Repository")
+
+	def := &detect.ContainerDefinition{
+		StructType: types.NewStruct(nil, nil),
+		Fields: []detect.ContainerField{
+			{
+				Name:          "Repo",
+				Type:          ifaceType,
+				HasBraiderTag: true,
+				Tag:           "primary",
+				Pos:           token.NoPos,
+			},
+		},
+	}
+	g := &Graph{
+		Nodes: map[string]*Node{
+			"example.com/pkg.RepositoryImpl#primary": {
+				TypeName:  "example.com/pkg.RepositoryImpl",
+				LocalName: "RepositoryImpl",
+				Name:      "primary",
+			},
+		},
+	}
+	resolved, err := r.ResolveFields(def, g)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(resolved) != 1 {
+		t.Fatalf("expected 1 resolved field, got %d", len(resolved))
+	}
+	if resolved[0].VarName != "primary" {
+		t.Errorf("VarName = %s, want primary", resolved[0].VarName)
+	}
+	if resolved[0].NodeKey != "example.com/pkg.RepositoryImpl#primary" {
+		t.Errorf("NodeKey = %s, want example.com/pkg.RepositoryImpl#primary", resolved[0].NodeKey)
+	}
+}
+
+func TestContainerResolver_ResolveFields_NamedFieldPointerStripped(t *testing.T) {
+	reg := NewInterfaceRegistry()
+	r := NewContainerResolverImpl(reg)
+
+	namedType := makeTestNamedType("example.com/pkg", "pkg", "UserService")
+	ptrType := types.NewPointer(namedType)
+
+	def := &detect.ContainerDefinition{
+		StructType: types.NewStruct(nil, nil),
+		Fields: []detect.ContainerField{
+			{
+				Name:          "Primary",
+				Type:          ptrType,
+				HasBraiderTag: true,
+				Tag:           "primary",
+				Pos:           token.NoPos,
+			},
+		},
+	}
+	g := &Graph{
+		Nodes: map[string]*Node{
+			"example.com/pkg.UserService#primary": {
+				TypeName:  "example.com/pkg.UserService",
+				LocalName: "UserService",
+				Name:      "primary",
+			},
+		},
+	}
+	resolved, err := r.ResolveFields(def, g)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(resolved) != 1 {
+		t.Fatalf("expected 1 resolved field, got %d", len(resolved))
+	}
+	if resolved[0].NodeKey != "example.com/pkg.UserService#primary" {
+		t.Errorf("NodeKey = %s, want example.com/pkg.UserService#primary", resolved[0].NodeKey)
+	}
+}
+
+func TestToLowerCamelCase(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"", ""},
+		{"HTTPClient", "httpClient"},
+		{"DB", "db"},
+		{"Service", "service"},
+		{"myVar", "myVar"},
+		{"A", "a"},
+		{"XMLParser", "xmlParser"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := toLowerCamelCase(tt.input)
+			if result != tt.expected {
+				t.Errorf("toLowerCamelCase(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestDeriveFieldNameFromType(t *testing.T) {
 	tests := []struct {
 		input    string

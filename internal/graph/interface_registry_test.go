@@ -475,6 +475,27 @@ func TestInterfaceRegistry_Build_WithVariables(t *testing.T) {
 	})
 }
 
+func TestInterfaceRegistry_Clear(t *testing.T) {
+	reg := NewInterfaceRegistry()
+	reg.interfaces["io.Writer"] = []string{"os.File"}
+	reg.interfaces["io.Reader"] = []string{"os.File"}
+
+	// Verify entries exist
+	if _, err := reg.Resolve("io.Writer"); err != nil {
+		t.Fatalf("before Clear: Resolve failed: %v", err)
+	}
+
+	reg.Clear()
+
+	// Verify entries are gone
+	if _, err := reg.Resolve("io.Writer"); err == nil {
+		t.Error("after Clear: Resolve should fail")
+	}
+	if _, err := reg.Resolve("io.Reader"); err == nil {
+		t.Error("after Clear: Resolve should fail")
+	}
+}
+
 // createMockPass creates a mock analysis.Pass for testing.
 func createMockPass(t *testing.T, src string) *analysis.Pass {
 	t.Helper()

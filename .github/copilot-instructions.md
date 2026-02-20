@@ -110,7 +110,7 @@ Annotation types are identified via `types.Implements` checks against sealed mar
 - **`detect/`** — AST pattern recognition (InjectDetector, ProvideCallDetector, VariableCallDetector, AppDetector, AppOptionExtractor, StructDetector, FieldAnalyzer, ConstructorAnalyzer, OptionExtractor, OptionMetadata, NamerValidator, MarkerResolver, ContainerDefinition/ContainerField models)
 - **`registry/`** — shared mutable state (ProviderRegistry, InjectorRegistry, VariableRegistry, PackageTracker)
 - **`graph/`** — DependencyGraphBuilder, TopologicalSorter, InterfaceRegistry, ContainerValidator, ContainerResolver
-- **`generate/`** — ConstructorGenerator, BootstrapGenerator, hash computation, import management
+- **`generate/`** — ConstructorGenerator, BootstrapGenerator, hash computation, import management, AST-based code generation (ast_builder helpers + format.Node)
 - **`report/`** — SuggestedFixBuilder, DiagnosticEmitter
 - **`loader/`** — PackageLoader for module package discovery
 

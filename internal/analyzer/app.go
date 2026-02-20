@@ -257,11 +257,20 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) (interf
 
 		// 5. Build and emit fix
 		var fix analysis.SuggestedFix
+		var fixErr error
 		if existingBootstrap != nil {
-			fix = r.fixBuilder.BuildBootstrapReplacementFix(pass, existingBootstrap, bootstrap, mainFunc)
+			fix, fixErr = r.fixBuilder.BuildBootstrapReplacementFix(pass, existingBootstrap, bootstrap, mainFunc)
+			if fixErr != nil {
+				r.diagnosticEmitter.EmitGenerationError(reporter, apps[0].Pos, "bootstrap fix", fixErr.Error())
+				return nil, nil
+			}
 			r.diagnosticEmitter.EmitBootstrapUpdateFix(reporter, apps[0].Pos, fix)
 		} else {
-			fix = r.fixBuilder.BuildBootstrapFix(pass, apps[0], bootstrap, mainFunc)
+			fix, fixErr = r.fixBuilder.BuildBootstrapFix(pass, apps[0], bootstrap, mainFunc)
+			if fixErr != nil {
+				r.diagnosticEmitter.EmitGenerationError(reporter, apps[0].Pos, "bootstrap fix", fixErr.Error())
+				return nil, nil
+			}
 			r.diagnosticEmitter.EmitBootstrapFix(reporter, apps[0].Pos, fix)
 		}
 	} else {
@@ -279,11 +288,20 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) (interf
 		}
 
 		var fix analysis.SuggestedFix
+		var fixErr error
 		if existingBootstrap != nil {
-			fix = r.fixBuilder.BuildBootstrapReplacementFix(pass, existingBootstrap, bootstrap, mainFunc)
+			fix, fixErr = r.fixBuilder.BuildBootstrapReplacementFix(pass, existingBootstrap, bootstrap, mainFunc)
+			if fixErr != nil {
+				r.diagnosticEmitter.EmitGenerationError(reporter, apps[0].Pos, "bootstrap fix", fixErr.Error())
+				return nil, nil
+			}
 			r.diagnosticEmitter.EmitBootstrapUpdateFix(reporter, apps[0].Pos, fix)
 		} else {
-			fix = r.fixBuilder.BuildBootstrapFix(pass, apps[0], bootstrap, mainFunc)
+			fix, fixErr = r.fixBuilder.BuildBootstrapFix(pass, apps[0], bootstrap, mainFunc)
+			if fixErr != nil {
+				r.diagnosticEmitter.EmitGenerationError(reporter, apps[0].Pos, "bootstrap fix", fixErr.Error())
+				return nil, nil
+			}
 			r.diagnosticEmitter.EmitBootstrapFix(reporter, apps[0].Pos, fix)
 		}
 	}

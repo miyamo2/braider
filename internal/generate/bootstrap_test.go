@@ -65,6 +65,37 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 			},
 		},
 		{
+			name: "inject with named interface RegisteredType",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"example.com/pkg.Service": {
+						TypeName:        "example.com/pkg.Service",
+						PackagePath:     "example.com/pkg",
+						PackageName:     "pkg",
+						LocalName:       "Service",
+						ConstructorName: "NewService",
+						Dependencies:    []string{},
+						IsField:         true,
+						RegisteredType:  makeNamedInterfaceType("example.com/domain", "domain", "ServiceIface"),
+					},
+				},
+				Edges: map[string][]string{
+					"example.com/pkg.Service": {},
+				},
+			},
+			sortedTypes: []string{"example.com/pkg.Service"},
+			wantErr:     false,
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				// Should use the named interface type for the field
+				if !strings.Contains(bootstrap.DependencyVar, "domain.ServiceIface") {
+					t.Errorf("missing named interface type in field, got: %s", bootstrap.DependencyVar)
+				}
+			},
+		},
+		{
 			name: "inject with interface RegisteredType",
 			graph: &graph.Graph{
 				Nodes: map[string]*graph.Node{
@@ -387,11 +418,41 @@ func TestBootstrapGenerator_GenerateBootstrap(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "main package constructor",
+			graph: &graph.Graph{
+				Nodes: map[string]*graph.Node{
+					"main.Handler": {
+						TypeName:        "main.Handler",
+						PackagePath:     "main",
+						PackageName:     "main",
+						LocalName:       "Handler",
+						ConstructorName: "NewHandler",
+						Dependencies:    []string{},
+						IsField:         true,
+					},
+				},
+				Edges: map[string][]string{
+					"main.Handler": {},
+				},
+			},
+			sortedTypes: []string{"main.Handler"},
+			wantErr:     false,
+			checkOutput: func(t *testing.T, bootstrap *GeneratedBootstrap) {
+				if bootstrap == nil {
+					t.Fatal("bootstrap is nil")
+				}
+				// Main package constructors should not be qualified
+				if !strings.Contains(bootstrap.DependencyVar, "handler := NewHandler()") {
+					t.Errorf("expected unqualified constructor for main package, got: %s", bootstrap.DependencyVar)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bg := NewBootstrapGenerator(NewCodeFormatter())
+			bg := NewBootstrapGenerator()
 
 			// Create minimal pass
 			pass := &analysis.Pass{
@@ -677,7 +738,7 @@ func TestBootstrapGenerator_GenerateBootstrap_VariableExpressionAssignment(t *te
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bg := NewBootstrapGenerator(NewCodeFormatter())
+			bg := NewBootstrapGenerator()
 
 			currentPkg := tt.currentPkg
 			if currentPkg == "" {
@@ -782,7 +843,7 @@ var (
 				Files: []*ast.File{file},
 			}
 
-			bg := NewBootstrapGenerator(NewCodeFormatter())
+			bg := NewBootstrapGenerator()
 			existing := bg.DetectExistingBootstrap(pass)
 
 			got := existing != nil
@@ -837,7 +898,7 @@ var dependency = func() struct {
 		Files: []*ast.File{file},
 	}
 
-	bg := NewBootstrapGenerator(NewCodeFormatter())
+	bg := NewBootstrapGenerator()
 	existing := bg.DetectExistingBootstrap(pass)
 	if existing == nil {
 		t.Fatal("Failed to detect existing bootstrap")
@@ -1034,7 +1095,7 @@ func TestExtractHashFromComments(t *testing.T) {
 				Files: []*ast.File{file},
 			}
 
-			bg := NewBootstrapGenerator(NewCodeFormatter())
+			bg := NewBootstrapGenerator()
 			existing := bg.DetectExistingBootstrap(pass)
 
 			if existing == nil && tt.want != "" {
@@ -1134,4 +1195,13 @@ func TestRewriteExpressionAliases(t *testing.T) {
 			}
 		})
 	}
+}
+
+func makeNamedInterfaceType(pkgPath, pkgName, typeName string) *types.Named {
+	pkg := types.NewPackage(pkgPath, pkgName)
+	obj := types.NewTypeName(token.NoPos, pkg, typeName, nil)
+	iface := types.NewInterfaceType(nil, nil)
+	iface.Complete()
+	named := types.NewNamed(obj, iface, nil)
+	return named
 }

@@ -33,7 +33,7 @@ type SuggestedFixBuilder interface {
 		app *detect.AppAnnotation,
 		bootstrap *generate.GeneratedBootstrap,
 		mainFunc *ast.FuncDecl,
-	) analysis.SuggestedFix
+	) (analysis.SuggestedFix, error)
 
 	// BuildBootstrapReplacementFix creates a SuggestedFix for replacing existing bootstrap code.
 	// Replaces existing dependency variable and updates main reference if needed.
@@ -42,7 +42,7 @@ type SuggestedFixBuilder interface {
 		existing *ast.GenDecl,
 		bootstrap *generate.GeneratedBootstrap,
 		mainFunc *ast.FuncDecl,
-	) analysis.SuggestedFix
+	) (analysis.SuggestedFix, error)
 }
 
 // suggestedFixBuilder is the default implementation of SuggestedFixBuilder.
@@ -134,7 +134,7 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 	app *detect.AppAnnotation,
 	bootstrap *generate.GeneratedBootstrap,
 	mainFunc *ast.FuncDecl,
-) analysis.SuggestedFix {
+) (analysis.SuggestedFix, error) {
 	var edits []analysis.TextEdit
 
 	// Phase 1: Handle imports (if needed)
@@ -156,8 +156,10 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 			}
 			lastImportEnd := allImportDecls[len(allImportDecls)-1].End()
 
-			unifiedBlock := b.buildUnifiedImportBlock(sortedImports)
-
+			unifiedBlock, err := b.buildUnifiedImportBlock(sortedImports)
+			if err != nil {
+				return analysis.SuggestedFix{}, fmt.Errorf("failed to build import block: %w", err)
+			}
 			edits = append(
 				edits, analysis.TextEdit{
 					Pos:     firstImportStart,
@@ -167,9 +169,12 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 			)
 		} else {
 			// Case 2: Import doesn't exist - insert new import block
-			unifiedBlock := b.buildUnifiedImportBlock(sortedImports)
 			insertPos := b.findImportInsertionPoint(file, nil)
 
+			unifiedBlock, err := b.buildUnifiedImportBlock(sortedImports)
+			if err != nil {
+				return analysis.SuggestedFix{}, fmt.Errorf("failed to build import block: %w", err)
+			}
 			edits = append(
 				edits, analysis.TextEdit{
 					Pos:     insertPos,
@@ -212,7 +217,7 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 	return analysis.SuggestedFix{
 		Message:   "generate bootstrap code",
 		TextEdits: edits,
-	}
+	}, nil
 }
 
 // BuildBootstrapReplacementFix creates a SuggestedFix for replacing existing bootstrap code.
@@ -221,7 +226,7 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 	existing *ast.GenDecl,
 	bootstrap *generate.GeneratedBootstrap,
 	mainFunc *ast.FuncDecl,
-) analysis.SuggestedFix {
+) (analysis.SuggestedFix, error) {
 	var edits []analysis.TextEdit
 
 	// Phase 1: Handle imports (if needed)
@@ -257,8 +262,10 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 				}
 				lastImportEnd := allImportDecls[len(allImportDecls)-1].End()
 
-				unifiedBlock := b.buildUnifiedImportBlock(sortedImports)
-
+				unifiedBlock, err := b.buildUnifiedImportBlock(sortedImports)
+				if err != nil {
+					return analysis.SuggestedFix{}, fmt.Errorf("failed to build import block: %w", err)
+				}
 				edits = append(
 					edits, analysis.TextEdit{
 						Pos:     firstImportStart,
@@ -268,9 +275,12 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 				)
 			} else {
 				// Case 2: Import doesn't exist - insert new import block
-				unifiedBlock := b.buildUnifiedImportBlock(sortedImports)
 				insertPos := b.findImportInsertionPoint(file, nil)
 
+				unifiedBlock, err := b.buildUnifiedImportBlock(sortedImports)
+				if err != nil {
+					return analysis.SuggestedFix{}, fmt.Errorf("failed to build import block: %w", err)
+				}
 				edits = append(
 					edits, analysis.TextEdit{
 						Pos:     insertPos,
@@ -309,7 +319,7 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 	return analysis.SuggestedFix{
 		Message:   "update bootstrap code",
 		TextEdits: edits,
-	}
+	}, nil
 }
 
 // findBootstrapInsertionPoint finds the position to insert bootstrap code.
@@ -457,22 +467,8 @@ func (b *suggestedFixBuilder) hasImportDiff(existingPaths map[string]bool, sorte
 // buildUnifiedImportBlock generates a unified import block.
 // Always uses import (...) syntax, even for single import.
 // Imports should be pre-sorted alphabetically.
-func (b *suggestedFixBuilder) buildUnifiedImportBlock(sortedImports []generate.ImportInfo) string {
-	if len(sortedImports) == 0 {
-		return ""
-	}
-
-	var sb strings.Builder
-	sb.WriteString("import (\n")
-	for _, imp := range sortedImports {
-		if imp.HasAlias() {
-			fmt.Fprintf(&sb, "\t%s %q\n", imp.Alias, imp.Path)
-		} else {
-			fmt.Fprintf(&sb, "\t%q\n", imp.Path)
-		}
-	}
-	sb.WriteString(")\n")
-	return sb.String()
+func (b *suggestedFixBuilder) buildUnifiedImportBlock(sortedImports []generate.ImportInfo) (string, error) {
+	return generate.RenderImportBlock(sortedImports)
 }
 
 // findImportInsertionPoint determines where to insert new imports.

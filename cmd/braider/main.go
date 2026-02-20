@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 
 	"github.com/miyamo2/braider/internal/analyzer"
 	"github.com/miyamo2/braider/internal/detect"
@@ -29,24 +28,24 @@ func main() {
 	multichecker.Main((*analysis.Analyzer)(dependency.dependencyAnalyzer), (*analysis.Analyzer)(dependency.appAnalyzer))
 }
 
-// braider:hash:28e50522e211b118
+// braider:hash:0665f306df89c872
 var dependency = func() struct {
+	markerInterfaces        *detect.MarkerInterfaces
 	appDetector             detect.AppDetector
-	appOptionExtractor      detect.AppOptionExtractor
+	appOptionExtractorImpl  detect.AppOptionExtractor
 	constructorAnalyzer     detect.ConstructorAnalyzer
 	fieldAnalyzer           detect.FieldAnalyzer
 	injectDetector          detect.InjectDetector
 	provideCallDetector     detect.ProvideCallDetector
 	structDetector          detect.StructDetector
 	variableCallDetector    detect.VariableCallDetector
-	codeFormatter           generate.CodeFormatter
 	bootstrapGenerator      generate.BootstrapGenerator
 	constructorGenerator    generate.ConstructorGenerator
 	interfaceRegistry       *graph.InterfaceRegistry
-	containerValidator      graph.ContainerValidator
-	containerResolver       graph.ContainerResolver
 	dependencyGraphBuilder  *graph.DependencyGraphBuilder
 	topologicalSorter       *graph.TopologicalSorter
+	containerResolverImpl   graph.ContainerResolver
+	containerValidatorImpl  graph.ContainerValidator
 	packageLoader           loader.PackageLoader
 	namerValidatorImpl      detect.NamerValidator
 	optionExtractorImpl     detect.OptionExtractor
@@ -63,26 +62,22 @@ var dependency = func() struct {
 } {
 	cancelCauseFunc := bootstrapCancel
 	context := bootstrapCtx
-	markerInterfaces, err := detect.ResolveMarkers()
-	if err != nil {
-		log.Fatalf("braider: failed to resolve marker interfaces: %v", err)
-	}
+	markerInterfaces := detect.MustResolveMarkers()
 	appDetector := detect.NewAppDetector(markerInterfaces)
-	appOptionExtractor := detect.NewAppOptionExtractorImpl(markerInterfaces)
+	appOptionExtractorImpl := detect.NewAppOptionExtractorImpl(markerInterfaces)
 	constructorAnalyzer := detect.NewConstructorAnalyzer()
 	fieldAnalyzer := detect.NewFieldAnalyzer()
 	injectDetector := detect.NewInjectDetector(markerInterfaces)
 	provideCallDetector := detect.NewProvideCallDetector(markerInterfaces)
 	structDetector := detect.NewStructDetector(injectDetector)
 	variableCallDetector := detect.NewVariableCallDetector(markerInterfaces)
-	codeFormatter := generate.NewCodeFormatter()
-	bootstrapGenerator := generate.NewBootstrapGenerator(codeFormatter)
+	bootstrapGenerator := generate.NewBootstrapGenerator()
 	constructorGenerator := generate.NewConstructorGenerator()
 	interfaceRegistry := graph.NewInterfaceRegistry()
-	containerValidator := graph.NewContainerValidatorImpl(interfaceRegistry)
-	containerResolver := graph.NewContainerResolverImpl(interfaceRegistry)
 	dependencyGraphBuilder := graph.NewDependencyGraphBuilder(interfaceRegistry)
 	topologicalSorter := graph.NewTopologicalSorter()
+	containerResolverImpl := graph.NewContainerResolverImpl(interfaceRegistry)
+	containerValidatorImpl := graph.NewContainerValidatorImpl(interfaceRegistry)
 	packageLoader := loader.NewPackageLoader()
 	namerValidatorImpl := detect.NewNamerValidatorImpl(packageLoader)
 	optionExtractorImpl := detect.NewOptionExtractorImpl(markerInterfaces, namerValidatorImpl)
@@ -92,59 +87,27 @@ var dependency = func() struct {
 	variableRegistry := registry.NewVariableRegistry()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
-	appAnalyzeRunner := analyzer.NewAppAnalyzeRunner(
-		appDetector,
-		injectorRegistry,
-		providerRegistry,
-		packageLoader,
-		packageTracker,
-		context,
-		dependencyGraphBuilder,
-		topologicalSorter,
-		bootstrapGenerator,
-		suggestedFixBuilder,
-		diagnosticEmitter,
-		variableRegistry,
-		appOptionExtractor,
-		containerValidator,
-		containerResolver,
-	)
+	appAnalyzeRunner := analyzer.NewAppAnalyzeRunner(appDetector, injectorRegistry, providerRegistry, packageLoader, packageTracker, context, dependencyGraphBuilder, topologicalSorter, bootstrapGenerator, suggestedFixBuilder, diagnosticEmitter, variableRegistry, appOptionExtractorImpl, containerValidatorImpl, containerResolverImpl)
 	appAnalyzer := analyzer.NewAppAnalyzer(appAnalyzeRunner)
-	dependencyAnalyzeRunner := analyzer.NewDependencyAnalyzeRunner(
-		providerRegistry,
-		injectorRegistry,
-		packageTracker,
-		cancelCauseFunc,
-		provideCallDetector,
-		injectDetector,
-		structDetector,
-		fieldAnalyzer,
-		constructorAnalyzer,
-		optionExtractorImpl,
-		constructorGenerator,
-		suggestedFixBuilder,
-		diagnosticEmitter,
-		variableCallDetector,
-		variableRegistry,
-	)
+	dependencyAnalyzeRunner := analyzer.NewDependencyAnalyzeRunner(providerRegistry, injectorRegistry, packageTracker, cancelCauseFunc, provideCallDetector, injectDetector, structDetector, fieldAnalyzer, constructorAnalyzer, optionExtractorImpl, constructorGenerator, suggestedFixBuilder, diagnosticEmitter, variableCallDetector, variableRegistry)
 	dependencyAnalyzer := analyzer.NewDependencyAnalyzer(dependencyAnalyzeRunner)
 	return struct {
+		markerInterfaces        *detect.MarkerInterfaces
 		appDetector             detect.AppDetector
-		appOptionExtractor      detect.AppOptionExtractor
+		appOptionExtractorImpl  detect.AppOptionExtractor
 		constructorAnalyzer     detect.ConstructorAnalyzer
 		fieldAnalyzer           detect.FieldAnalyzer
 		injectDetector          detect.InjectDetector
 		provideCallDetector     detect.ProvideCallDetector
 		structDetector          detect.StructDetector
 		variableCallDetector    detect.VariableCallDetector
-		codeFormatter           generate.CodeFormatter
 		bootstrapGenerator      generate.BootstrapGenerator
 		constructorGenerator    generate.ConstructorGenerator
 		interfaceRegistry       *graph.InterfaceRegistry
-		containerValidator      graph.ContainerValidator
-		containerResolver       graph.ContainerResolver
 		dependencyGraphBuilder  *graph.DependencyGraphBuilder
 		topologicalSorter       *graph.TopologicalSorter
+		containerResolverImpl   graph.ContainerResolver
+		containerValidatorImpl  graph.ContainerValidator
 		packageLoader           loader.PackageLoader
 		namerValidatorImpl      detect.NamerValidator
 		optionExtractorImpl     detect.OptionExtractor
@@ -159,22 +122,22 @@ var dependency = func() struct {
 		dependencyAnalyzeRunner *analyzer.DependencyAnalyzeRunner
 		dependencyAnalyzer      *analyzer.DependencyAnalyzer
 	}{
+		markerInterfaces:        markerInterfaces,
 		appDetector:             appDetector,
-		appOptionExtractor:      appOptionExtractor,
+		appOptionExtractorImpl:  appOptionExtractorImpl,
 		constructorAnalyzer:     constructorAnalyzer,
 		fieldAnalyzer:           fieldAnalyzer,
 		injectDetector:          injectDetector,
 		provideCallDetector:     provideCallDetector,
 		structDetector:          structDetector,
 		variableCallDetector:    variableCallDetector,
-		codeFormatter:           codeFormatter,
 		bootstrapGenerator:      bootstrapGenerator,
 		constructorGenerator:    constructorGenerator,
 		interfaceRegistry:       interfaceRegistry,
-		containerValidator:      containerValidator,
-		containerResolver:       containerResolver,
 		dependencyGraphBuilder:  dependencyGraphBuilder,
 		topologicalSorter:       topologicalSorter,
+		containerResolverImpl:   containerResolverImpl,
+		containerValidatorImpl:  containerValidatorImpl,
 		packageLoader:           packageLoader,
 		namerValidatorImpl:      namerValidatorImpl,
 		optionExtractorImpl:     optionExtractorImpl,

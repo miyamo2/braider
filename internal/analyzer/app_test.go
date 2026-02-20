@@ -61,7 +61,7 @@ func setupTestDependencies(t *testing.T) (
 	interfaceRegistry := graph.NewInterfaceRegistry()
 	graphBuilder := graph.NewDependencyGraphBuilder(interfaceRegistry)
 	sorter := graph.NewTopologicalSorter()
-	bootstrapGenerator := generate.NewBootstrapGenerator(generate.NewCodeFormatter())
+	bootstrapGenerator := generate.NewBootstrapGenerator()
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 	appOptionExtractor := detect.NewAppOptionExtractorImpl(markers)

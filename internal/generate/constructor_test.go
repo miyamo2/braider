@@ -208,19 +208,17 @@ func TestConstructorGenerator_NilTypeExpr(t *testing.T) {
 		},
 	}
 
-	// Field with nil TypeExpr should be handled gracefully
+	// Field with nil TypeExpr should return an error
 	fields := []detect.FieldInfo{
 		{Name: "field", TypeExpr: nil},
 	}
 
 	result, err := gen.GenerateConstructor(candidate, fields)
-	if err != nil {
-		t.Fatalf("GenerateConstructor() error = %v", err)
+	if err == nil {
+		t.Fatal("GenerateConstructor() expected error for nil TypeExpr, got nil")
 	}
-
-	// Should generate constructor even with nil type expr
-	if result == nil {
-		t.Error("Result should not be nil")
+	if result != nil {
+		t.Errorf("GenerateConstructor() expected nil result for nil TypeExpr, got %+v", result)
 	}
 }
 
