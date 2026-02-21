@@ -658,16 +658,20 @@ func (bg *bootstrapGenerator) buildContainerConstructorCallExpr(
 		args = append(args, &ast.Ident{Name: depVarName})
 	}
 
-	qualifier := node.PackageAlias
-	if qualifier == "" {
-		qualifier = node.PackageName
+	ctorPkgName := node.ConstructorPkgName
+	if ctorPkgName == "" {
+		ctorPkgName = node.PackageName
+	}
+	constructorQualifier := node.ConstructorPkgAlias
+	if constructorQualifier == "" {
+		constructorQualifier = ctorPkgName
 	}
 
 	var funExpr ast.Expr
-	if node.PackageName == "main" && currentPkgName == "main" {
+	if ctorPkgName == "main" && currentPkgName == "main" {
 		funExpr = &ast.Ident{Name: node.ConstructorName}
-	} else if node.PackageName != currentPkgName {
-		funExpr = &ast.SelectorExpr{X: &ast.Ident{Name: qualifier}, Sel: &ast.Ident{Name: node.ConstructorName}}
+	} else if ctorPkgName != currentPkgName {
+		funExpr = &ast.SelectorExpr{X: &ast.Ident{Name: constructorQualifier}, Sel: &ast.Ident{Name: node.ConstructorName}}
 	} else {
 		funExpr = &ast.Ident{Name: node.ConstructorName}
 	}
