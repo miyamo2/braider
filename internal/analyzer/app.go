@@ -20,22 +20,24 @@ import (
 	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
-var _ = annotation.Provide[provide.Default](NewAppAnalyzer)
+var _ = annotation.Provide[provide.Named[AppAnalyzerNamer]](NewAppAnalyzer)
 
-type AppAnalyzer analysis.Analyzer
+type AppAnalyzerNamer struct{}
+
+func (n AppAnalyzerNamer) Name() string {
+	return "appAnalyzer"
+}
 
 // NewAppAnalyzer detects annotation.App(main) and generates bootstrap code.
 func NewAppAnalyzer(
 	runner *AppAnalyzeRunner,
-) *AppAnalyzer {
-	return (*AppAnalyzer)(
-		&analysis.Analyzer{
-			Name:     "braider_app",
-			Doc:      "detects App annotation and generates IIFE bootstrap code",
-			Run:      runner.Run,
-			Requires: []*analysis.Analyzer{inspect.Analyzer},
-		},
-	)
+) *analysis.Analyzer {
+	return &analysis.Analyzer{
+		Name:     "braider_app",
+		Doc:      "detects App annotation and generates IIFE bootstrap code",
+		Run:      runner.Run,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	}
 }
 
 type AppAnalyzeRunner struct {
@@ -249,7 +251,13 @@ func (r *AppAnalyzeRunner) run(ctx context.Context, pass *analysis.Pass) (interf
 		}
 
 		// 4. Generate container bootstrap
-		bootstrap, genErr := r.bootstrapGen.GenerateContainerBootstrap(pass, depGraph, sortedTypes, containerDef, resolvedFields)
+		bootstrap, genErr := r.bootstrapGen.GenerateContainerBootstrap(
+			pass,
+			depGraph,
+			sortedTypes,
+			containerDef,
+			resolvedFields,
+		)
 		if genErr != nil {
 			r.diagnosticEmitter.EmitGenerationError(reporter, apps[0].Pos, "container bootstrap", genErr.Error())
 			return nil, nil

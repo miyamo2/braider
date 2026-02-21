@@ -18,23 +18,25 @@ import (
 	"golang.org/x/tools/go/analysis/passes/inspect"
 )
 
-var _ = annotation.Provide[provide.Default](NewDependencyAnalyzer)
+var _ = annotation.Provide[provide.Named[DependencyAnalyzerNamer]](NewDependencyAnalyzer)
 
-type DependencyAnalyzer analysis.Analyzer
+type DependencyAnalyzerNamer struct{}
+
+func (n DependencyAnalyzerNamer) Name() string {
+	return "dependencyAnalyzer"
+}
 
 // NewDependencyAnalyzer detects annotation.Provide and annotation.Injectable structs
 // across all packages and registers them to global registries.
 func NewDependencyAnalyzer(
 	runner *DependencyAnalyzeRunner,
-) *DependencyAnalyzer {
-	return (*DependencyAnalyzer)(
-		&analysis.Analyzer{
-			Name:     "braider_dependency",
-			Doc:      "detects Provide, Inject, and Variable annotated structs and registers to global registry",
-			Run:      runner.Run,
-			Requires: []*analysis.Analyzer{inspect.Analyzer},
-		},
-	)
+) *analysis.Analyzer {
+	return &analysis.Analyzer{
+		Name:     "braider_dependency",
+		Doc:      "detects Provide, Inject, and Variable annotated structs and registers to global registry",
+		Run:      runner.Run,
+		Requires: []*analysis.Analyzer{inspect.Analyzer},
+	}
 }
 
 type DependencyAnalyzeRunner struct {
