@@ -433,6 +433,12 @@ func TestIntegration(t *testing.T) {
 			depPackages:   []string{"container_mixed_option/config", "container_mixed_option/service"},
 			appSuggestFix: true,
 		},
+		{
+			name:          "ContainerProvideCrossType",
+			testdir:       "container_provide_cross_type",
+			depPackages:   []string{"container_provide_cross_type/ext", "container_provide_cross_type/provider"},
+			appSuggestFix: true,
+		},
 
 		// --- Container error cases ---
 		{

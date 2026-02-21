@@ -601,14 +601,17 @@ func TestBootstrapGenerator_GenerateContainerBootstrap_WithPackageAlias(t *testi
 	g := &graph.Graph{
 		Nodes: map[string]*graph.Node{
 			"example.com/pkg.UserService": {
-				TypeName:        "example.com/pkg.UserService",
-				PackagePath:     "example.com/pkg",
-				PackageName:     "pkg",
-				LocalName:       "UserService",
-				ConstructorName: "NewUserService",
-				PackageAlias:    "mypkg",
-				Dependencies:    []string{},
-				IsField:         true,
+				TypeName:            "example.com/pkg.UserService",
+				PackagePath:         "example.com/pkg",
+				PackageName:         "pkg",
+				LocalName:           "UserService",
+				ConstructorName:     "NewUserService",
+				PackageAlias:        "mypkg",
+				ConstructorPkgPath:  "example.com/pkg",
+				ConstructorPkgName:  "pkg",
+				ConstructorPkgAlias: "mypkg",
+				Dependencies:        []string{},
+				IsField:             true,
 			},
 		},
 		Edges: map[string][]string{
