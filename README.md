@@ -1,8 +1,13 @@
 # braider — compile-time DI via go/analysis
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/miyamo2/braider.svg)](https://pkg.go.dev/github.com/miyamo2/braider)
+[![GitHub go.mod Go version (subdirectory of monorepo)](https://img.shields.io/github/go-mod/go-version/miyamo2/braider?logo=go)](https://img.shields.io/github/go-mod/go-version/miyamo2/braider?logo=go)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/miyamo2/braider)](https://img.shields.io/github/v/release/miyamo2/braider)
 ![Coverage](https://github.com/miyamo2/braider/blob/main/.assets/test_cov.svg?raw=true)
 ![Code to Test Ratio](https://github.com/miyamo2/braider/blob/main/.assets/ratio.svg?raw=true)
 ![Test Execution Time](https://github.com/miyamo2/braider/blob/main/.assets/time.svg?raw=true)
+[![Go Report Card](https://goreportcard.com/badge/github.com/miyamo2/braider)](https://goreportcard.com/report/github.com/miyamo2/braider)
+[![GitHub License](https://img.shields.io/github/license/miyamo2/braider?&color=blue)](https://img.shields.io/github/license/miyamo2/braider?&color=blue)
 
 braider is a `go vet` analyzer that resolves dependency injection (DI) bindings and generates constructors and bootstrap wiring using `analysis.SuggestedFix`. It integrates with the standard Go toolchain, produces plain Go code with no runtime container, and is inspired by google/wire.
 
@@ -18,7 +23,7 @@ braider is a `go vet` analyzer that resolves dependency injection (DI) bindings 
 - Field-level DI control via `braider` struct tags (`braider:"name"` / `braider:"-"`)
 - App options: `app.Default` (anonymous struct) and `app.Container[T]` (user-defined container)
 - Bootstrap wiring generated from a dependency graph in topological order
-- Works with `go vet -fix` for one-shot application of suggested fixes
+- Works with `braider -fix` for one-shot application of suggested fixes
 
 ## Installation
 
