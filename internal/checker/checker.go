@@ -44,8 +44,8 @@ type Pipeline struct {
 type Config struct {
 	// Pipeline defines the phase-ordered analyzer execution plan.
 	Pipeline Pipeline
-	// ExitPolicy determines how diagnostics map to exit codes.
-	ExitPolicy ExitCodePolicy
+	// DiagnosticPolicy determines how diagnostic categories map to severity levels and exit codes.
+	DiagnosticPolicy DiagnosticPolicy
 	// Fix enables automatic application of SuggestedFixes.
 	Fix bool
 	// PrintDiff prints unified diffs instead of applying fixes (used with Fix).
@@ -64,7 +64,7 @@ type Result struct {
 	PhaseResults map[string]*gochecker.Graph
 	// AllDiagnostics is a flattened list of all diagnostics across all phases.
 	AllDiagnostics []CategorizedDiagnostic
-	// ExitCode is the computed exit code based on ExitPolicy.
+	// ExitCode is the computed exit code based on DiagnosticPolicy.
 	ExitCode int
 }
 
@@ -143,6 +143,6 @@ func Run(cfg Config) (*Result, error) {
 	}
 
 	// Step 5: Compute exit code
-	result.ExitCode = cfg.ExitPolicy.ComputeExitCode(result.AllDiagnostics)
+	result.ExitCode = cfg.DiagnosticPolicy.ComputeExitCode(result.AllDiagnostics)
 	return result, nil
 }

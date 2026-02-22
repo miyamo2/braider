@@ -5,49 +5,59 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// CategoryRule maps a diagnostic category string directly to an exit code.
-// Exit code 0 means the category is ignored (does not affect the exit code).
+// Severity represents the severity level of a diagnostic.
+type Severity int
+
+const (
+	SeverityInfo Severity = iota
+	SeverityWarn
+	SeverityError
+)
+
+// CategoryRule maps a diagnostic category string to a severity level.
+// The severity determines both the output destination and exit code contribution.
 type CategoryRule struct {
 	// Category is the diagnostic category string to match.
 	Category string
-	// Code is the exit code for this category. Use 0 to ignore.
-	Code int
+	// Severity is the severity level for this category.
+	Severity Severity
 }
 
-// ExitCodePolicy defines the complete mapping from diagnostic categories to exit codes.
-type ExitCodePolicy struct {
-	// Rules is an ordered list of category-to-exit-code mappings.
+// DiagnosticPolicy defines the complete mapping from diagnostic categories to severity levels.
+type DiagnosticPolicy struct {
+	// Rules is an ordered list of category-to-severity mappings.
 	// The first matching rule wins.
 	Rules []CategoryRule
-	// DefaultCode is applied when no rule matches a diagnostic's category.
-	DefaultCode int
+	// DefaultSeverity is applied when no rule matches a diagnostic's category.
+	DefaultSeverity Severity
 }
 
-// CategorizedDiagnostic pairs a diagnostic with its source analyzer and package.
+// CategorizedDiagnostic pairs a diagnostic with its source analyzer, package, and resolved severity.
 type CategorizedDiagnostic struct {
 	analysis.Diagnostic
 	Analyzer *analysis.Analyzer
 	Package  *packages.Package
+	Severity Severity
+}
+
+// ResolveSeverity finds the severity for a given category.
+func (p DiagnosticPolicy) ResolveSeverity(category string) Severity {
+	for _, rule := range p.Rules {
+		if rule.Category == category {
+			return rule.Severity
+		}
+	}
+	return p.DefaultSeverity
 }
 
 // ComputeExitCode evaluates all diagnostics against the policy and returns the exit code.
-func (p ExitCodePolicy) ComputeExitCode(diagnostics []CategorizedDiagnostic) int {
-	exitCode := 0
+// SeverityError produces exit code 1; SeverityWarn and SeverityInfo produce exit code 0.
+func (p DiagnosticPolicy) ComputeExitCode(diagnostics []CategorizedDiagnostic) int {
 	for _, d := range diagnostics {
-		code := p.resolveExitCode(d.Category)
-		if code > exitCode {
-			exitCode = code
+		sev := d.Severity
+		if sev == SeverityError {
+			return 1
 		}
 	}
-	return exitCode
-}
-
-// resolveExitCode finds the exit code for a given category.
-func (p ExitCodePolicy) resolveExitCode(category string) int {
-	for _, rule := range p.Rules {
-		if rule.Category == category {
-			return rule.Code
-		}
-	}
-	return p.DefaultCode
+	return 0
 }

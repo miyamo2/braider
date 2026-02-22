@@ -6,8 +6,8 @@ import (
 )
 
 // ParseArgs parses command-line arguments and returns a partial Config.
-// The caller MUST set Config.Pipeline and Config.ExitPolicy before calling Run,
-// since ParseArgs cannot know which analyzers or exit policies to use.
+// The caller MUST set Config.Pipeline and Config.DiagnosticPolicy before calling Run,
+// since ParseArgs cannot know which analyzers or diagnostic policies to use.
 func ParseArgs(programName string, args []string) (*Config, error) {
 	fs := flag.NewFlagSet(programName, flag.ContinueOnError)
 
