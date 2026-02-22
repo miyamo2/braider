@@ -35,6 +35,13 @@ Requires go 1.25+.
 brew install miyamo2/tap/braider
 ```
 
+Or, tap first then install
+
+```bash
+brew tap miyamo2/tap
+brew install braider
+```
+
 ### CLI
 
 ```bash
