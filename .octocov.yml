@@ -4,6 +4,7 @@ coverage:
   exclude:
     - 'github.com/miyamo2/braider/cmd/**/*'
     - 'github.com/miyamo2/braider/pkg/**/*'
+    - 'github.com/miyamo2/braider/internal/x/**/*'
   paths:
     - 'coverage.out'
   badge:
@@ -13,6 +14,7 @@ codeToTestRatio:
     - '**/*.go'
     - '!cmd/**/*.go'
     - '!pkg/*.go'
+    - '!internal/x/**/*.go'
     - '!**/*_test.go'
   test:
     - '**/*_test.go'
