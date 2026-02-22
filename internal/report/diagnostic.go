@@ -107,6 +107,7 @@ func (e *diagnosticEmitter) EmitConstructorFix(
 	reporter.Report(
 		analysis.Diagnostic{
 			Pos:            pos,
+			Category:       CategoryConstructorFix,
 			Message:        fmt.Sprintf("missing constructor for %s", structName),
 			SuggestedFixes: []analysis.SuggestedFix{fix},
 		},
@@ -123,6 +124,7 @@ func (e *diagnosticEmitter) EmitExistingConstructorFix(
 	reporter.Report(
 		analysis.Diagnostic{
 			Pos:            pos,
+			Category:       CategoryConstructorFix,
 			Message:        fmt.Sprintf("outdated constructor for %s", structName),
 			SuggestedFixes: []analysis.SuggestedFix{fix},
 		},
@@ -134,8 +136,9 @@ func (e *diagnosticEmitter) EmitCircularDependency(reporter Reporter, pos token.
 	cyclePath := strings.Join(cycle, " -> ")
 	reporter.Report(
 		analysis.Diagnostic{
-			Pos:     pos,
-			Message: fmt.Sprintf("circular dependency detected: %s", cyclePath),
+			Pos:      pos,
+			Category: CategoryError,
+			Message:  fmt.Sprintf("circular dependency detected: %s", cyclePath),
 		},
 	)
 }
@@ -144,8 +147,9 @@ func (e *diagnosticEmitter) EmitCircularDependency(reporter Reporter, pos token.
 func (e *diagnosticEmitter) EmitGenerationError(reporter Reporter, pos token.Pos, structName string, reason string) {
 	reporter.Report(
 		analysis.Diagnostic{
-			Pos:     pos,
-			Message: fmt.Sprintf("failed to generate constructor for %s: %s", structName, reason),
+			Pos:      pos,
+			Category: CategoryError,
+			Message:  fmt.Sprintf("failed to generate constructor for %s: %s", structName, reason),
 		},
 	)
 }
@@ -154,8 +158,9 @@ func (e *diagnosticEmitter) EmitGenerationError(reporter Reporter, pos token.Pos
 func (e *diagnosticEmitter) EmitNonMainAppError(reporter Reporter, pos token.Pos, funcName string) {
 	reporter.Report(
 		analysis.Diagnostic{
-			Pos:     pos,
-			Message: fmt.Sprintf("annotation.App must reference main function, got %s", funcName),
+			Pos:      pos,
+			Category: CategoryError,
+			Message:  fmt.Sprintf("annotation.App must reference main function, got %s", funcName),
 		},
 	)
 }
@@ -165,6 +170,7 @@ func (e *diagnosticEmitter) EmitBootstrapFix(reporter Reporter, pos token.Pos, f
 	reporter.Report(
 		analysis.Diagnostic{
 			Pos:            pos,
+			Category:       CategoryBootstrapFix,
 			Message:        "bootstrap code is missing",
 			SuggestedFixes: []analysis.SuggestedFix{fix},
 		},
@@ -176,6 +182,7 @@ func (e *diagnosticEmitter) EmitBootstrapUpdateFix(reporter Reporter, pos token.
 	reporter.Report(
 		analysis.Diagnostic{
 			Pos:            pos,
+			Category:       CategoryBootstrapFix,
 			Message:        "bootstrap code is outdated",
 			SuggestedFixes: []analysis.SuggestedFix{fix},
 		},
@@ -186,8 +193,9 @@ func (e *diagnosticEmitter) EmitBootstrapUpdateFix(reporter Reporter, pos token.
 func (e *diagnosticEmitter) EmitDuplicateAppWarning(reporter Reporter, pos token.Pos) {
 	reporter.Report(
 		analysis.Diagnostic{
-			Pos:     pos,
-			Message: "another annotation.App in the same package is being applied",
+			Pos:      pos,
+			Category: CategoryWarning,
+			Message:  "another annotation.App in the same package is being applied",
 		},
 	)
 }
@@ -196,8 +204,9 @@ func (e *diagnosticEmitter) EmitDuplicateAppWarning(reporter Reporter, pos token
 func (e *diagnosticEmitter) EmitPackageLoadWarning(reporter Reporter, pos token.Pos, reason string) {
 	reporter.Report(
 		analysis.Diagnostic{
-			Pos:     pos,
-			Message: fmt.Sprintf("warning: failed to load module packages: %s (bootstrap may be incomplete)", reason),
+			Pos:      pos,
+			Category: CategoryWarning,
+			Message:  fmt.Sprintf("warning: failed to load module packages: %s (bootstrap may be incomplete)", reason),
 		},
 	)
 }
@@ -206,7 +215,8 @@ func (e *diagnosticEmitter) EmitPackageLoadWarning(reporter Reporter, pos token.
 func (e *diagnosticEmitter) EmitPackageWaitWarning(reporter Reporter, pos token.Pos, reason string) {
 	reporter.Report(
 		analysis.Diagnostic{
-			Pos: pos,
+			Pos:      pos,
+			Category: CategoryWarning,
 			Message: fmt.Sprintf(
 				"warning: timeout waiting for package analysis: %s (bootstrap may be incomplete)",
 				reason,
@@ -219,8 +229,9 @@ func (e *diagnosticEmitter) EmitPackageWaitWarning(reporter Reporter, pos token.
 func (e *diagnosticEmitter) EmitGraphBuildError(reporter Reporter, pos token.Pos, reason string) {
 	reporter.Report(
 		analysis.Diagnostic{
-			Pos:     pos,
-			Message: fmt.Sprintf("failed to build dependency graph: %s", reason),
+			Pos:      pos,
+			Category: CategoryError,
+			Message:  fmt.Sprintf("failed to build dependency graph: %s", reason),
 		},
 	)
 }
@@ -231,7 +242,8 @@ func (e *diagnosticEmitter) EmitDuplicateNamedDependencyWarning(
 ) {
 	reporter.Report(
 		analysis.Diagnostic{
-			Pos: pos,
+			Pos:      pos,
+			Category: CategoryWarning,
 			Message: fmt.Sprintf(
 				"duplicate dependency name %q for type %s (first: %s, duplicate: %s)",
 				name,
@@ -247,8 +259,9 @@ func (e *diagnosticEmitter) EmitDuplicateNamedDependencyWarning(
 func (e *diagnosticEmitter) EmitOptionValidationError(reporter Reporter, pos token.Pos, reason string) {
 	reporter.Report(
 		analysis.Diagnostic{
-			Pos:     pos,
-			Message: fmt.Sprintf("option validation error: %s", reason),
+			Pos:      pos,
+			Category: CategoryError,
+			Message:  fmt.Sprintf("option validation error: %s", reason),
 		},
 	)
 }
@@ -257,8 +270,9 @@ func (e *diagnosticEmitter) EmitOptionValidationError(reporter Reporter, pos tok
 func (e *diagnosticEmitter) EmitUnsupportedVariableExpression(reporter Reporter, pos token.Pos, reason string) {
 	reporter.Report(
 		analysis.Diagnostic{
-			Pos:     pos,
-			Message: reason,
+			Pos:      pos,
+			Category: CategoryError,
+			Message:  reason,
 		},
 	)
 }
@@ -266,31 +280,35 @@ func (e *diagnosticEmitter) EmitUnsupportedVariableExpression(reporter Reporter,
 // EmitInvalidStructTagError reports an invalid braider struct tag value (braider:"").
 func (e *diagnosticEmitter) EmitInvalidStructTagError(reporter Reporter, pos token.Pos, fieldName string) {
 	reporter.Report(analysis.Diagnostic{
-		Pos:     pos,
-		Message: fmt.Sprintf("invalid braider struct tag on field %s: tag value must not be empty", fieldName),
+		Pos:      pos,
+		Category: CategoryError,
+		Message:  fmt.Sprintf("invalid braider struct tag on field %s: tag value must not be empty", fieldName),
 	})
 }
 
 // EmitStructTagConflictError reports a braider struct tag conflict with WithoutConstructor.
 func (e *diagnosticEmitter) EmitStructTagConflictError(reporter Reporter, pos token.Pos, fieldName string, reason string) {
 	reporter.Report(analysis.Diagnostic{
-		Pos:     pos,
-		Message: fmt.Sprintf("braider struct tag conflict on field %s: %s", fieldName, reason),
+		Pos:      pos,
+		Category: CategoryError,
+		Message:  fmt.Sprintf("braider struct tag conflict on field %s: %s", fieldName, reason),
 	})
 }
 
 // EmitContainerTypeError reports a non-struct container type parameter.
 func (e *diagnosticEmitter) EmitContainerTypeError(reporter Reporter, pos token.Pos, typeName string) {
 	reporter.Report(analysis.Diagnostic{
-		Pos:     pos,
-		Message: fmt.Sprintf("container type parameter must be a struct type, got %s", typeName),
+		Pos:      pos,
+		Category: CategoryError,
+		Message:  fmt.Sprintf("container type parameter must be a struct type, got %s", typeName),
 	})
 }
 
 // EmitContainerFieldError reports an unresolvable container field.
 func (e *diagnosticEmitter) EmitContainerFieldError(reporter Reporter, pos token.Pos, fieldName string, fieldType string, reason string) {
 	reporter.Report(analysis.Diagnostic{
-		Pos:     pos,
-		Message: fmt.Sprintf("container field %q (type %s): %s", fieldName, fieldType, reason),
+		Pos:      pos,
+		Category: CategoryError,
+		Message:  fmt.Sprintf("container field %q (type %s): %s", fieldName, fieldType, reason),
 	})
 }
