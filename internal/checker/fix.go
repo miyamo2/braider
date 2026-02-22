@@ -8,9 +8,9 @@ import (
 	"github.com/miyamo2/braider/internal/x/tools/driverutil"
 )
 
-// ApplyFixes collects all diagnostics with SuggestedFixes from the graph
+// applyFixes collects all diagnostics with SuggestedFixes from the graph
 // and applies the first fix for each diagnostic to the source files.
-func ApplyFixes(graph *gochecker.Graph, printDiff, verbose bool) error {
+func applyFixes(graph *gochecker.Graph, printDiff, verbose bool) error {
 	var actions []driverutil.FixAction
 
 	for act := range graph.All() {

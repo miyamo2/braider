@@ -23,7 +23,7 @@ func loadTestPackages(t *testing.T, dir string) []*packages.Package {
 	return pkgs
 }
 
-func TestApplyFixes_NoFixes(t *testing.T) {
+func Test_applyFixes_NoFixes(t *testing.T) {
 	dir := setupTestModule(t, map[string]string{
 		"main.go": minimalMain,
 	})
@@ -34,12 +34,12 @@ func TestApplyFixes_NoFixes(t *testing.T) {
 		t.Fatalf("Analyze: %v", err)
 	}
 
-	if err := ApplyFixes(graph, false, false); err != nil {
-		t.Fatalf("ApplyFixes: %v", err)
+	if err := applyFixes(graph, false, false); err != nil {
+		t.Fatalf("applyFixes: %v", err)
 	}
 }
 
-func TestApplyFixes_WithFixes(t *testing.T) {
+func Test_applyFixes_WithFixes(t *testing.T) {
 	dir := setupTestModule(t, map[string]string{
 		"main.go": `package main
 
@@ -57,8 +57,8 @@ func main() {
 		t.Fatalf("Analyze: %v", err)
 	}
 
-	if err := ApplyFixes(graph, false, false); err != nil {
-		t.Fatalf("ApplyFixes: %v", err)
+	if err := applyFixes(graph, false, false); err != nil {
+		t.Fatalf("applyFixes: %v", err)
 	}
 
 	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
@@ -73,7 +73,7 @@ func main() {
 	}
 }
 
-func TestApplyFixes_PrintDiffMode(t *testing.T) {
+func Test_applyFixes_PrintDiffMode(t *testing.T) {
 	const src = `package main
 
 var bar = 1
@@ -92,8 +92,8 @@ func main() {
 		t.Fatalf("Analyze: %v", err)
 	}
 
-	if err := ApplyFixes(graph, true, false); err != nil {
-		t.Fatalf("ApplyFixes: %v", err)
+	if err := applyFixes(graph, true, false); err != nil {
+		t.Fatalf("applyFixes: %v", err)
 	}
 
 	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
@@ -105,7 +105,7 @@ func main() {
 	}
 }
 
-func TestApplyFixes_PreservesPermissions(t *testing.T) {
+func Test_applyFixes_PreservesPermissions(t *testing.T) {
 	dir := setupTestModule(t, map[string]string{
 		"main.go": `package main
 
@@ -128,8 +128,8 @@ func main() {
 		t.Fatalf("Analyze: %v", err)
 	}
 
-	if err := ApplyFixes(graph, false, false); err != nil {
-		t.Fatalf("ApplyFixes: %v", err)
+	if err := applyFixes(graph, false, false); err != nil {
+		t.Fatalf("applyFixes: %v", err)
 	}
 
 	fi, err := os.Stat(mainPath)

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestParseArgs(t *testing.T) {
+func Test_parseArgs(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
@@ -64,39 +64,41 @@ func TestParseArgs(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			args, err := ParseArgs("test", tt.args)
-			if tt.wantErr != "" {
-				if err == nil {
-					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				t.Parallel()
+				args, err := parseArgs("test", tt.args)
+				if tt.wantErr != "" {
+					if err == nil {
+						t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+					}
+					if !strings.Contains(err.Error(), tt.wantErr) {
+						t.Fatalf("error = %q, want containing %q", err, tt.wantErr)
+					}
+					return
 				}
-				if !strings.Contains(err.Error(), tt.wantErr) {
-					t.Fatalf("error = %q, want containing %q", err, tt.wantErr)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
 				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
 
-			if args.Fix != tt.wantFix {
-				t.Errorf("Fix = %v, want %v", args.Fix, tt.wantFix)
-			}
-			if args.PrintDiff != tt.wantDiff {
-				t.Errorf("PrintDiff = %v, want %v", args.PrintDiff, tt.wantDiff)
-			}
-			if args.Verbose != tt.wantV {
-				t.Errorf("Verbose = %v, want %v", args.Verbose, tt.wantV)
-			}
-			if len(args.Patterns) != len(tt.wantPats) {
-				t.Fatalf("Patterns = %v, want %v", args.Patterns, tt.wantPats)
-			}
-			for i, p := range args.Patterns {
-				if p != tt.wantPats[i] {
-					t.Errorf("Patterns[%d] = %q, want %q", i, p, tt.wantPats[i])
+				if args.Fix != tt.wantFix {
+					t.Errorf("Fix = %v, want %v", args.Fix, tt.wantFix)
 				}
-			}
-		})
+				if args.PrintDiff != tt.wantDiff {
+					t.Errorf("PrintDiff = %v, want %v", args.PrintDiff, tt.wantDiff)
+				}
+				if args.Verbose != tt.wantV {
+					t.Errorf("Verbose = %v, want %v", args.Verbose, tt.wantV)
+				}
+				if len(args.Patterns) != len(tt.wantPats) {
+					t.Fatalf("Patterns = %v, want %v", args.Patterns, tt.wantPats)
+				}
+				for i, p := range args.Patterns {
+					if p != tt.wantPats[i] {
+						t.Errorf("Patterns[%d] = %q, want %q", i, p, tt.wantPats[i])
+					}
+				}
+			},
+		)
 	}
 }

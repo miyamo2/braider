@@ -6,7 +6,7 @@ import (
 )
 
 // Args holds the runtime arguments that control how the checker executes.
-// These are typically parsed from command-line flags via ParseArgs.
+// These are typically parsed from command-line flags via parseArgs.
 type Args struct {
 	// Fix enables automatic application of SuggestedFixes.
 	Fix bool
@@ -20,8 +20,8 @@ type Args struct {
 	Patterns []string
 }
 
-// ParseArgs parses command-line arguments and returns Args.
-func ParseArgs(programName string, args []string) (*Args, error) {
+// parseArgs parses command-line arguments and returns Args.
+func parseArgs(programName string, args []string) (*Args, error) {
 	fs := flag.NewFlagSet(programName, flag.ContinueOnError)
 
 	var (

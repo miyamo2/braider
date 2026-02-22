@@ -48,7 +48,19 @@ type Config struct {
 }
 
 // Run executes the full pipeline: load packages, run phases, apply fixes, and returns the exit code.
-func Run(cfg Config, args Args) (int, error) {
+func Run(cfg Config) (int, error) {
+	args, err := parseArgs(os.Args[0], os.Args[1:])
+	if err != nil {
+		return 1, fmt.Errorf("parsing arguments: %w", err)
+	}
+	return run(cfg, args)
+}
+
+// Run executes the full pipeline: load packages, run phases, apply fixes, and returns the exit code.
+func run(cfg Config, args *Args) (int, error) {
+	if args == nil {
+		return 1, fmt.Errorf("args cannot be nil")
+	}
 	if len(cfg.Pipeline.Phases) == 0 {
 		return 1, fmt.Errorf("pipeline has no phases")
 	}
@@ -91,7 +103,7 @@ func Run(cfg Config, args Args) (int, error) {
 				continue
 			}
 			for _, d := range act.Diagnostics {
-				severity := cfg.DiagnosticPolicy.ResolveSeverity(d.Category)
+				severity := cfg.DiagnosticPolicy.resolveSeverity(d.Category)
 				switch severity {
 				case SeverityError:
 					hasError = true
@@ -106,7 +118,7 @@ func Run(cfg Config, args Args) (int, error) {
 		}
 
 		if args.Fix {
-			if err := ApplyFixes(graph, args.PrintDiff, args.Verbose); err != nil {
+			if err := applyFixes(graph, args.PrintDiff, args.Verbose); err != nil {
 				return 1, fmt.Errorf("applying fixes for phase %q: %w", phase.Name, err)
 			}
 		}
