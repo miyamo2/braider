@@ -41,6 +41,12 @@ Or, add it as a [tool dependency](https://go.dev/doc/modules/managing-dependenci
 go get -tool github.com/miyamo2/braider/cmd/braider@latest
 ```
 
+Or, install via [Homebrew](https://brew.sh/)
+
+```bash
+brew install miyamo2/tap/braider
+```
+
 ### Module
 
 Annotation types and option packages used in your code are provided by this module.
