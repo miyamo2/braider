@@ -1,9 +1,8 @@
-// Package checker implements a phase-based analysis driver for braider.
+// Package checker implements a phase-based analysis driver.
 //
 // Unlike multichecker, which runs all analyzers per-package with no phase ordering,
 // this checker supports executing analyzers in sequential phases. Each phase completes
-// for ALL packages before the next phase starts. This eliminates the need for
-// polling-based coordination (PackageTracker) between analyzers.
+// for ALL packages before the next phase starts.
 //
 // The checker uses the public golang.org/x/tools/go/analysis/checker.Analyze() API
 // to run analyzers within each phase.
@@ -67,23 +66,6 @@ type Result struct {
 	AllDiagnostics []CategorizedDiagnostic
 	// ExitCode is the computed exit code based on ExitPolicy.
 	ExitCode int
-}
-
-// DefaultPipeline creates a two-phase pipeline for braider's standard analyzers.
-// Phase 1 runs the DependencyAnalyzer, Phase 2 runs the AppAnalyzer.
-func DefaultPipeline(depAnalyzer, appAnalyzer *analysis.Analyzer) Pipeline {
-	return Pipeline{
-		Phases: []Phase{
-			{
-				Name:      "dependency",
-				Analyzers: []*analysis.Analyzer{depAnalyzer},
-			},
-			{
-				Name:      "app",
-				Analyzers: []*analysis.Analyzer{appAnalyzer},
-			},
-		},
-	}
 }
 
 // Run executes the full pipeline: load packages, run phases, apply fixes, compute exit code.

@@ -6,10 +6,10 @@ import (
 )
 
 // ParseArgs parses command-line arguments and returns a partial Config.
-// The caller MUST set Config.Pipeline before calling Run, since ParseArgs
-// cannot know which analyzers to use.
-func ParseArgs(args []string) (*Config, error) {
-	fs := flag.NewFlagSet("braider", flag.ContinueOnError)
+// The caller MUST set Config.Pipeline and Config.ExitPolicy before calling Run,
+// since ParseArgs cannot know which analyzers or exit policies to use.
+func ParseArgs(programName string, args []string) (*Config, error) {
+	fs := flag.NewFlagSet(programName, flag.ContinueOnError)
 
 	var (
 		fix       bool
@@ -30,15 +30,6 @@ func ParseArgs(args []string) (*Config, error) {
 	}
 
 	return &Config{
-		ExitPolicy: ExitCodePolicy{
-			Rules: []CategoryRule{
-				{Category: "constructor_fix", Code: 0},
-				{Category: "bootstrap_fix", Code: 0},
-				{Category: "warning", Code: 0},
-				{Category: "error", Code: 1},
-			},
-			DefaultCode: 1,
-		},
 		Fix:       fix,
 		PrintDiff: printDiff,
 		Verbose:   verbose,
