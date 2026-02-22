@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"os"
 
-	gochecker "golang.org/x/tools/go/analysis/checker"
 	"golang.org/x/tools/go/analysis"
+	gochecker "golang.org/x/tools/go/analysis/checker"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -69,20 +69,24 @@ func Run(cfg Config) (int, error) {
 	}
 
 	var loadErrors []error
-	packages.Visit(pkgs, nil, func(pkg *packages.Package) {
-		for _, err := range pkg.Errors {
-			loadErrors = append(loadErrors, err)
-		}
-	})
+	packages.Visit(
+		pkgs, nil, func(pkg *packages.Package) {
+			for _, err := range pkg.Errors {
+				loadErrors = append(loadErrors, err)
+			}
+		},
+	)
 	if len(loadErrors) > 0 {
 		return 0, fmt.Errorf("package loading errors: %w", errors.Join(loadErrors...))
 	}
 
 	hasError := false
 	for _, phase := range cfg.Pipeline.Phases {
-		graph, err := gochecker.Analyze(phase.Analyzers, pkgs, &gochecker.Options{
-			Sequential: cfg.Sequential,
-		})
+		graph, err := gochecker.Analyze(
+			phase.Analyzers, pkgs, &gochecker.Options{
+				Sequential: cfg.Sequential,
+			},
+		)
 		if err != nil {
 			return 0, fmt.Errorf("phase %q: %w", phase.Name, err)
 		}
