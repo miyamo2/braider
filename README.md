@@ -44,7 +44,8 @@ go get -tool github.com/miyamo2/braider/cmd/braider@latest
 Or, install via [Homebrew](https://brew.sh/)
 
 ```bash
-brew install miyamo2/tap/braider
+brew tap miyamo2/tap
+brew install braider
 ```
 
 ### Module
