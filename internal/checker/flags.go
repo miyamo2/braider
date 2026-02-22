@@ -17,7 +17,7 @@ func ParseArgs(programName string, args []string) (*Config, error) {
 		verbose   bool
 	)
 	fs.BoolVar(&fix, "fix", false, "apply suggested fixes")
-	fs.BoolVar(&printDiff, "diff", false, "print diffs instead of applying fixes")
+	fs.BoolVar(&printDiff, "diff", false, "with -fix, don't update the files, but print a unified diff")
 	fs.BoolVar(&verbose, "v", false, "verbose output")
 
 	if err := fs.Parse(args); err != nil {

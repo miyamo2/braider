@@ -47,7 +47,7 @@ type Config struct {
 	DiagnosticPolicy DiagnosticPolicy
 	// Fix enables automatic application of SuggestedFixes.
 	Fix bool
-	// PrintDiff prints unified diffs instead of applying fixes (used with Fix).
+	// PrintDiff, when used with Fix, prints unified diffs instead of updating files.
 	PrintDiff bool
 	// Verbose enables verbose output during fix application.
 	Verbose bool
@@ -102,9 +102,11 @@ func Run(cfg Config) (int, error) {
 			}
 		}
 
-		graph.PrintText(os.Stderr, -1)
+		if !cfg.Fix {
+			graph.PrintText(os.Stderr, -1)
+		}
 
-		if cfg.Fix || cfg.PrintDiff {
+		if cfg.Fix {
 			if err := ApplyFixes(graph, cfg.PrintDiff, cfg.Verbose); err != nil {
 				return 0, fmt.Errorf("applying fixes for phase %q: %w", phase.Name, err)
 			}
