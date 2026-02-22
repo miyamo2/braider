@@ -103,7 +103,7 @@ func run(cfg Config, args *Args) (int, error) {
 				continue
 			}
 			for _, d := range act.Diagnostics {
-				severity := cfg.DiagnosticPolicy.resolveSeverity(d.Category)
+				severity := cfg.DiagnosticPolicy.ResolveSeverity(d.Category)
 				switch severity {
 				case SeverityError:
 					hasError = true

@@ -22,7 +22,7 @@ func TestSeverityConstants(t *testing.T) {
 	}
 }
 
-func TestDiagnosticPolicy_resolveSeverity(t *testing.T) {
+func TestDiagnosticPolicy_ResolveSeverity(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
@@ -100,9 +100,9 @@ func TestDiagnosticPolicy_resolveSeverity(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := tt.policy.resolveSeverity(tt.category)
+			got := tt.policy.ResolveSeverity(tt.category)
 			if got != tt.want {
-				t.Errorf("resolveSeverity(%q) = %d, want %d", tt.category, got, tt.want)
+				t.Errorf("ResolveSeverity(%q) = %d, want %d", tt.category, got, tt.want)
 			}
 		})
 	}

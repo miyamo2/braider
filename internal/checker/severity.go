@@ -27,8 +27,8 @@ type DiagnosticPolicy struct {
 	DefaultSeverity Severity
 }
 
-// resolveSeverity finds the severity for a given category.
-func (p DiagnosticPolicy) resolveSeverity(category string) Severity {
+// ResolveSeverity finds the severity for a given category.
+func (p DiagnosticPolicy) ResolveSeverity(category string) Severity {
 	for _, rule := range p.Rules {
 		if rule.Category == category {
 			return rule.Severity
