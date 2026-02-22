@@ -5,39 +5,43 @@ import (
 	"fmt"
 )
 
-// Flags holds all parsed command-line flags for the braider checker.
-type Flags struct {
-	Fix       bool
-	PrintDiff bool
-	Verbose   bool
-	Patterns  []string
-}
-
-// ParseArgs parses command-line arguments and returns the configuration.
-// Unlike analysisflags.Parse, this does not register per-analyzer flags
-// since braider's analyzers are fixed and not user-selectable.
+// ParseArgs parses command-line arguments and returns a partial Config.
+// The caller MUST set Config.Pipeline before calling Run, since ParseArgs
+// cannot know which analyzers to use.
 func ParseArgs(args []string) (*Config, error) {
 	fs := flag.NewFlagSet("braider", flag.ContinueOnError)
 
-	var flags Flags
-	fs.BoolVar(&flags.Fix, "fix", false, "apply suggested fixes")
-	fs.BoolVar(&flags.PrintDiff, "diff", false, "print diffs instead of applying fixes")
-	fs.BoolVar(&flags.Verbose, "v", false, "verbose output")
+	var (
+		fix       bool
+		printDiff bool
+		verbose   bool
+	)
+	fs.BoolVar(&fix, "fix", false, "apply suggested fixes")
+	fs.BoolVar(&printDiff, "diff", false, "print diffs instead of applying fixes")
+	fs.BoolVar(&verbose, "v", false, "verbose output")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}
 
-	flags.Patterns = fs.Args()
-	if len(flags.Patterns) == 0 {
+	patterns := fs.Args()
+	if len(patterns) == 0 {
 		return nil, fmt.Errorf("no packages specified")
 	}
 
 	return &Config{
-		ExitPolicy: DefaultExitCodePolicy(),
-		Fix:        flags.Fix,
-		PrintDiff:  flags.PrintDiff,
-		Verbose:    flags.Verbose,
-		Patterns:   flags.Patterns,
+		ExitPolicy: ExitCodePolicy{
+			Rules: []CategoryRule{
+				{Category: "constructor_fix", Code: 0},
+				{Category: "bootstrap_fix", Code: 0},
+				{Category: "warning", Code: 0},
+				{Category: "error", Code: 1},
+			},
+			DefaultCode: 1,
+		},
+		Fix:       fix,
+		PrintDiff: printDiff,
+		Verbose:   verbose,
+		Patterns:  patterns,
 	}, nil
 }

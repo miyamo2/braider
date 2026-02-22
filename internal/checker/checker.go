@@ -88,6 +88,9 @@ func DefaultPipeline(depAnalyzer, appAnalyzer *analysis.Analyzer) Pipeline {
 
 // Run executes the full pipeline: load packages, run phases, apply fixes, compute exit code.
 func Run(cfg Config) (*Result, error) {
+	if len(cfg.Pipeline.Phases) == 0 {
+		return nil, fmt.Errorf("pipeline has no phases")
+	}
 	// Step 1: Load packages
 	loadCfg := &packages.Config{
 		Mode: packages.LoadAllSyntax,
