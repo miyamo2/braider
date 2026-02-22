@@ -29,19 +29,6 @@ braider is a `go vet` analyzer that resolves dependency injection (DI) bindings 
 
 Requires go 1.25+.
 
-### Homebrew
-
-```bash
-brew install miyamo2/tap/braider
-```
-
-Or, tap first then install
-
-```bash
-brew tap miyamo2/tap
-brew install braider
-```
-
 ### CLI
 
 ```bash
@@ -52,6 +39,12 @@ Or, add it as a [tool dependency](https://go.dev/doc/modules/managing-dependenci
 
 ```bash
 go get -tool github.com/miyamo2/braider/cmd/braider@latest
+```
+
+Or, install via [Homebrew](https://brew.sh/)
+
+```bash
+brew install miyamo2/tap/braider
 ```
 
 ### Module
