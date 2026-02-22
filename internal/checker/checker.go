@@ -89,7 +89,7 @@ func Run(cfg Config) (int, error) {
 			},
 		)
 		if err != nil {
-			return 0, fmt.Errorf("phase %q: %w", phase.Name, err)
+			return 1, fmt.Errorf("phase %q: %w", phase.Name, err)
 		}
 
 		for act := range graph.All() {
