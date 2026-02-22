@@ -60,12 +60,12 @@ type Config struct {
 // Run executes the full pipeline: load packages, run phases, apply fixes, and returns the exit code.
 func Run(cfg Config) (int, error) {
 	if len(cfg.Pipeline.Phases) == 0 {
-		return 0, fmt.Errorf("pipeline has no phases")
+		return 1, fmt.Errorf("pipeline has no phases")
 	}
 
 	pkgs, err := packages.Load(&packages.Config{Mode: packages.LoadAllSyntax}, cfg.Patterns...)
 	if err != nil {
-		return 0, fmt.Errorf("loading packages: %w", err)
+		return 1, fmt.Errorf("loading packages: %w", err)
 	}
 
 	var loadErrors []error
@@ -77,10 +77,11 @@ func Run(cfg Config) (int, error) {
 		},
 	)
 	if len(loadErrors) > 0 {
-		return 0, fmt.Errorf("package loading errors: %w", errors.Join(loadErrors...))
+		return 1, fmt.Errorf("package loading errors: %w", errors.Join(loadErrors...))
 	}
 
 	hasError := false
+	hasDiagnostics := false
 	for _, phase := range cfg.Pipeline.Phases {
 		graph, err := gochecker.Analyze(
 			phase.Analyzers, pkgs, &gochecker.Options{
@@ -92,12 +93,20 @@ func Run(cfg Config) (int, error) {
 		}
 
 		for act := range graph.All() {
+			if act.Err != nil {
+				hasError = true
+				continue
+			}
 			if !act.IsRoot {
 				continue
 			}
 			for _, d := range act.Diagnostics {
-				if cfg.DiagnosticPolicy.ResolveSeverity(d.Category) == SeverityError {
+				severity := cfg.DiagnosticPolicy.ResolveSeverity(d.Category)
+				switch severity {
+				case SeverityError:
 					hasError = true
+				case SeverityWarn:
+					hasDiagnostics = true
 				}
 			}
 		}
@@ -108,19 +117,22 @@ func Run(cfg Config) (int, error) {
 
 		if cfg.Fix {
 			if err := ApplyFixes(graph, cfg.PrintDiff, cfg.Verbose); err != nil {
-				return 0, fmt.Errorf("applying fixes for phase %q: %w", phase.Name, err)
+				return 1, fmt.Errorf("applying fixes for phase %q: %w", phase.Name, err)
 			}
 		}
 
 		if phase.AfterPhase != nil {
 			if err := phase.AfterPhase(graph); err != nil {
-				return 0, fmt.Errorf("phase %q after-phase callback: %w", phase.Name, err)
+				return 1, fmt.Errorf("phase %q after-phase callback: %w", phase.Name, err)
 			}
 		}
 	}
 
 	if hasError {
 		return 1, nil
+	}
+	if !cfg.Fix && hasDiagnostics {
+		return 3, nil
 	}
 	return 0, nil
 }
