@@ -1,10 +1,5 @@
 package checker
 
-import (
-	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/packages"
-)
-
 // Severity represents the severity level of a diagnostic.
 type Severity int
 
@@ -32,14 +27,6 @@ type DiagnosticPolicy struct {
 	DefaultSeverity Severity
 }
 
-// CategorizedDiagnostic pairs a diagnostic with its source analyzer, package, and resolved severity.
-type CategorizedDiagnostic struct {
-	analysis.Diagnostic
-	Analyzer *analysis.Analyzer
-	Package  *packages.Package
-	Severity Severity
-}
-
 // ResolveSeverity finds the severity for a given category.
 func (p DiagnosticPolicy) ResolveSeverity(category string) Severity {
 	for _, rule := range p.Rules {
@@ -48,16 +35,4 @@ func (p DiagnosticPolicy) ResolveSeverity(category string) Severity {
 		}
 	}
 	return p.DefaultSeverity
-}
-
-// ComputeExitCode evaluates all diagnostics against the policy and returns the exit code.
-// SeverityError produces exit code 1; SeverityWarn and SeverityInfo produce exit code 0.
-func (p DiagnosticPolicy) ComputeExitCode(diagnostics []CategorizedDiagnostic) int {
-	for _, d := range diagnostics {
-		sev := d.Severity
-		if sev == SeverityError {
-			return 1
-		}
-	}
-	return 0
 }

@@ -30,7 +30,6 @@ type Phase struct {
 	// have completed on all packages and fixes have been applied.
 	// It receives the resulting Graph, enabling callers to extract per-package
 	// Action.Result values and aggregate them for consumption by subsequent phases.
-	// This is the extension point for Result-based cross-phase data passing.
 	AfterPhase func(graph *gochecker.Graph) error
 }
 
@@ -58,31 +57,17 @@ type Config struct {
 	Patterns []string
 }
 
-// Result holds the outcome of a complete pipeline execution.
-type Result struct {
-	// PhaseResults contains the checker.Graph for each phase, indexed by phase name.
-	PhaseResults map[string]*gochecker.Graph
-	// AllDiagnostics is a flattened list of all diagnostics across all phases.
-	AllDiagnostics []CategorizedDiagnostic
-	// ExitCode is the computed exit code based on DiagnosticPolicy.
-	ExitCode int
-}
-
-// Run executes the full pipeline: load packages, run phases, apply fixes, compute exit code.
-func Run(cfg Config) (*Result, error) {
+// Run executes the full pipeline: load packages, run phases, apply fixes, and returns the exit code.
+func Run(cfg Config) (int, error) {
 	if len(cfg.Pipeline.Phases) == 0 {
-		return nil, fmt.Errorf("pipeline has no phases")
-	}
-	// Step 1: Load packages
-	loadCfg := &packages.Config{
-		Mode: packages.LoadAllSyntax,
-	}
-	pkgs, err := packages.Load(loadCfg, cfg.Patterns...)
-	if err != nil {
-		return nil, fmt.Errorf("loading packages: %w", err)
+		return 0, fmt.Errorf("pipeline has no phases")
 	}
 
-	// Check for package loading errors
+	pkgs, err := packages.Load(&packages.Config{Mode: packages.LoadAllSyntax}, cfg.Patterns...)
+	if err != nil {
+		return 0, fmt.Errorf("loading packages: %w", err)
+	}
+
 	var loadErrors []error
 	packages.Visit(pkgs, nil, func(pkg *packages.Package) {
 		for _, err := range pkg.Errors {
@@ -90,59 +75,46 @@ func Run(cfg Config) (*Result, error) {
 		}
 	})
 	if len(loadErrors) > 0 {
-		return nil, fmt.Errorf("package loading errors: %w", errors.Join(loadErrors...))
+		return 0, fmt.Errorf("package loading errors: %w", errors.Join(loadErrors...))
 	}
 
-	result := &Result{
-		PhaseResults: make(map[string]*gochecker.Graph),
-	}
-
-	// Step 2: Execute phases sequentially
+	hasError := false
 	for _, phase := range cfg.Pipeline.Phases {
-		opts := &gochecker.Options{
+		graph, err := gochecker.Analyze(phase.Analyzers, pkgs, &gochecker.Options{
 			Sequential: cfg.Sequential,
-		}
-
-		graph, err := gochecker.Analyze(phase.Analyzers, pkgs, opts)
+		})
 		if err != nil {
-			return nil, fmt.Errorf("phase %q: %w", phase.Name, err)
+			return 0, fmt.Errorf("phase %q: %w", phase.Name, err)
 		}
 
-		result.PhaseResults[phase.Name] = graph
-
-		// Collect diagnostics from this phase (root actions only)
 		for act := range graph.All() {
 			if !act.IsRoot {
 				continue
 			}
 			for _, d := range act.Diagnostics {
-				result.AllDiagnostics = append(result.AllDiagnostics, CategorizedDiagnostic{
-					Diagnostic: d,
-					Analyzer:   act.Analyzer,
-					Package:    act.Package,
-				})
+				if cfg.DiagnosticPolicy.ResolveSeverity(d.Category) == SeverityError {
+					hasError = true
+				}
 			}
 		}
 
-		// Print diagnostics for this phase
 		graph.PrintText(os.Stderr, -1)
 
-		// Step 3: Apply fixes after each phase (if enabled)
 		if cfg.Fix || cfg.PrintDiff {
 			if err := ApplyFixes(graph, cfg.PrintDiff, cfg.Verbose); err != nil {
-				return nil, fmt.Errorf("applying fixes for phase %q: %w", phase.Name, err)
+				return 0, fmt.Errorf("applying fixes for phase %q: %w", phase.Name, err)
 			}
 		}
 
-		// Step 4: Invoke AfterPhase callback (e.g., aggregate Results for next phase)
 		if phase.AfterPhase != nil {
 			if err := phase.AfterPhase(graph); err != nil {
-				return nil, fmt.Errorf("phase %q after-phase callback: %w", phase.Name, err)
+				return 0, fmt.Errorf("phase %q after-phase callback: %w", phase.Name, err)
 			}
 		}
 	}
 
-	// Step 5: Compute exit code
-	result.ExitCode = cfg.DiagnosticPolicy.ComputeExitCode(result.AllDiagnostics)
-	return result, nil
+	if hasError {
+		return 1, nil
+	}
+	return 0, nil
 }
