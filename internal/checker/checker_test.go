@@ -110,7 +110,7 @@ func main() {}
 // --- Tests ---
 
 func TestRun_EmptyPipeline(t *testing.T) {
-	code, err := Run(Config{
+	code, err := Run(Config{}, Args{
 		Patterns: []string{"./..."},
 	})
 	if code != 1 {
@@ -130,6 +130,7 @@ func TestRun_ExitCodes(t *testing.T) {
 	tests := []struct {
 		name     string
 		cfg      Config
+		args     Args
 		wantCode int
 		wantErr  bool
 	}{
@@ -141,8 +142,8 @@ func TestRun_ExitCodes(t *testing.T) {
 					Analyzers: []*analysis.Analyzer{noopAnalyzer},
 				}}},
 				DiagnosticPolicy: DiagnosticPolicy{DefaultSeverity: SeverityInfo},
-				Patterns:         []string{"./..."},
 			},
+			args:     Args{Patterns: []string{"./..."}},
 			wantCode: 0,
 		},
 		{
@@ -152,8 +153,8 @@ func TestRun_ExitCodes(t *testing.T) {
 					Name:      "test",
 					Analyzers: []*analysis.Analyzer{failAnalyzer},
 				}}},
-				Patterns: []string{"./..."},
 			},
+			args:     Args{Patterns: []string{"./..."}},
 			wantCode: 1,
 		},
 		{
@@ -166,8 +167,8 @@ func TestRun_ExitCodes(t *testing.T) {
 				DiagnosticPolicy: DiagnosticPolicy{
 					Rules: []CategoryRule{{Category: "err", Severity: SeverityError}},
 				},
-				Patterns: []string{"./..."},
 			},
+			args:     Args{Patterns: []string{"./..."}},
 			wantCode: 1,
 		},
 		{
@@ -180,8 +181,8 @@ func TestRun_ExitCodes(t *testing.T) {
 				DiagnosticPolicy: DiagnosticPolicy{
 					Rules: []CategoryRule{{Category: "warn", Severity: SeverityWarn}},
 				},
-				Patterns: []string{"./..."},
 			},
+			args:     Args{Patterns: []string{"./..."}},
 			wantCode: 3,
 		},
 		{
@@ -192,8 +193,8 @@ func TestRun_ExitCodes(t *testing.T) {
 					Analyzers: []*analysis.Analyzer{newDiagAnalyzer("info")},
 				}}},
 				DiagnosticPolicy: DiagnosticPolicy{DefaultSeverity: SeverityInfo},
-				Patterns:         []string{"./..."},
 			},
+			args:     Args{Patterns: []string{"./..."}},
 			wantCode: 0,
 		},
 		{
@@ -206,9 +207,8 @@ func TestRun_ExitCodes(t *testing.T) {
 				DiagnosticPolicy: DiagnosticPolicy{
 					Rules: []CategoryRule{{Category: "warn", Severity: SeverityWarn}},
 				},
-				Fix:      true,
-				Patterns: []string{"./..."},
 			},
+			args:     Args{Fix: true, Patterns: []string{"./..."}},
 			wantCode: 0,
 		},
 		{
@@ -227,15 +227,15 @@ func TestRun_ExitCodes(t *testing.T) {
 						{Category: "warn", Severity: SeverityWarn},
 					},
 				},
-				Patterns: []string{"./..."},
 			},
+			args:     Args{Patterns: []string{"./..."}},
 			wantCode: 1,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			code, err := Run(tt.cfg)
+			code, err := Run(tt.cfg, tt.args)
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error, got nil")
 			}
@@ -275,10 +275,9 @@ func TestRun_MultiPhase(t *testing.T) {
 				},
 			},
 		}},
-		Patterns: []string{"./..."},
 	}
 
-	code, err := Run(cfg)
+	code, err := Run(cfg, Args{Patterns: []string{"./..."}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -304,10 +303,9 @@ func TestRun_AfterPhaseError(t *testing.T) {
 				return fmt.Errorf("callback error")
 			},
 		}}},
-		Patterns: []string{"./..."},
 	}
 
-	code, err := Run(cfg)
+	code, err := Run(cfg, Args{Patterns: []string{"./..."}})
 	if code != 1 {
 		t.Errorf("exit code = %d, want 1", code)
 	}
@@ -342,10 +340,9 @@ func TestRun_MultiPhase_ErrorStopsEarly(t *testing.T) {
 				},
 			},
 		}},
-		Patterns: []string{"./..."},
 	}
 
-	code, err := Run(cfg)
+	code, err := Run(cfg, Args{Patterns: []string{"./..."}})
 	if code != 1 {
 		t.Errorf("exit code = %d, want 1", code)
 	}
@@ -377,10 +374,9 @@ func TestRun_DiagAccumulation_AcrossPhases(t *testing.T) {
 		DiagnosticPolicy: DiagnosticPolicy{
 			Rules: []CategoryRule{{Category: "warn", Severity: SeverityWarn}},
 		},
-		Patterns: []string{"./..."},
 	}
 
-	code, err := Run(cfg)
+	code, err := Run(cfg, Args{Patterns: []string{"./..."}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -407,11 +403,9 @@ func main() {
 			Name:      "test",
 			Analyzers: []*analysis.Analyzer{renameAnalyzer},
 		}}},
-		Fix:      true,
-		Patterns: []string{"./..."},
 	}
 
-	code, err := Run(cfg)
+	code, err := Run(cfg, Args{Fix: true, Patterns: []string{"./..."}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -450,12 +444,9 @@ func main() {
 			Name:      "test",
 			Analyzers: []*analysis.Analyzer{renameAnalyzer},
 		}}},
-		Fix:       true,
-		PrintDiff: true,
-		Patterns:  []string{"./..."},
 	}
 
-	code, err := Run(cfg)
+	code, err := Run(cfg, Args{Fix: true, PrintDiff: true, Patterns: []string{"./..."}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -483,11 +474,9 @@ func TestRun_Sequential(t *testing.T) {
 			Name:      "test",
 			Analyzers: []*analysis.Analyzer{noopAnalyzer},
 		}}},
-		Sequential: true,
-		Patterns:   []string{"./..."},
 	}
 
-	code, err := Run(cfg)
+	code, err := Run(cfg, Args{Sequential: true, Patterns: []string{"./..."}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -507,10 +496,9 @@ func TestRun_PackageLoadError(t *testing.T) {
 			Name:      "test",
 			Analyzers: []*analysis.Analyzer{noopAnalyzer},
 		}}},
-		Patterns: []string{"./nonexistent"},
 	}
 
-	code, err := Run(cfg)
+	code, err := Run(cfg, Args{Patterns: []string{"./nonexistent"}})
 	if code != 1 {
 		t.Errorf("exit code = %d, want 1", code)
 	}

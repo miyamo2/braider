@@ -5,10 +5,23 @@ import (
 	"fmt"
 )
 
-// ParseArgs parses command-line arguments and returns a partial Config.
-// The caller MUST set Config.Pipeline and Config.DiagnosticPolicy before calling Run,
-// since ParseArgs cannot know which analyzers or diagnostic policies to use.
-func ParseArgs(programName string, args []string) (*Config, error) {
+// Args holds the runtime arguments that control how the checker executes.
+// These are typically parsed from command-line flags via ParseArgs.
+type Args struct {
+	// Fix enables automatic application of SuggestedFixes.
+	Fix bool
+	// PrintDiff, when used with Fix, prints unified diffs instead of updating files.
+	PrintDiff bool
+	// Verbose enables verbose output during fix application.
+	Verbose bool
+	// Sequential forces sequential (non-parallel) execution within each phase.
+	Sequential bool
+	// Patterns are the package patterns to analyze (e.g., "./...").
+	Patterns []string
+}
+
+// ParseArgs parses command-line arguments and returns Args.
+func ParseArgs(programName string, args []string) (*Args, error) {
 	fs := flag.NewFlagSet(programName, flag.ContinueOnError)
 
 	var (
@@ -29,7 +42,7 @@ func ParseArgs(programName string, args []string) (*Config, error) {
 		return nil, fmt.Errorf("no packages specified")
 	}
 
-	return &Config{
+	return &Args{
 		Fix:       fix,
 		PrintDiff: printDiff,
 		Verbose:   verbose,

@@ -45,25 +45,15 @@ type Config struct {
 	Pipeline Pipeline
 	// DiagnosticPolicy determines how diagnostic categories map to severity levels and exit codes.
 	DiagnosticPolicy DiagnosticPolicy
-	// Fix enables automatic application of SuggestedFixes.
-	Fix bool
-	// PrintDiff, when used with Fix, prints unified diffs instead of updating files.
-	PrintDiff bool
-	// Verbose enables verbose output during fix application.
-	Verbose bool
-	// Sequential forces sequential (non-parallel) execution within each phase.
-	Sequential bool
-	// Patterns are the package patterns to analyze (e.g., "./...").
-	Patterns []string
 }
 
 // Run executes the full pipeline: load packages, run phases, apply fixes, and returns the exit code.
-func Run(cfg Config) (int, error) {
+func Run(cfg Config, args Args) (int, error) {
 	if len(cfg.Pipeline.Phases) == 0 {
 		return 1, fmt.Errorf("pipeline has no phases")
 	}
 
-	pkgs, err := packages.Load(&packages.Config{Mode: packages.LoadAllSyntax}, cfg.Patterns...)
+	pkgs, err := packages.Load(&packages.Config{Mode: packages.LoadAllSyntax}, args.Patterns...)
 	if err != nil {
 		return 1, fmt.Errorf("loading packages: %w", err)
 	}
@@ -85,7 +75,7 @@ func Run(cfg Config) (int, error) {
 	for _, phase := range cfg.Pipeline.Phases {
 		graph, err := gochecker.Analyze(
 			phase.Analyzers, pkgs, &gochecker.Options{
-				Sequential: cfg.Sequential,
+				Sequential: args.Sequential,
 			},
 		)
 		if err != nil {
@@ -111,12 +101,12 @@ func Run(cfg Config) (int, error) {
 			}
 		}
 
-		if !cfg.Fix {
+		if !args.Fix {
 			graph.PrintText(os.Stderr, -1)
 		}
 
-		if cfg.Fix {
-			if err := ApplyFixes(graph, cfg.PrintDiff, cfg.Verbose); err != nil {
+		if args.Fix {
+			if err := ApplyFixes(graph, args.PrintDiff, args.Verbose); err != nil {
 				return 1, fmt.Errorf("applying fixes for phase %q: %w", phase.Name, err)
 			}
 		}
@@ -131,7 +121,7 @@ func Run(cfg Config) (int, error) {
 	if hasError {
 		return 1, nil
 	}
-	if !cfg.Fix && hasDiagnostics {
+	if !args.Fix && hasDiagnostics {
 		return 3, nil
 	}
 	return 0, nil

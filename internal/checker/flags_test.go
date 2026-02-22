@@ -66,7 +66,7 @@ func TestParseArgs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			cfg, err := ParseArgs("test", tt.args)
+			args, err := ParseArgs("test", tt.args)
 			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
@@ -80,28 +80,22 @@ func TestParseArgs(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if cfg.Fix != tt.wantFix {
-				t.Errorf("Fix = %v, want %v", cfg.Fix, tt.wantFix)
+			if args.Fix != tt.wantFix {
+				t.Errorf("Fix = %v, want %v", args.Fix, tt.wantFix)
 			}
-			if cfg.PrintDiff != tt.wantDiff {
-				t.Errorf("PrintDiff = %v, want %v", cfg.PrintDiff, tt.wantDiff)
+			if args.PrintDiff != tt.wantDiff {
+				t.Errorf("PrintDiff = %v, want %v", args.PrintDiff, tt.wantDiff)
 			}
-			if cfg.Verbose != tt.wantV {
-				t.Errorf("Verbose = %v, want %v", cfg.Verbose, tt.wantV)
+			if args.Verbose != tt.wantV {
+				t.Errorf("Verbose = %v, want %v", args.Verbose, tt.wantV)
 			}
-			if len(cfg.Patterns) != len(tt.wantPats) {
-				t.Fatalf("Patterns = %v, want %v", cfg.Patterns, tt.wantPats)
+			if len(args.Patterns) != len(tt.wantPats) {
+				t.Fatalf("Patterns = %v, want %v", args.Patterns, tt.wantPats)
 			}
-			for i, p := range cfg.Patterns {
+			for i, p := range args.Patterns {
 				if p != tt.wantPats[i] {
 					t.Errorf("Patterns[%d] = %q, want %q", i, p, tt.wantPats[i])
 				}
-			}
-			if len(cfg.Pipeline.Phases) != 0 {
-				t.Errorf("Pipeline.Phases should be empty, got %d phases", len(cfg.Pipeline.Phases))
-			}
-			if len(cfg.DiagnosticPolicy.Rules) != 0 {
-				t.Errorf("DiagnosticPolicy.Rules should be empty, got %d rules", len(cfg.DiagnosticPolicy.Rules))
 			}
 		})
 	}
