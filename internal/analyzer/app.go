@@ -51,6 +51,7 @@ type AppAnalyzeRunner struct {
 	appOptionExtractor detect.AppOptionExtractor
 	containerValidator graph.ContainerValidator
 	containerResolver  graph.ContainerResolver
+	duplicateRegistry  *registry.DuplicateRegistry
 }
 
 // NewAppAnalyzeRunner is a constructor for AppAnalyzeRunner.
@@ -63,7 +64,7 @@ func NewAppAnalyzeRunner(
 	sorter *graph.TopologicalSorter, bootstrapGen generate.BootstrapGenerator, fixBuilder report.SuggestedFixBuilder,
 	diagnosticEmitter report.DiagnosticEmitter, variableRegistry *registry.VariableRegistry,
 	appOptionExtractor detect.AppOptionExtractor, containerValidator graph.ContainerValidator,
-	containerResolver graph.ContainerResolver,
+	containerResolver graph.ContainerResolver, duplicateRegistry *registry.DuplicateRegistry,
 ) *AppAnalyzeRunner {
 	return &AppAnalyzeRunner{
 		appDetector:        appDetector,
@@ -78,6 +79,7 @@ func NewAppAnalyzeRunner(
 		appOptionExtractor: appOptionExtractor,
 		containerValidator: containerValidator,
 		containerResolver:  containerResolver,
+		duplicateRegistry:  duplicateRegistry,
 	}
 }
 
@@ -121,6 +123,15 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 		}
 		// Unknown error type, skip bootstrap
 		return nil, nil
+	}
+
+	// Phase 2.5: Report duplicate registration warnings collected during dependency phase
+	if r.duplicateRegistry != nil {
+		for _, dup := range r.duplicateRegistry.GetAll() {
+			r.diagnosticEmitter.EmitDuplicateNamedDependencyWarning(
+				reporter, apps[0].Pos, dup.TypeName, dup.Name, dup.Location1, dup.Location2,
+			)
+		}
 	}
 
 	// Phase 3: Retrieve all providers, injectors, and variables from global registries

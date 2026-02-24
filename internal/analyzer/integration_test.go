@@ -79,7 +79,8 @@ func buildIntegrationDeps(t *testing.T) (
 	variableCallDetector := detect.NewVariableCallDetector(markers)
 
 	// Aggregator (shared registries)
-	agg := NewAggregator(providerReg, injectorReg, variableReg)
+	duplicateReg := registry.NewDuplicateRegistry()
+	agg := NewAggregator(providerReg, injectorReg, variableReg, duplicateReg)
 
 	depRunner := NewDependencyAnalyzeRunner(
 		provideCallDetector, injectDetector, structDetector,
@@ -94,7 +95,7 @@ func buildIntegrationDeps(t *testing.T) (
 		graphBuilder, sorter, bootstrapGenerator,
 		suggestedFixBuilder, diagnosticEmitter,
 		variableReg,
-		appOptionExtractor, containerValidator, containerResolver,
+		appOptionExtractor, containerValidator, containerResolver, agg.DuplicateRegistry,
 	)
 	appAnalyzer := (*analysis.Analyzer)(NewAppAnalyzer(appRunner))
 

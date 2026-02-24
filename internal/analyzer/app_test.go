@@ -80,7 +80,7 @@ func TestAppAnalyzer_MissingConstructor(t *testing.T) {
 	runner := NewAppAnalyzeRunner(
 		appDetector, injectorRegistry, providerRegistry,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-		variableReg, appOptionExtractor, containerValidator, containerResolver,
+		variableReg, appOptionExtractor, containerValidator, containerResolver, registry.NewDuplicateRegistry(),
 	)
 	appAnalyzer := (*analysis.Analyzer)(NewAppAnalyzer(runner))
 
@@ -127,7 +127,7 @@ func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
 	runner := NewAppAnalyzeRunner(
 		appDetector, injectorRegistry, providerRegistry,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-		variableReg, appOptionExtractor, containerValidator, containerResolver,
+		variableReg, appOptionExtractor, containerValidator, containerResolver, registry.NewDuplicateRegistry(),
 	)
 	appAnalyzer := (*analysis.Analyzer)(NewAppAnalyzer(runner))
 

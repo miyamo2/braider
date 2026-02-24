@@ -74,7 +74,8 @@ var dependency = func() struct {
 	injectorRegistry := registry.NewInjectorRegistry()
 	providerRegistry := registry.NewProviderRegistry()
 	variableRegistry := registry.NewVariableRegistry()
-	aggregator := analyzer.NewAggregator(providerRegistry, injectorRegistry, variableRegistry)
+	duplicateRegistry := registry.NewDuplicateRegistry()
+	aggregator := analyzer.NewAggregator(providerRegistry, injectorRegistry, variableRegistry, duplicateRegistry)
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	appAnalyzeRunner := analyzer.NewAppAnalyzeRunner(
@@ -90,6 +91,7 @@ var dependency = func() struct {
 		appOptionExtractorImpl,
 		containerValidatorImpl,
 		containerResolverImpl,
+		duplicateRegistry,
 	)
 	dependencyAnalyzeRunner := analyzer.NewDependencyAnalyzeRunner(
 		provideCallDetector,

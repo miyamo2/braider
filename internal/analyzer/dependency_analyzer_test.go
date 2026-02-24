@@ -41,7 +41,8 @@ func newDepAnalyzerTestEnv(t *testing.T) *depAnalyzerTestEnv {
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 
-	agg := NewAggregator(providerRegistry, injectorRegistry, variableRegistry)
+	duplicateReg := registry.NewDuplicateRegistry()
+	agg := NewAggregator(providerRegistry, injectorRegistry, variableRegistry, duplicateReg)
 
 	runner := NewDependencyAnalyzeRunner(
 		provideCallDetector, injectDetector, structDetector,
