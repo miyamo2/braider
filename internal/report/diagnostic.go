@@ -244,21 +244,25 @@ func (e *diagnosticEmitter) EmitDuplicateNamedDependencyWarning(
 }
 
 // EmitOptionValidationError reports a fatal option validation error.
+// Category "braider:fatal" maps to SeverityCritical in phasedchecker, aborting the pipeline.
 func (e *diagnosticEmitter) EmitOptionValidationError(reporter Reporter, pos token.Pos, reason string) {
 	reporter.Report(
 		analysis.Diagnostic{
-			Pos:     pos,
-			Message: fmt.Sprintf("option validation error: %s", reason),
+			Pos:      pos,
+			Category: "braider:fatal",
+			Message:  fmt.Sprintf("option validation error: %s", reason),
 		},
 	)
 }
 
 // EmitUnsupportedVariableExpression reports an unsupported Variable argument expression error.
+// Category "braider:fatal" maps to SeverityCritical in phasedchecker, aborting the pipeline.
 func (e *diagnosticEmitter) EmitUnsupportedVariableExpression(reporter Reporter, pos token.Pos, reason string) {
 	reporter.Report(
 		analysis.Diagnostic{
-			Pos:     pos,
-			Message: reason,
+			Pos:      pos,
+			Category: "braider:fatal",
+			Message:  reason,
 		},
 	)
 }

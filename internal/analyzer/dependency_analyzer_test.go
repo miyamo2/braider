@@ -1,34 +1,30 @@
 package analyzer
 
 import (
-	"context"
 	"testing"
-	"time"
 
 	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/generate"
 	"github.com/miyamo2/braider/internal/registry"
 	"github.com/miyamo2/braider/internal/report"
+	"github.com/miyamo2/phasedchecker"
+	"github.com/miyamo2/phasedchecker/checkertest"
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/analysistest"
 )
 
 // depAnalyzerTestEnv holds the DependencyAnalyzer and its registries for test assertions.
 type depAnalyzerTestEnv struct {
-	analyzer         *analysis.Analyzer
-	providerRegistry *registry.ProviderRegistry
-	injectorRegistry *registry.InjectorRegistry
-	packageTracker   *registry.PackageTracker
+	analyzer   *analysis.Analyzer
+	aggregator *Aggregator
 }
 
 // newDepAnalyzerTestEnv creates a DependencyAnalyzer with all real components.
-// Returns a struct with the analyzer and registries needed for test assertions.
+// Returns a struct with the analyzer and aggregator needed for test assertions.
 func newDepAnalyzerTestEnv(t *testing.T) *depAnalyzerTestEnv {
 	t.Helper()
 	providerRegistry := registry.NewProviderRegistry()
 	injectorRegistry := registry.NewInjectorRegistry()
-	packageTracker := registry.NewPackageTracker()
-	_, cancel := context.WithCancelCause(context.Background())
+	variableRegistry := registry.NewVariableRegistry()
 
 	markers, err := detect.ResolveMarkers()
 	if err != nil {
@@ -44,97 +40,117 @@ func newDepAnalyzerTestEnv(t *testing.T) *depAnalyzerTestEnv {
 	constructorGenerator := generate.NewConstructorGenerator()
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	diagnosticEmitter := report.NewDiagnosticEmitter()
-	variableRegistry := registry.NewVariableRegistry()
+
+	agg := NewAggregator(providerRegistry, injectorRegistry, variableRegistry)
 
 	runner := NewDependencyAnalyzeRunner(
-		providerRegistry, injectorRegistry, packageTracker, cancel,
 		provideCallDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer, optionExtractor,
-		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
-		variableCallDetector, variableRegistry,
+		constructorGenerator, suggestedFixBuilder, diagnosticEmitter, variableCallDetector,
 	)
 	analyzer := (*analysis.Analyzer)(NewDependencyAnalyzer(runner))
 
 	return &depAnalyzerTestEnv{
-		analyzer:         analyzer,
-		providerRegistry: providerRegistry,
-		injectorRegistry: injectorRegistry,
-		packageTracker:   packageTracker,
+		analyzer:   analyzer,
+		aggregator: agg,
 	}
 }
 
 func TestDependencyAnalyzer(t *testing.T) {
 	env := newDepAnalyzerTestEnv(t)
-	analysistest.Run(t, "testdata/dependency/basic", env.analyzer, ".")
 
-	// Verify providers were registered
-	if len(env.providerRegistry.GetAll()) == 0 {
+	cfg := phasedchecker.Config{
+		Pipeline: phasedchecker.Pipeline{
+			Phases: []phasedchecker.Phase{
+				{Name: "dependency", Analyzers: []*analysis.Analyzer{env.analyzer}, AfterPhase: env.aggregator.AfterDependencyPhase},
+			},
+		},
+	}
+	checkertest.Run(t, "testdata/dependency/basic", cfg, ".")
+
+	// Verify providers were registered (via aggregator)
+	if len(env.aggregator.ProviderRegistry.GetAll()) == 0 {
 		t.Error("expected providers to be registered, got none")
 	}
 
-	// Verify injectors were registered
-	if len(env.injectorRegistry.GetAll()) == 0 {
+	// Verify injectors were registered (via aggregator)
+	if len(env.aggregator.InjectorRegistry.GetAll()) == 0 {
 		t.Error("expected injectors to be registered, got none")
-	}
-
-	// Verify package was marked as scanned
-	ctx, cancel2 := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel2()
-	if err := env.packageTracker.WaitForAllPackagesWithContext(ctx, []string{"example.com/dependency/basic"}); err != nil {
-		t.Error("expected package to be marked as scanned")
 	}
 }
 
 func TestDependencyAnalyzer_SuggestedFixes(t *testing.T) {
 	env := newDepAnalyzerTestEnv(t)
-	analysistest.RunWithSuggestedFixes(t, "testdata/constructorgen", env.analyzer, ".")
+
+	cfg := phasedchecker.Config{
+		Pipeline: phasedchecker.Pipeline{
+			Phases: []phasedchecker.Phase{
+				{Name: "dependency", Analyzers: []*analysis.Analyzer{env.analyzer}, AfterPhase: env.aggregator.AfterDependencyPhase},
+			},
+		},
+	}
+	checkertest.RunWithSuggestedFixes(t, "testdata/constructorgen", cfg, ".")
 }
 
 func TestDependencyAnalyzer_MissingProvideConstructor(t *testing.T) {
 	env := newDepAnalyzerTestEnv(t)
-	analysistest.Run(t, "testdata/dependency/missing_constructor", env.analyzer, ".")
+
+	cfg := phasedchecker.Config{
+		Pipeline: phasedchecker.Pipeline{
+			Phases: []phasedchecker.Phase{
+				{Name: "dependency", Analyzers: []*analysis.Analyzer{env.analyzer}, AfterPhase: env.aggregator.AfterDependencyPhase},
+			},
+		},
+	}
+	checkertest.Run(t, "testdata/dependency/missing_constructor", cfg, ".")
 
 	// Provider should not be registered when constructor is missing
-	if n := len(env.providerRegistry.GetAll()); n != 0 {
+	if n := len(env.aggregator.ProviderRegistry.GetAll()); n != 0 {
 		t.Errorf("expected no providers to be registered when constructor missing, got %d", n)
 	}
 }
 
 func TestDependencyAnalyzer_CrossPackage(t *testing.T) {
 	env := newDepAnalyzerTestEnv(t)
-	analysistest.Run(t, "testdata/dependency/cross_package", env.analyzer, "./...")
+
+	cfg := phasedchecker.Config{
+		Pipeline: phasedchecker.Pipeline{
+			Phases: []phasedchecker.Phase{
+				{Name: "dependency", Analyzers: []*analysis.Analyzer{env.analyzer}, AfterPhase: env.aggregator.AfterDependencyPhase},
+			},
+		},
+	}
+	checkertest.Run(t, "testdata/dependency/cross_package", cfg, "./...")
 
 	// Verify both packages registered their structs
-	totalStructs := len(env.providerRegistry.GetAll()) + len(env.injectorRegistry.GetAll())
+	totalStructs := len(env.aggregator.ProviderRegistry.GetAll()) + len(env.aggregator.InjectorRegistry.GetAll())
 	if totalStructs < 2 {
 		t.Errorf("expected at least 2 structs from cross-package test, got %d", totalStructs)
-	}
-
-	// Verify both packages were marked as scanned
-	ctx, cancel2 := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel2()
-	if err := env.packageTracker.WaitForAllPackagesWithContext(ctx, []string{
-		"example.com/dependency/cross_package/repo",
-		"example.com/dependency/cross_package/service",
-	}); err != nil {
-		t.Error("expected both packages to be marked as scanned")
 	}
 }
 
 func TestDependencyAnalyzer_InterfaceImplementation(t *testing.T) {
 	env := newDepAnalyzerTestEnv(t)
-	analysistest.Run(t, "testdata/dependency/abstrct", env.analyzer, "./...")
+
+	cfg := phasedchecker.Config{
+		Pipeline: phasedchecker.Pipeline{
+			Phases: []phasedchecker.Phase{
+				{Name: "dependency", Analyzers: []*analysis.Analyzer{env.analyzer}, AfterPhase: env.aggregator.AfterDependencyPhase},
+			},
+		},
+	}
+	checkertest.Run(t, "testdata/dependency/abstrct", cfg, "./...")
 
 	// Verify Implements field is populated
 	hasImplements := false
-	for _, p := range env.providerRegistry.GetAll() {
+	for _, p := range env.aggregator.ProviderRegistry.GetAll() {
 		if len(p.Implements) > 0 {
 			hasImplements = true
 			break
 		}
 	}
 	if !hasImplements {
-		for _, i := range env.injectorRegistry.GetAll() {
+		for _, i := range env.aggregator.InjectorRegistry.GetAll() {
 			if len(i.Implements) > 0 {
 				hasImplements = true
 				break

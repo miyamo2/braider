@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-
 	"github.com/miyamo2/braider/internal/analyzer"
 	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/generate"
@@ -12,32 +10,45 @@ import (
 	"github.com/miyamo2/braider/internal/report"
 	"github.com/miyamo2/braider/pkg/annotation"
 	"github.com/miyamo2/braider/pkg/annotation/app"
-	"github.com/miyamo2/braider/pkg/annotation/variable"
+	"github.com/miyamo2/phasedchecker"
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/multichecker"
 )
 
-var (
-	bootstrapCtx, bootstrapCancel = context.WithCancelCause(context.Background())
-	_                             = annotation.Variable[variable.Default](bootstrapCtx)
-	_                             = annotation.Variable[variable.Default](bootstrapCancel)
-	_                             = annotation.App[app.Container[struct {
-		dependencyAnalyzer *analysis.Analyzer `braider:"dependencyAnalyzer"`
-		appAnalyzer        *analysis.Analyzer `braider:"appAnalyzer"`
-	}]](main)
-)
+var _ = annotation.App[app.Container[struct {
+	dependencyAnalyzer *analysis.Analyzer `braider:"dependencyAnalyzer"`
+	appAnalyzer        *analysis.Analyzer `braider:"appAnalyzer"`
+	aggregator         *analyzer.Aggregator
+}]](main)
 
 func main() {
-	multichecker.Main(dependency.dependencyAnalyzer, dependency.appAnalyzer)
+	phasedchecker.Main(phasedchecker.Config{
+		Pipeline: phasedchecker.Pipeline{
+			Phases: []phasedchecker.Phase{
+				{
+					Name:       "dependency",
+					Analyzers:  []*analysis.Analyzer{dependency.dependencyAnalyzer},
+					AfterPhase: dependency.aggregator.AfterDependencyPhase,
+				},
+				{
+					Name:      "app",
+					Analyzers: []*analysis.Analyzer{dependency.appAnalyzer},
+				},
+			},
+		},
+		DiagnosticPolicy: phasedchecker.DiagnosticPolicy{
+			Rules: []phasedchecker.CategoryRule{
+				{Category: "braider:fatal", Severity: phasedchecker.SeverityCritical},
+			},
+		},
+	})
 }
 
-// braider:hash:0c9d34c6262111be
+// braider:hash:ebe186a2490ad887
 var dependency = func() struct {
 	dependencyAnalyzer *analysis.Analyzer
 	appAnalyzer        *analysis.Analyzer
+	aggregator         *analyzer.Aggregator
 } {
-	cancelCauseFunc := bootstrapCancel
-	context := bootstrapCtx
 	markerInterfaces := detect.MustResolveMarkers()
 	appDetector := detect.NewAppDetector(markerInterfaces)
 	appOptionExtractorImpl := detect.NewAppOptionExtractorImpl(markerInterfaces)
@@ -58,52 +69,22 @@ var dependency = func() struct {
 	namerValidatorImpl := detect.NewNamerValidatorImpl(packageLoader)
 	optionExtractorImpl := detect.NewOptionExtractorImpl(markerInterfaces, namerValidatorImpl)
 	injectorRegistry := registry.NewInjectorRegistry()
-	packageTracker := registry.NewPackageTracker()
 	providerRegistry := registry.NewProviderRegistry()
 	variableRegistry := registry.NewVariableRegistry()
+	aggregator := analyzer.NewAggregator(providerRegistry, injectorRegistry, variableRegistry)
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
-	appAnalyzeRunner := analyzer.NewAppAnalyzeRunner(
-		appDetector,
-		injectorRegistry,
-		providerRegistry,
-		packageLoader,
-		packageTracker,
-		context,
-		dependencyGraphBuilder,
-		topologicalSorter,
-		bootstrapGenerator,
-		suggestedFixBuilder,
-		diagnosticEmitter,
-		variableRegistry,
-		appOptionExtractorImpl,
-		containerValidatorImpl,
-		containerResolverImpl,
-	)
-	dependencyAnalyzeRunner := analyzer.NewDependencyAnalyzeRunner(
-		providerRegistry,
-		injectorRegistry,
-		packageTracker,
-		cancelCauseFunc,
-		provideCallDetector,
-		injectDetector,
-		structDetector,
-		fieldAnalyzer,
-		constructorAnalyzer,
-		optionExtractorImpl,
-		constructorGenerator,
-		suggestedFixBuilder,
-		diagnosticEmitter,
-		variableCallDetector,
-		variableRegistry,
-	)
+	appAnalyzeRunner := analyzer.NewAppAnalyzeRunner(appDetector, injectorRegistry, providerRegistry, dependencyGraphBuilder, topologicalSorter, bootstrapGenerator, suggestedFixBuilder, diagnosticEmitter, variableRegistry, appOptionExtractorImpl, containerValidatorImpl, containerResolverImpl)
+	dependencyAnalyzeRunner := analyzer.NewDependencyAnalyzeRunner(provideCallDetector, injectDetector, structDetector, fieldAnalyzer, constructorAnalyzer, optionExtractorImpl, constructorGenerator, suggestedFixBuilder, diagnosticEmitter, variableCallDetector)
 	appAnalyzer := analyzer.NewAppAnalyzer(appAnalyzeRunner)
 	dependencyAnalyzer := analyzer.NewDependencyAnalyzer(dependencyAnalyzeRunner)
 	return struct {
 		dependencyAnalyzer *analysis.Analyzer
 		appAnalyzer        *analysis.Analyzer
+		aggregator         *analyzer.Aggregator
 	}{
 		dependencyAnalyzer: dependencyAnalyzer,
 		appAnalyzer:        appAnalyzer,
+		aggregator:         aggregator,
 	}
 }()

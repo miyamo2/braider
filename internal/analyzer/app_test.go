@@ -1,8 +1,6 @@
 package analyzer
 
 import (
-	"context"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -11,8 +9,9 @@ import (
 	"github.com/miyamo2/braider/internal/graph"
 	"github.com/miyamo2/braider/internal/registry"
 	"github.com/miyamo2/braider/internal/report"
+	"github.com/miyamo2/phasedchecker"
+	"github.com/miyamo2/phasedchecker/checkertest"
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -31,13 +30,10 @@ func (m *mockPackageLoader) LoadPackage(pkgPath string) (*packages.Package, erro
 	return nil, nil
 }
 
-// setupTestDependencies creates all required dependencies for AppAnalyzer-only tests (Group E).
+// setupTestDependencies creates all required dependencies for AppAnalyzer-only tests.
 func setupTestDependencies(t *testing.T) (
 	*registry.ProviderRegistry,
 	*registry.InjectorRegistry,
-	*registry.PackageTracker,
-	context.Context,
-	context.CancelCauseFunc,
 	detect.AppDetector,
 	*graph.DependencyGraphBuilder,
 	*graph.TopologicalSorter,
@@ -55,8 +51,6 @@ func setupTestDependencies(t *testing.T) (
 	}
 	providerRegistry := registry.NewProviderRegistry()
 	injectorRegistry := registry.NewInjectorRegistry()
-	packageTracker := registry.NewPackageTracker()
-	bootstrapCtx, bootstrapCancel := context.WithCancelCause(context.Background())
 	appDetector := detect.NewAppDetector(markers)
 	interfaceRegistry := graph.NewInterfaceRegistry()
 	graphBuilder := graph.NewDependencyGraphBuilder(interfaceRegistry)
@@ -68,48 +62,13 @@ func setupTestDependencies(t *testing.T) (
 	containerValidator := graph.NewContainerValidatorImpl(interfaceRegistry)
 	containerResolver := graph.NewContainerResolverImpl(interfaceRegistry)
 
-	return providerRegistry, injectorRegistry, packageTracker, bootstrapCtx, bootstrapCancel, appDetector,
+	return providerRegistry, injectorRegistry, appDetector,
 		graphBuilder, sorter, bootstrapGenerator, suggestedFixBuilder, diagnosticEmitter,
 		appOptionExtractor, containerValidator, containerResolver
 }
 
-func TestAppAnalyzer_ContextCancellation(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker, bootstrapCtx, bootstrapCancel, appDetector, graphBuilder, sorter,
-		bootstrapGen, fixBuilder, diagnosticEmitter, appOptionExtractor, containerValidator, containerResolver := setupTestDependencies(t)
-
-	injectorRegistry.Register(
-		&registry.InjectorInfo{
-			TypeName:        "contextcancel.TestService",
-			PackagePath:     "contextcancel",
-			PackageName:     "main",
-			LocalName:       "TestService",
-			ConstructorName: "NewTestService",
-			Dependencies:    []string{},
-			Implements:      []string{},
-			IsPending:       false,
-		},
-	)
-	packageTracker.MarkPackageScanned("contextcancel")
-
-	// Cancel the validation context to simulate fatal validation error
-	bootstrapCancel(fmt.Errorf("simulated validation error"))
-
-	packageLoader := &mockPackageLoader{}
-	variableReg := registry.NewVariableRegistry()
-	runner := NewAppAnalyzeRunner(
-		appDetector, injectorRegistry, providerRegistry, packageLoader,
-		packageTracker, bootstrapCtx,
-		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
-		variableReg, appOptionExtractor, containerValidator, containerResolver,
-	)
-	analyzer := (*analysis.Analyzer)(NewAppAnalyzer(runner))
-
-	// Should not emit any diagnostics when context is cancelled
-	analysistest.Run(t, "testdata/bootstrapgen/contextcancel", analyzer, ".")
-}
-
 func TestAppAnalyzer_MissingConstructor(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker, bootstrapCtx, _, appDetector, graphBuilder, sorter,
+	providerRegistry, injectorRegistry, appDetector, graphBuilder, sorter,
 		bootstrapGen, fixBuilder, diagnosticEmitter, appOptionExtractor, containerValidator, containerResolver := setupTestDependencies(t)
 
 	providerRegistry.Register(
@@ -124,23 +83,28 @@ func TestAppAnalyzer_MissingConstructor(t *testing.T) {
 			IsPending:       false,
 		},
 	)
-	packageTracker.MarkPackageScanned("missingctor")
 
-	packageLoader := &mockPackageLoader{}
 	variableReg := registry.NewVariableRegistry()
 	runner := NewAppAnalyzeRunner(
-		appDetector, injectorRegistry, providerRegistry, packageLoader,
-		packageTracker, bootstrapCtx,
+		appDetector, injectorRegistry, providerRegistry,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 		variableReg, appOptionExtractor, containerValidator, containerResolver,
 	)
-	analyzer := (*analysis.Analyzer)(NewAppAnalyzer(runner))
-	analysistest.Run(t, "testdata/bootstrapgen/missingctor", analyzer, ".")
-	analysistest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/missingctor", analyzer, ".")
+	appAnalyzer := (*analysis.Analyzer)(NewAppAnalyzer(runner))
+
+	cfg := phasedchecker.Config{
+		Pipeline: phasedchecker.Pipeline{
+			Phases: []phasedchecker.Phase{
+				{Name: "app", Analyzers: []*analysis.Analyzer{appAnalyzer}},
+			},
+		},
+	}
+	checkertest.Run(t, "testdata/bootstrapgen/missingctor", cfg, ".")
+	checkertest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/missingctor", cfg, ".")
 }
 
 func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
-	providerRegistry, injectorRegistry, packageTracker, bootstrapCtx, _, appDetector, graphBuilder, sorter,
+	_, injectorRegistry, appDetector, graphBuilder, sorter,
 		bootstrapGen, fixBuilder, diagnosticEmitter, appOptionExtractor, containerValidator, containerResolver := setupTestDependencies(t)
 
 	injectorRegistry.Register(
@@ -165,29 +129,31 @@ func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
 			IsPending:       false,
 		},
 	)
-	packageTracker.MarkPackageScanned("multipleapp/cmd/1")
-	packageTracker.MarkPackageScanned("multipleapp/cmd/2")
 
-	packageLoader := &mockPackageLoader{}
 	variableReg := registry.NewVariableRegistry()
+	providerRegistry := registry.NewProviderRegistry()
 	runner := NewAppAnalyzeRunner(
-		appDetector, injectorRegistry, providerRegistry, packageLoader,
-		packageTracker, bootstrapCtx,
+		appDetector, injectorRegistry, providerRegistry,
 		graphBuilder, sorter, bootstrapGen, fixBuilder, diagnosticEmitter,
 		variableReg, appOptionExtractor, containerValidator, containerResolver,
 	)
-	analyzer := (*analysis.Analyzer)(NewAppAnalyzer(runner))
-	analysistest.Run(t, "testdata/bootstrapgen/multipleapp", analyzer, "./...")
+	appAnalyzer := (*analysis.Analyzer)(NewAppAnalyzer(runner))
+
+	cfg := phasedchecker.Config{
+		Pipeline: phasedchecker.Pipeline{
+			Phases: []phasedchecker.Phase{
+				{Name: "app", Analyzers: []*analysis.Analyzer{appAnalyzer}},
+			},
+		},
+	}
+	checkertest.Run(t, "testdata/bootstrapgen/multipleapp", cfg, "./...")
 }
 
 // TestAppAnalyzer_CorrelationErrorNonFatal tests that duplicate (TypeName, Name) registration
-// returns an error from Registry.Register() but does NOT cancel the ValidationContext,
+// returns an error from Registry.Register() but does NOT abort the pipeline,
 // so AppAnalyzer continues to generate bootstrap code.
-// This scenario cannot be triggered via analysistest because Go TypeNames are unique per package.
 func TestAppAnalyzer_CorrelationErrorNonFatal(t *testing.T) {
 	injectorReg := registry.NewInjectorRegistry()
-	bootstrapCtx, cancel := context.WithCancelCause(context.Background())
-	defer cancel(nil)
 
 	// First registration succeeds
 	err := injectorReg.Register(
@@ -224,10 +190,5 @@ func TestAppAnalyzer_CorrelationErrorNonFatal(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "duplicate") {
 		t.Errorf("Error should mention 'duplicate', got: %v", err)
-	}
-
-	// Context should NOT be cancelled (correlation errors are non-fatal)
-	if bootstrapCtx.Err() != nil {
-		t.Error("ValidationContext should NOT be cancelled for correlation errors")
 	}
 }
