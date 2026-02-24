@@ -26,7 +26,7 @@ This self-hosting pattern means braider's own `cmd/braider/main.go` contains bra
 **Location**: `internal/analyzer/testdata/`
 **Purpose**: Go source files used as test inputs for analysistest
 **Pattern**: Organized by test category and analyzer:
-- `testdata/bootstrapgen/` - App annotation scenarios (~78 cases: basic, typed_inject, named_inject, provide_typed, provide_named, provide_cross_type, struct_tag_*, container_*, circular, crosspackage, idempotent, without_constructor, error cases, etc.)
+- `testdata/e2e/` - App annotation scenarios (~78 cases: basic, typed_inject, named_inject, provide_typed, provide_named, provide_cross_type, struct_tag_*, container_*, circular, crosspackage, idempotent, without_constructor, error cases, etc.)
 - `testdata/dependency/` - Dependency analysis scenarios (basic, abstrct, cross_package, missing_constructor)
 - `testdata/constructorgen/` - Constructor generation scenarios (per-file test cases: simple, multifield, pointer, imported, aliasedimport, definedtypes, typealias, existing, struct_tag_*, uppercamel)
 - `testdata/providefunc/` - Provider function detection scenarios (legacy, directories may be empty)
@@ -84,7 +84,7 @@ Both analyzers share state through global registries, enabling cross-package dep
 Only the CLI entry point (`cmd/braider/main.go`) is user-facing. All implementation details are in `internal/` to prevent accidental external dependencies.
 
 ### Test Data Isolation
-Test fixtures live in `testdata/bootstrapgen/` following analysistest conventions. Each test case is a separate Go package that can be analyzed independently.
+Test fixtures live in `testdata/e2e/` following analysistest conventions. Each test case is a separate Go package that can be analyzed independently.
 
 ### Internal Package Organization
 The internal package is split into focused subpackages:
@@ -120,9 +120,9 @@ _Document patterns, not file trees. New files following patterns should not requ
 _Updated: 2026-02-02 - Added ProvideFunc annotation, expanded generate package utilities, clarified loader package purpose_
 _Updated: 2026-02-11 - Sync: Updated annotation API to current generics-based design (Injectable[T], Provide[T](fn)); added inject/provide/namer subpackages; updated component lists (ProvideCallDetector, BootstrapGenerator, OptionExtractor, NamerValidator); corrected testdata categories_
 _Updated: 2026-02-12 - Sync: Added Variable[T](value) annotation and variable/ option subpackage; added VariableCallDetector, VariableRegistry to component lists; added variable test case categories_
-_Updated: 2026-02-14 - Sync: Updated bootstrapgen case count (~52); removed negative from constructorgen (constructor gen now covers zero-dependency structs)_
+_Updated: 2026-02-14 - Sync: Updated e2e case count (~52); removed negative from constructorgen (constructor gen now covers zero-dependency structs)_
 _Updated: 2026-02-15 - Sync: Provide annotations are now struct fields in bootstrap dependency struct (not local variables); only Variable nodes remain as local variables_
 _Updated: 2026-02-15 - Sync: Added internal/annotation marker interface layer; updated CLI entry point to document dogfooding pattern; added constructorgen struct_tag/uppercamel cases_
-_Updated: 2026-02-16 - Sync: App annotation now generic App[T](main) with app option type parameter; added app/ option subpackage (Default, Container[T]); added AppOptionExtractor to detector components; added container validation/resolution to graph package; added container test case categories (~77 bootstrapgen cases); added AppOption/AppDefault/AppContainer marker interfaces_
-_Updated: 2026-02-18 - Sync: Updated bootstrapgen case count to ~78; added provide_cross_type test case category; added MarkerInterfaces/ResolveMarkers to detect component description_
+_Updated: 2026-02-16 - Sync: App annotation now generic App[T](main) with app option type parameter; added app/ option subpackage (Default, Container[T]); added AppOptionExtractor to detector components; added container validation/resolution to graph package; added container test case categories (~77 e2e cases); added AppOption/AppDefault/AppContainer marker interfaces_
+_Updated: 2026-02-18 - Sync: Updated e2e case count to ~78; added provide_cross_type test case category; added MarkerInterfaces/ResolveMarkers to detect component description_
 _Updated: 2026-02-20 - Sync: Generate package refactored to AST-based code generation; CodeFormatter removed; generators now use ast_builder.go helpers + format.Node instead of string concatenation_

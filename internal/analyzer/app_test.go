@@ -91,8 +91,8 @@ func TestAppAnalyzer_MissingConstructor(t *testing.T) {
 			},
 		},
 	}
-	checkertest.Run(t, "testdata/bootstrapgen/missingctor", cfg, ".")
-	checkertest.RunWithSuggestedFixes(t, "testdata/bootstrapgen/missingctor", cfg, ".")
+	checkertest.Run(t, "testdata/e2e/missingctor", cfg, ".")
+	checkertest.RunWithSuggestedFixes(t, "testdata/e2e/missingctor", cfg, ".")
 }
 
 func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
@@ -138,7 +138,7 @@ func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
 			},
 		},
 	}
-	checkertest.Run(t, "testdata/bootstrapgen/multipleapp", cfg, "./...")
+	checkertest.Run(t, "testdata/e2e/multipleapp", cfg, "./...")
 }
 
 // TestAppAnalyzer_CorrelationErrorNonFatal tests that duplicate (TypeName, Name) registration

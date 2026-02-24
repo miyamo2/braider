@@ -216,7 +216,7 @@ func TestIntegration(t *testing.T) {
 		t.Run(
 			tt.name, func(t *testing.T) {
 				depAnalyzer, appAnalyzer, agg := setupIntegrationDeps(t)
-				testdir := "testdata/bootstrapgen/" + tt.testdir
+				testdir := "testdata/e2e/" + tt.testdir
 
 				cfg := phasedchecker.Config{
 					Pipeline: phasedchecker.Pipeline{

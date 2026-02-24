@@ -144,7 +144,7 @@ Tests use `github.com/miyamo2/phasedchecker/checkertest` with testdata directori
 
 ### Key Test Directories
 
-- `testdata/bootstrapgen/` — 78 test case directories organized by category:
+- `testdata/e2e/` — 78 test case directories organized by category:
   - Core: basic, simpleapp, multitype, crosspackage, modulewide, samefileapp, emptygraph, depinuse, depblank, pkgcollision, without_constructor
   - Interface: iface, ifacedep, crossiface, unresiface
   - Typed/Named inject: typed_inject, named_inject
