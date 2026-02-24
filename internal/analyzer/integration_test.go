@@ -198,6 +198,7 @@ func TestIntegration(t *testing.T) {
 		{name: "ErrorVariableNamer", testdir: "error_variable_namer", appSuggestFix: false},
 		{name: "ErrorVariableNameMismatch", testdir: "error_variable_name_mismatch", appSuggestFix: false},
 		{name: "ErrorVariableUnresolvableExpression", testdir: "error_variable_unresolvable", appSuggestFix: false},
+		{name: "ErrorDuplicateName", testdir: "error_duplicate_name", appSuggestFix: false},
 
 		// --- Error cases (non-fatal, AppAnalyzer still generates bootstrap) ---
 		{name: "ErrorUnresolvedParam", testdir: "unresolvedparam", appSuggestFix: true},
@@ -212,117 +213,73 @@ func TestIntegration(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			depAnalyzer, appAnalyzer, agg := setupIntegrationDeps(t)
-			testdir := "testdata/bootstrapgen/" + tt.testdir
+		t.Run(
+			tt.name, func(t *testing.T) {
+				depAnalyzer, appAnalyzer, agg := setupIntegrationDeps(t)
+				testdir := "testdata/bootstrapgen/" + tt.testdir
 
-			cfg := phasedchecker.Config{
-				Pipeline: phasedchecker.Pipeline{
-					Phases: []phasedchecker.Phase{
-						{Name: "dependency", Analyzers: []*analysis.Analyzer{depAnalyzer}, AfterPhase: agg.AfterDependencyPhase},
-						{Name: "app", Analyzers: []*analysis.Analyzer{appAnalyzer}},
+				cfg := phasedchecker.Config{
+					Pipeline: phasedchecker.Pipeline{
+						Phases: []phasedchecker.Phase{
+							{
+								Name: "dependency", Analyzers: []*analysis.Analyzer{depAnalyzer},
+								AfterPhase: agg.AfterDependencyPhase,
+							},
+							{Name: "app", Analyzers: []*analysis.Analyzer{appAnalyzer}},
+						},
 					},
-				},
-				DiagnosticPolicy: phasedchecker.DiagnosticPolicy{
-					Rules: []phasedchecker.CategoryRule{
-						{Category: report.CategoryOptionValidation, Severity: phasedchecker.SeverityCritical},
-						{Category: report.CategoryExpressionValidation, Severity: phasedchecker.SeverityCritical},
+					DiagnosticPolicy: phasedchecker.DiagnosticPolicy{
+						Rules: []phasedchecker.CategoryRule{
+							{Category: report.CategoryOptionValidation, Severity: phasedchecker.SeverityCritical},
+							{Category: report.CategoryExpressionValidation, Severity: phasedchecker.SeverityCritical},
+						},
 					},
-				},
-			}
+				}
 
-			if tt.appSuggestFix {
-				checkertest.RunWithSuggestedFixes(t, testdir, cfg, "./...")
-			} else {
-				checkertest.Run(t, testdir, cfg, "./...")
-			}
-		})
-	}
-}
-
-// TestIntegration_ErrorDuplicateName tests duplicate (TypeName, Name) detection:
-// Same named dependency registered twice -> non-fatal warning emitted.
-// Uses programmatic registry access since analysistest cannot naturally test duplicate registration
-// (each analysistest.Run creates a fresh analysis pass for the same source).
-func TestIntegration_ErrorDuplicateName(t *testing.T) {
-	depAnalyzer, _, injectorReg, _, _, agg := buildIntegrationDeps(t)
-	testdir := "testdata/bootstrapgen/error_duplicate_name"
-
-	// Run single-phase pipeline to register Named service
-	cfg := phasedchecker.Config{
-		Pipeline: phasedchecker.Pipeline{
-			Phases: []phasedchecker.Phase{
-				{Name: "dependency", Analyzers: []*analysis.Analyzer{depAnalyzer}, AfterPhase: agg.AfterDependencyPhase},
+				if tt.appSuggestFix {
+					checkertest.RunWithSuggestedFixes(t, testdir, cfg, "./...")
+				} else {
+					checkertest.Run(t, testdir, cfg, "./...")
+				}
 			},
-		},
-	}
-	checkertest.Run(t, testdir, cfg, "./...")
-
-	// Verify first registration succeeded
-	allInjectors := injectorReg.GetAll()
-	if len(allInjectors) == 0 {
-		t.Fatal("expected at least one injector registered after first scan")
-	}
-
-	// Find the registered injector
-	var registeredInfo *registry.InjectorInfo
-	for _, info := range allInjectors {
-		if info.Name == "primary" {
-			registeredInfo = info
-			break
-		}
-	}
-	if registeredInfo == nil {
-		t.Fatal("expected injector with name \"primary\" to be registered")
-	}
-
-	// Programmatic duplicate: re-register with same (TypeName, Name) to verify duplicate detection
-	err := injectorReg.Register(&registry.InjectorInfo{
-		TypeName:        registeredInfo.TypeName,
-		PackagePath:     "another/package",
-		PackageName:     "another",
-		LocalName:       registeredInfo.LocalName,
-		ConstructorName: registeredInfo.ConstructorName,
-		Name:            "primary",
-	})
-	if err == nil {
-		t.Fatal("expected duplicate registration error, got nil")
-	}
-	if !strings.Contains(err.Error(), "duplicate named dependency") {
-		t.Fatalf("expected error containing \"duplicate named dependency\", got: %s", err.Error())
+		)
 	}
 }
 
 // TestIntegration_ErrorVariableDuplicateName tests duplicate (TypeName, Name) detection for Variables:
-// Same named Variable registered twice -> non-fatal warning emitted.
-// Uses programmatic registry access since analysistest cannot naturally test duplicate registration.
+// Same named Variable registered twice -> Critical diagnostic emitted, aborting bootstrap generation.
+// Uses programmatic registry access since checkertest cannot naturally test duplicate registration.
 func TestIntegration_ErrorVariableDuplicateName(t *testing.T) {
 	variableReg := registry.NewVariableRegistry()
 
 	// First registration succeeds
-	err := variableReg.Register(&registry.VariableInfo{
-		TypeName:       "os.File",
-		PackagePath:    "os",
-		PackageName:    "os",
-		LocalName:      "File",
-		ExpressionText: "os.Stdout",
-		Dependencies:   []string{},
-		Name:           "stdout",
-	})
+	err := variableReg.Register(
+		&registry.VariableInfo{
+			TypeName:       "os.File",
+			PackagePath:    "os",
+			PackageName:    "os",
+			LocalName:      "File",
+			ExpressionText: "os.Stdout",
+			Dependencies:   []string{},
+			Name:           "stdout",
+		},
+	)
 	if err != nil {
 		t.Fatalf("First registration should succeed, got: %v", err)
 	}
 
 	// Duplicate registration returns error
-	err = variableReg.Register(&registry.VariableInfo{
-		TypeName:       "os.File",
-		PackagePath:    "another",
-		PackageName:    "another",
-		LocalName:      "File",
-		ExpressionText: "another.Stdout",
-		Dependencies:   []string{},
-		Name:           "stdout",
-	})
+	err = variableReg.Register(
+		&registry.VariableInfo{
+			TypeName:       "os.File",
+			PackagePath:    "another",
+			PackageName:    "another",
+			LocalName:      "File",
+			ExpressionText: "another.Stdout",
+			Dependencies:   []string{},
+			Name:           "stdout",
+		},
+	)
 	if err == nil {
 		t.Fatal("Duplicate registration should return error")
 	}

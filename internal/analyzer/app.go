@@ -125,12 +125,16 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 		return nil, nil
 	}
 
-	// Phase 2.5: Report duplicate registration warnings collected during dependency phase
+	// Phase 2.5: Report duplicate registration errors collected during dependency phase
 	if r.duplicateRegistry != nil {
-		for _, dup := range r.duplicateRegistry.GetAll() {
+		duplicates := r.duplicateRegistry.GetAll()
+		for _, dup := range duplicates {
 			r.diagnosticEmitter.EmitDuplicateNamedDependencyWarning(
 				reporter, apps[0].Pos, dup.TypeName, dup.Name, dup.Location1, dup.Location2,
 			)
+		}
+		if len(duplicates) > 0 {
+			return nil, nil
 		}
 	}
 

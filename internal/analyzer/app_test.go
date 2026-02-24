@@ -142,8 +142,8 @@ func TestAppAnalyzer_MultipleEntryPoints(t *testing.T) {
 }
 
 // TestAppAnalyzer_CorrelationErrorNonFatal tests that duplicate (TypeName, Name) registration
-// returns an error from Registry.Register() but does NOT abort the pipeline,
-// so AppAnalyzer continues to generate bootstrap code.
+// returns an error from Registry.Register(). The error is collected in DuplicateRegistry and
+// reported as a Critical diagnostic by AppAnalyzeRunner, aborting bootstrap generation.
 func TestAppAnalyzer_CorrelationErrorNonFatal(t *testing.T) {
 	injectorReg := registry.NewInjectorRegistry()
 

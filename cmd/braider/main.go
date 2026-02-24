@@ -40,6 +40,7 @@ func main() {
 				Rules: []phasedchecker.CategoryRule{
 					{Category: report.CategoryOptionValidation, Severity: phasedchecker.SeverityCritical},
 					{Category: report.CategoryExpressionValidation, Severity: phasedchecker.SeverityCritical},
+					{Category: report.CategoryDependencyRegistration, Severity: phasedchecker.SeverityCritical},
 				},
 			},
 		},

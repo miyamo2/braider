@@ -17,6 +17,7 @@ const (
 	// CategoryDependencyResolution is for dependency graph construction and cycle detection diagnostics.
 	CategoryDependencyResolution = "braider:dependency-resolution"
 	// CategoryDependencyRegistration is for duplicate dependency registration diagnostics.
+	// Maps to SeverityCritical in phasedchecker, aborting the pipeline.
 	CategoryDependencyRegistration = "braider:dependency-registration"
 	// CategoryAppValidation is for annotation.App validation diagnostics.
 	CategoryAppValidation = "braider:app-validation"
