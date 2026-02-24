@@ -18,14 +18,6 @@ import (
 // mockPackageLoader is a test implementation that returns an empty package list.
 type mockPackageLoader struct{}
 
-func (m *mockPackageLoader) LoadModulePackageNames(dir string) ([]string, error) {
-	return []string{}, nil
-}
-
-func (m *mockPackageLoader) FindModuleRoot(dir string) (string, error) {
-	return dir, nil
-}
-
 func (m *mockPackageLoader) LoadPackage(pkgPath string) (*packages.Package, error) {
 	return nil, nil
 }

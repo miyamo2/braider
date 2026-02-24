@@ -235,12 +235,3 @@ func (m *MockPackageLoader) LoadPackage(pkgPath string) (*packages.Package, erro
 	return pkg, nil
 }
 
-// LoadModulePackageNames implements the loader.PackageLoader interface (not used in tests).
-func (m *MockPackageLoader) LoadModulePackageNames(dir string) ([]string, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-// FindModuleRoot implements the loader.PackageLoader interface (not used in tests).
-func (m *MockPackageLoader) FindModuleRoot(dir string) (string, error) {
-	return "", fmt.Errorf("not implemented")
-}
