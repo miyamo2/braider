@@ -2,16 +2,19 @@
 
 ## Architecture
 
-braider implements a **multi-analyzer architecture** using `multichecker.Main()` with two coordinated analyzers:
-- **DependencyAnalyzer**: Detects `annotation.Injectable[T]` structs, `annotation.Provide[T](fn)` calls, and `annotation.Variable[T](value)` calls; generates constructors; registers to global registries
-- **AppAnalyzer**: Detects `annotation.App[T](main)` and generates bootstrap IIFE code using all registered providers, injectors, and variables; supports default (anonymous struct) and container (user-defined struct) output modes via the App option type parameter
+braider implements a **phased pipeline architecture** using `phasedchecker.Main()` with two coordinated phases:
+- **Phase "dependency"** (`DependencyAnalyzer`): Runs per-package; detects `annotation.Injectable[T]` structs, `annotation.Provide[T](fn)` calls, and `annotation.Variable[T](value)` calls; generates constructors; returns `*DependencyResult` per package
+- **Phase "app"** (`AppAnalyzer`): Runs on main package after all dependency phase packages complete; detects `annotation.App[T](main)` and generates bootstrap IIFE code; supports default (anonymous struct) and container (user-defined struct) output modes via the App option type parameter
 
-Each analyzer implements the `analysis.Analyzer` interface, performs static analysis on Go AST, and proposes code fixes via `SuggestedFix`. Analyzers share state through global registries for cross-package dependency resolution.
+Between phases, `Aggregator.AfterDependencyPhase` iterates all per-package `DependencyResult` values (via `checker.Graph`) and populates shared registries. Duplicate registrations are collected into `DuplicateRegistry` for deferred reporting by AppAnalyzer. Each analyzer implements the `analysis.Analyzer` interface, performs static analysis on Go AST, and proposes code fixes via `SuggestedFix`.
+
+The pipeline is configured via `phasedchecker.Config` with explicit `Pipeline` (phase ordering, per-phase analyzers, AfterPhase callbacks) and `DiagnosticPolicy` (category-to-severity mappings that can abort the pipeline).
 
 ## Core Technologies
 
 - **Language**: go 1.25
 - **Framework**: `golang.org/x/tools/go/analysis` (Go analyzer framework)
+- **Pipeline**: `github.com/miyamo2/phasedchecker` (phased multi-analyzer orchestration)
 - **Runtime**: Standard Go toolchain (`go vet`)
 
 ## Key Libraries
@@ -19,7 +22,8 @@ Each analyzer implements the `analysis.Analyzer` interface, performs static anal
 - **`golang.org/x/tools/go/analysis`**: Core analyzer interface and diagnostic reporting
 - **`golang.org/x/tools/go/analysis/passes/inspect`**: AST inspection utilities
 - **`golang.org/x/tools/go/ast/inspector`**: Efficient AST traversal
-- **`golang.org/x/tools/go/analysis/multichecker`**: CLI wrapper for running multiple analyzers with shared state
+- **`github.com/miyamo2/phasedchecker`**: Phased pipeline orchestration with `phasedchecker.Main()`, `Config`, `Pipeline`, `Phase`, `DiagnosticPolicy`, `CategoryRule`, `SeverityCritical`
+- **`golang.org/x/tools/go/analysis/checker`**: `checker.Graph` used by `Aggregator.AfterDependencyPhase` to iterate per-package analysis results
 
 ## Development Standards
 
@@ -35,7 +39,9 @@ Each analyzer implements the `analysis.Analyzer` interface, performs static anal
 - Suggest fixes when possible via `SuggestedFix`
 
 ### Testing
-- Use `analysistest` package for analyzer testing
+- Use `phasedchecker/checkertest` package for analyzer testing
+- `checkertest.Run` for diagnostic-only tests; `checkertest.RunWithSuggestedFixes` for golden file tests
+- Tests build a `phasedchecker.Config` with the same Pipeline/DiagnosticPolicy as production, using isolated registry instances
 - Create testdata directories with Go source fixtures
 - Test both positive cases (should report) and negative cases (should not report)
 
@@ -73,10 +79,11 @@ The analyzer uses composable components (detectors, generators, reporters) wired
 - **Annotation markers** (`internal/annotation/`): Marker interfaces (`Injectable`, `Provider`, `Variable`, `App`, `AppOption`, `AppDefault`, `AppContainer`) embedded by public `pkg/annotation/` types; defines the type-level contracts that detectors match against
 - **Detectors** (`internal/detect/`): Pattern matching (inject, provide call, variable call, app, struct, field, constructor, option extraction, namer validation, app option extraction, container definition models, marker resolution)
 - **Generators** (`internal/generate/`): AST-based code generation (constructors, bootstrap IIFE) via `go/ast` + `format.Node`; utilities (imports, naming, keyword checking, hash markers for idempotency, AST builder helpers)
-- **Reporters** (`internal/report/`): Diagnostic and suggested fix building
-- **Registries** (`internal/registry/`): Global state for cross-package dependency tracking (provider, injector, variable, package tracker)
+- **Reporters** (`internal/report/`): Diagnostic and suggested fix building; diagnostic category constants (`CategoryOptionValidation`, `CategoryExpressionValidation`, `CategoryDependencyRegistration`) map to `SeverityCritical` in phasedchecker
+- **Registries** (`internal/registry/`): Shared state for cross-phase dependency tracking (provider, injector, variable, duplicate)
 - **Graph** (`internal/graph/`): Dependency graph construction, interface resolution, topological sorting, container validation, container field resolution; Variable nodes participate in graph as zero-dependency leaves
 - **Loader** (`internal/loader/`): Package loading utilities for cross-package analysis
+- **Analyzer** (`internal/analyzer/`): `Aggregator` (AfterPhase callback for registry population), `DependencyResult` (per-package result type), `DependencyAnalyzeRunner`, `AppAnalyzeRunner`
 
 ### AST-Based Code Generation
 Both constructor and bootstrap code generation build `go/ast` trees programmatically and render them via `format.Node`, rather than using string concatenation (`fmt.Sprintf`, `strings.Builder`). This approach:
@@ -90,8 +97,12 @@ Both constructor and bootstrap code generation build `go/ast` trees programmatic
 ### AST Inspector Pattern
 Uses `inspect.Analyzer` as a dependency for efficient AST traversal, following the recommended pattern for go/analysis tools.
 
-### Global Registry Pattern
-Uses shared registries (`ProviderRegistry`, `InjectorRegistry`, `VariableRegistry`, `PackageTracker`) to accumulate DI information across multiple packages and analyzer passes. This enables cross-package dependency resolution and ensures the `AppAnalyzer` can access all bindings collected by `DependencyAnalyzer`.
+### Cross-Phase State via Registries and Aggregator
+The two phases share state via shared registries (thread-safe, `sync.RWMutex`), populated by the `Aggregator.AfterDependencyPhase` callback between phases:
+- `ProviderRegistry` / `InjectorRegistry` / `VariableRegistry`: nested `map[TypeName]map[Name]*Info`
+- `DuplicateRegistry`: collects duplicate named dependency registrations across packages; reported by AppAnalyzer as Critical diagnostics
+
+`DependencyAnalyzer.Run()` returns `*DependencyResult` per package (providers, injectors, variables) instead of writing directly to registries. After all packages in the dependency phase complete, the Aggregator iterates the `checker.Graph`, extracts each result, and populates the shared registries.
 
 ### Bootstrap Struct Field vs Local Variable
 In the dependency graph, `Node.IsField` determines how a dependency appears in the bootstrap IIFE:
@@ -137,7 +148,7 @@ Fields in `Injectable[T]` structs can use `braider` struct tags for field-level 
 Bootstrap code generation uses hash markers (`// braider:hash:<hash>`) to track dependency graph state. The generator compares current graph hash against existing hash comments to determine if regeneration is needed. This prevents unnecessary rewrites and preserves manual edits in unrelated code sections.
 
 ### Dogfooding (Self-Hosting)
-braider uses its own annotations in `cmd/braider/main.go` to wire its internal components. The entry point declares `annotation.Variable` for shared values (e.g., `bootstrapCtx`, `bootstrapCancel`) and `annotation.App[app.Default](main)` to trigger bootstrap generation. braider then generates the `dependency` IIFE that constructs and wires all detectors, generators, reporters, registries, graph builders, and analyzers. This ensures braider validates its own code generation against a real, non-trivial dependency graph.
+braider uses its own annotations in `cmd/braider/main.go` to wire its internal components. The entry point declares `annotation.App[app.Container[T]](main)` with a container struct that exposes the two analyzers and the Aggregator. braider then generates the `dependency` IIFE that constructs and wires all detectors, generators, reporters, registries, graph builders, and analyzers. The generated container is consumed by `phasedchecker.Main()` to configure the phased pipeline (Pipeline with phases, AfterPhase callbacks, DiagnosticPolicy). This ensures braider validates its own code generation against a real, non-trivial dependency graph.
 
 ### Conventional Commits
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/v1.0.0/) specification:
@@ -159,3 +170,4 @@ _Updated: 2026-02-15 - Sync: Added internal/annotation marker interface layer; a
 _Updated: 2026-02-16 - Sync: App annotation now generic App[T](main) with app option type parameter; added App Options and Container Definition pattern (app.Default, app.Container[T]); added AppOptionExtractor, ContainerValidator, ContainerResolver to component lists; added AppOption/AppDefault/AppContainer marker interfaces_
 _Updated: 2026-02-18 - Sync: Added cross-package constructor qualification pattern (ConstructorPkgPath/ConstructorPkgName separation from PackagePath/PackageName for Provide nodes returning types from different packages); added marker resolution to detect component list_
 _Updated: 2026-02-20 - Sync: Code generation refactored from string concatenation to AST-based approach (go/ast + format.Node); CodeFormatter component removed; added AST-Based Code Generation technical decision; generate package now uses ast_builder.go helpers and renderDecl/renderNode; report package delegates import rendering to generate.RenderImportBlock_
+_Updated: 2026-02-25 - Sync: Migrated from multichecker.Main() to phasedchecker.Main() phased pipeline architecture; replaced analysistest with phasedchecker/checkertest; added Aggregator/DependencyResult cross-phase coordination pattern; replaced Global Registry Pattern with Cross-Phase State section; removed PackageTracker (no longer exists); added DuplicateRegistry; updated dogfooding to use app.Container[T] and phasedchecker.Config; added analyzer package to component list_

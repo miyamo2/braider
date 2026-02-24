@@ -10,10 +10,9 @@ braider follows a **standard Go project layout** with clear separation between p
 **Location**: `cmd/braider/`
 **Purpose**: CLI wrapper that instantiates components and invokes multiple analyzers
 **Pattern**: Single `main.go` that uses braider's own annotations (dogfooding):
-1. Declares `annotation.Variable` for shared context values (`bootstrapCtx`, `bootstrapCancel`)
-2. Declares `annotation.App[app.Default](main)` to trigger bootstrap generation
-3. braider generates the `dependency` IIFE that wires all internal components (detectors, generators, reporters, registries, graph builders, analyzers)
-4. `main()` calls `multichecker.Main()` with both analyzers extracted from the generated struct
+1. Declares `annotation.App[app.Container[T]](main)` with a container struct exposing the two analyzers and the Aggregator
+2. braider generates the `dependency` IIFE that wires all internal components (detectors, generators, reporters, registries, graph builders, analyzers)
+3. `main()` calls `phasedchecker.Main()` with a `phasedchecker.Config` that configures the Pipeline (phase ordering, AfterPhase callbacks) and DiagnosticPolicy (category-to-severity rules), using the generated container's fields
 
 This self-hosting pattern means braider's own `cmd/braider/main.go` contains braider-generated bootstrap code, validating the tool against its own codebase.
 
@@ -24,12 +23,12 @@ This self-hosting pattern means braider's own `cmd/braider/main.go` contains bra
 
 ### Test Fixtures
 **Location**: `internal/analyzer/testdata/`
-**Purpose**: Go source files used as test inputs for analysistest
+**Purpose**: Go source files used as test inputs for checkertest
 **Pattern**: Organized by test category and analyzer:
 - `testdata/e2e/` - App annotation scenarios (~78 cases: basic, typed_inject, named_inject, provide_typed, provide_named, provide_cross_type, struct_tag_*, container_*, circular, crosspackage, idempotent, without_constructor, error cases, etc.)
 - `testdata/dependency/` - Dependency analysis scenarios (basic, abstrct, cross_package, missing_constructor)
 - `testdata/constructorgen/` - Constructor generation scenarios (per-file test cases: simple, multifield, pointer, imported, aliasedimport, definedtypes, typealias, existing, struct_tag_*, uppercamel)
-- `testdata/providefunc/` - Provider function detection scenarios (legacy, directories may be empty)
+- `testdata/providefunc/` - Provider function detection scenarios (legacy)
 
 
 
@@ -69,31 +68,32 @@ The analyzer is built from composable components with clear responsibilities:
 - **Detectors**: Find DI patterns (`InjectDetector`, `ProvideCallDetector`, `VariableCallDetector`, `AppDetector`, `AppOptionExtractor`, `StructDetector`, `FieldAnalyzer`, `ConstructorAnalyzer`, `OptionExtractor`, `NamerValidator`)
 - **Generators**: Produce code via AST construction + `format.Node` (`ConstructorGenerator`, `BootstrapGenerator`)
 - **Reporters**: Emit diagnostics (`SuggestedFixBuilder`, `DiagnosticEmitter`)
-- **Registries**: Track state (`ProviderRegistry`, `InjectorRegistry`, `VariableRegistry`, `PackageTracker`)
+- **Registries**: Track state (`ProviderRegistry`, `InjectorRegistry`, `VariableRegistry`, `DuplicateRegistry`)
 
 Components are wired in `cmd/braider/main.go` via braider's own DI annotations (dogfooding) and passed to analyzer constructors.
 
-### Multi-Analyzer Pattern
-The project exposes two coordinated analyzers from `internal/analyzer/`:
-- **DependencyAnalyzer**: First pass to detect `Injectable[T]` structs, `Provide[T](fn)` calls, and `Variable[T](value)` calls; generate constructors; register to global registries
-- **AppAnalyzer**: Second pass to generate bootstrap code using all registered providers, injectors, and variables
+### Phased Pipeline Pattern
+The project exposes two coordinated analyzers from `internal/analyzer/`, orchestrated via `phasedchecker.Main()`:
+- **DependencyAnalyzer** (Phase "dependency"): Per-package; detects `Injectable[T]` structs, `Provide[T](fn)` calls, and `Variable[T](value)` calls; generates constructors; returns `*DependencyResult`
+- **AppAnalyzer** (Phase "app"): Runs after dependency phase; generates bootstrap code using all registered providers, injectors, and variables
+- **Aggregator**: `AfterDependencyPhase` callback that iterates per-package results via `checker.Graph` and populates shared registries between phases
 
-Both analyzers share state through global registries, enabling cross-package dependency resolution.
+State flows from DependencyAnalyzer to AppAnalyzer through shared registries populated by the Aggregator.
 
 ### Minimal Public API
 Only the CLI entry point (`cmd/braider/main.go`) is user-facing. All implementation details are in `internal/` to prevent accidental external dependencies.
 
 ### Test Data Isolation
-Test fixtures live in `testdata/e2e/` following analysistest conventions. Each test case is a separate Go package that can be analyzed independently.
+Test fixtures live in `testdata/e2e/` following checkertest conventions. Each test case is a separate Go package that can be analyzed independently.
 
 ### Internal Package Organization
 The internal package is split into focused subpackages:
-- `internal/analyzer/` - Analyzer definitions (`DependencyAnalyzer`, `AppAnalyzer`) and orchestration
+- `internal/analyzer/` - Analyzer definitions (`DependencyAnalyzer`, `AppAnalyzer`), `Aggregator` (AfterPhase callback), `DependencyResult` (per-package result type), and orchestration runners
 - `internal/annotation/` - Marker interfaces (e.g., `Injectable`, `Provider`, `Variable`, `App`, `AppOption`, `AppDefault`, `AppContainer`) embedded by the public `pkg/annotation/` types; provides the type-level contracts that detectors match against
 - `internal/detect/` - Detection logic for DI patterns (inject, provide call, variable call, app annotations, struct analysis, field analysis, constructor detection, option extraction, namer validation, app option extraction, container definition/field models, marker resolution via `MarkerInterfaces`/`ResolveMarkers`)
 - `internal/generate/` - AST-based code generation (constructors, bootstrap IIFE) and utilities (AST builder helpers, import management, naming conventions, keyword checking, hash generation)
 - `internal/report/` - Diagnostic and suggested fix building
-- `internal/registry/` - Global state management (provider registry, injector registry, variable registry, package tracker)
+- `internal/registry/` - Shared state management (provider registry, injector registry, variable registry, duplicate registry)
 - `internal/graph/` - Dependency resolution (dependency graph, interface registry, topological sort, container validation, container field resolution)
 - `internal/loader/` - Package loading utilities for cross-package dependency analysis
 
@@ -126,3 +126,4 @@ _Updated: 2026-02-15 - Sync: Added internal/annotation marker interface layer; u
 _Updated: 2026-02-16 - Sync: App annotation now generic App[T](main) with app option type parameter; added app/ option subpackage (Default, Container[T]); added AppOptionExtractor to detector components; added container validation/resolution to graph package; added container test case categories (~77 e2e cases); added AppOption/AppDefault/AppContainer marker interfaces_
 _Updated: 2026-02-18 - Sync: Updated e2e case count to ~78; added provide_cross_type test case category; added MarkerInterfaces/ResolveMarkers to detect component description_
 _Updated: 2026-02-20 - Sync: Generate package refactored to AST-based code generation; CodeFormatter removed; generators now use ast_builder.go helpers + format.Node instead of string concatenation_
+_Updated: 2026-02-25 - Sync: Migrated from multichecker to phasedchecker; CLI entry point now uses app.Container[T] and phasedchecker.Main() with Config/Pipeline/DiagnosticPolicy; added Aggregator/DependencyResult to analyzer package; replaced PackageTracker with DuplicateRegistry; updated test framework references from analysistest to checkertest_
