@@ -224,7 +224,8 @@ func TestIntegration(t *testing.T) {
 				},
 				DiagnosticPolicy: phasedchecker.DiagnosticPolicy{
 					Rules: []phasedchecker.CategoryRule{
-						{Category: "braider:fatal", Severity: phasedchecker.SeverityCritical},
+						{Category: report.CategoryOptionValidation, Severity: phasedchecker.SeverityCritical},
+						{Category: report.CategoryExpressionValidation, Severity: phasedchecker.SeverityCritical},
 					},
 				},
 			}

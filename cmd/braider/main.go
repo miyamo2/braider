@@ -21,26 +21,29 @@ var _ = annotation.App[app.Container[struct {
 }]](main)
 
 func main() {
-	phasedchecker.Main(phasedchecker.Config{
-		Pipeline: phasedchecker.Pipeline{
-			Phases: []phasedchecker.Phase{
-				{
-					Name:       "dependency",
-					Analyzers:  []*analysis.Analyzer{dependency.dependencyAnalyzer},
-					AfterPhase: dependency.aggregator.AfterDependencyPhase,
+	phasedchecker.Main(
+		phasedchecker.Config{
+			Pipeline: phasedchecker.Pipeline{
+				Phases: []phasedchecker.Phase{
+					{
+						Name:       "dependency",
+						Analyzers:  []*analysis.Analyzer{dependency.dependencyAnalyzer},
+						AfterPhase: dependency.aggregator.AfterDependencyPhase,
+					},
+					{
+						Name:      "app",
+						Analyzers: []*analysis.Analyzer{dependency.appAnalyzer},
+					},
 				},
-				{
-					Name:      "app",
-					Analyzers: []*analysis.Analyzer{dependency.appAnalyzer},
+			},
+			DiagnosticPolicy: phasedchecker.DiagnosticPolicy{
+				Rules: []phasedchecker.CategoryRule{
+					{Category: report.CategoryOptionValidation, Severity: phasedchecker.SeverityCritical},
+					{Category: report.CategoryExpressionValidation, Severity: phasedchecker.SeverityCritical},
 				},
 			},
 		},
-		DiagnosticPolicy: phasedchecker.DiagnosticPolicy{
-			Rules: []phasedchecker.CategoryRule{
-				{Category: "braider:fatal", Severity: phasedchecker.SeverityCritical},
-			},
-		},
-	})
+	)
 }
 
 // braider:hash:ebe186a2490ad887
@@ -74,8 +77,32 @@ var dependency = func() struct {
 	aggregator := analyzer.NewAggregator(providerRegistry, injectorRegistry, variableRegistry)
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
-	appAnalyzeRunner := analyzer.NewAppAnalyzeRunner(appDetector, injectorRegistry, providerRegistry, dependencyGraphBuilder, topologicalSorter, bootstrapGenerator, suggestedFixBuilder, diagnosticEmitter, variableRegistry, appOptionExtractorImpl, containerValidatorImpl, containerResolverImpl)
-	dependencyAnalyzeRunner := analyzer.NewDependencyAnalyzeRunner(provideCallDetector, injectDetector, structDetector, fieldAnalyzer, constructorAnalyzer, optionExtractorImpl, constructorGenerator, suggestedFixBuilder, diagnosticEmitter, variableCallDetector)
+	appAnalyzeRunner := analyzer.NewAppAnalyzeRunner(
+		appDetector,
+		injectorRegistry,
+		providerRegistry,
+		dependencyGraphBuilder,
+		topologicalSorter,
+		bootstrapGenerator,
+		suggestedFixBuilder,
+		diagnosticEmitter,
+		variableRegistry,
+		appOptionExtractorImpl,
+		containerValidatorImpl,
+		containerResolverImpl,
+	)
+	dependencyAnalyzeRunner := analyzer.NewDependencyAnalyzeRunner(
+		provideCallDetector,
+		injectDetector,
+		structDetector,
+		fieldAnalyzer,
+		constructorAnalyzer,
+		optionExtractorImpl,
+		constructorGenerator,
+		suggestedFixBuilder,
+		diagnosticEmitter,
+		variableCallDetector,
+	)
 	appAnalyzer := analyzer.NewAppAnalyzer(appAnalyzeRunner)
 	dependencyAnalyzer := analyzer.NewDependencyAnalyzer(dependencyAnalyzeRunner)
 	return struct {
