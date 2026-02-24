@@ -13,22 +13,14 @@ type Debugger interface {
 	Debug(msg string)
 }
 
-type AppService struct {
+type AppService struct { // want "missing constructor for AppService"
 	annotation.Injectable[inject.Default]
 	logger   Logger
 	debugger Debugger `braider:"-"`
 }
 
-func NewAppService(logger Logger) *AppService {
-	return &AppService{logger: logger}
-}
-
-type LoggerImpl struct {
+type LoggerImpl struct { // want "missing constructor for LoggerImpl"
 	annotation.Injectable[inject.Default]
-}
-
-func NewLoggerImpl() *LoggerImpl {
-	return &LoggerImpl{}
 }
 
 func (l *LoggerImpl) Log(msg string) {}

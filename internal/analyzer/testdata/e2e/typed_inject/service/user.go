@@ -7,14 +7,10 @@ import (
 	"github.com/miyamo2/braider/pkg/annotation/inject"
 )
 
-type UserRepository struct {
+type UserRepository struct { // want "missing constructor for UserRepository"
 	annotation.Injectable[inject.Typed[domain.IRepository]]
 }
 
 func (r UserRepository) FindByID(id string) (string, error) {
 	return id, nil
-}
-
-func NewUserRepository() *UserRepository {
-	return &UserRepository{}
 }

@@ -22,12 +22,8 @@ type AppService struct { // want "missing constructor for AppService"
 	debugger Debugger `braider:"-"`
 }
 
-type LoggerImpl struct {
+type LoggerImpl struct { // want "missing constructor for LoggerImpl"
 	annotation.Injectable[inject.Default]
-}
-
-func NewLoggerImpl() *LoggerImpl {
-	return &LoggerImpl{}
 }
 
 func (l *LoggerImpl) Log(msg string) {}

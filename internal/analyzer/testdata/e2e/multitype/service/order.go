@@ -7,11 +7,7 @@ import (
 )
 
 // OrderService is an Inject-annotated struct (field in dependency struct)
-type OrderService struct {
+type OrderService struct { // want "missing constructor for OrderService"
 	annotation.Injectable[inject.Default]
 	repo repository.OrderRepository
-}
-
-func NewOrderService(repo repository.OrderRepository) *OrderService {
-	return &OrderService{repo: repo}
 }

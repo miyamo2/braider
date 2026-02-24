@@ -16,7 +16,15 @@ import (
 	"github.com/miyamo2/phasedchecker"
 	"github.com/miyamo2/phasedchecker/checkertest"
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/packages"
 )
+
+// mockPackageLoader is a test implementation that returns an empty package list.
+type mockPackageLoader struct{}
+
+func (m *mockPackageLoader) LoadPackage(pkgPath string) (*packages.Package, error) {
+	return nil, nil
+}
 
 // setupIntegrationDeps creates shared registries and real components for integration tests.
 // Returns both DependencyAnalyzer and AppAnalyzer configured with the same shared state,
@@ -189,6 +197,7 @@ func TestIntegration(t *testing.T) {
 		// --- App-only (no DependencyAnalyzer) ---
 		{name: "NonMainReference", testdir: "nonmainapp", appSuggestFix: true},
 		{name: "NoAppAnnotation", testdir: "noapp", appSuggestFix: true},
+		{name: "MultipleEntryPoints", testdir: "multipleapp", appSuggestFix: true},
 
 		// --- Error cases (AppAnalyzer uses Run, not RunWithSuggestedFixes) ---
 		{name: "ErrorCases", testdir: "error_cases", appSuggestFix: false},
@@ -285,5 +294,49 @@ func TestIntegration_ErrorVariableDuplicateName(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "duplicate named dependency") {
 		t.Fatalf("Error should mention 'duplicate named dependency', got: %v", err)
+	}
+}
+
+// TestIntegration_ErrorInjectorDuplicateName tests that duplicate (TypeName, Name) registration
+// returns an error from Registry.Register(). The error is collected in DuplicateRegistry and
+// reported as a Critical diagnostic by AppAnalyzeRunner, aborting bootstrap generation.
+func TestIntegration_ErrorInjectorDuplicateName(t *testing.T) {
+	injectorReg := registry.NewInjectorRegistry()
+
+	// First registration succeeds
+	err := injectorReg.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/repo.Repository",
+			PackagePath:     "example.com/repo",
+			PackageName:     "repo",
+			LocalName:       "Repository",
+			ConstructorName: "NewRepository",
+			Dependencies:    []string{},
+			Name:            "primary",
+			OptionMetadata:  detect.OptionMetadata{Name: "primary"},
+		},
+	)
+	if err != nil {
+		t.Fatalf("First registration should succeed, got: %v", err)
+	}
+
+	// Duplicate registration returns error
+	err = injectorReg.Register(
+		&registry.InjectorInfo{
+			TypeName:        "example.com/repo.Repository",
+			PackagePath:     "example.com/repo2",
+			PackageName:     "repo2",
+			LocalName:       "Repository",
+			ConstructorName: "NewRepository",
+			Dependencies:    []string{},
+			Name:            "primary",
+			OptionMetadata:  detect.OptionMetadata{Name: "primary"},
+		},
+	)
+	if err == nil {
+		t.Fatal("Duplicate registration should return error")
+	}
+	if !strings.Contains(err.Error(), "duplicate") {
+		t.Errorf("Error should mention 'duplicate', got: %v", err)
 	}
 }

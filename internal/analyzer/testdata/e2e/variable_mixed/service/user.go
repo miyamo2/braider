@@ -7,11 +7,7 @@ import (
 	"github.com/miyamo2/braider/pkg/annotation/inject"
 )
 
-type UserService struct {
+type UserService struct { // want "missing constructor for UserService"
 	annotation.Injectable[inject.Default]
 	writer domain.Writer
-}
-
-func NewUserService(writer domain.Writer) *UserService {
-	return &UserService{writer: writer}
 }

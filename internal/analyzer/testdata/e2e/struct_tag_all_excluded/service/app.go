@@ -13,12 +13,8 @@ type Tracer interface {
 	Trace(msg string)
 }
 
-type AppService struct {
+type AppService struct { // want "missing constructor for AppService"
 	annotation.Injectable[inject.Default]
 	logger Logger `braider:"-"`
 	tracer Tracer `braider:"-"`
-}
-
-func NewAppService() *AppService {
-	return &AppService{}
 }

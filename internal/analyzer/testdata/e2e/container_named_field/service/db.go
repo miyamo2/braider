@@ -13,18 +13,10 @@ type SecondaryDBName struct{}
 
 func (SecondaryDBName) Name() string { return "secondaryDB" }
 
-type DB struct {
+type DB struct { // want "missing constructor for DB"
 	annotation.Injectable[inject.Named[PrimaryDBName]]
 }
 
-func NewDB() *DB {
-	return &DB{}
-}
-
-type SecondaryDB struct {
+type SecondaryDB struct { // want "missing constructor for SecondaryDB"
 	annotation.Injectable[inject.Named[SecondaryDBName]]
-}
-
-func NewSecondaryDB() *SecondaryDB {
-	return &SecondaryDB{}
 }

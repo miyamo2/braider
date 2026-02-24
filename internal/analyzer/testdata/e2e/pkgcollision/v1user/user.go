@@ -14,11 +14,7 @@ func NewRepository() Repository {
 	return Repository{}
 }
 
-type Service struct {
+type Service struct { // want "missing constructor for Service"
 	annotation.Injectable[inject.Default]
 	repo Repository
-}
-
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
 }

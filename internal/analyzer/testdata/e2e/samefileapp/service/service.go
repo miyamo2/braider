@@ -5,10 +5,6 @@ import (
 	"github.com/miyamo2/braider/pkg/annotation/inject"
 )
 
-type Service struct {
+type Service struct { // want "missing constructor for Service"
 	annotation.Injectable[inject.Default]
-}
-
-func NewService() *Service {
-	return &Service{}
 }
