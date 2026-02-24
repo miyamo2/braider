@@ -85,7 +85,7 @@ func NewAppAnalyzeRunner(
 
 func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 	reporter := &passReporter{pass: pass}
-	// Phase 1: Detect App annotations
+	// Detect App annotations
 	apps := r.appDetector.DetectAppAnnotations(pass)
 
 	// Skip if no App annotation present
@@ -93,7 +93,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 		return nil, nil
 	}
 
-	// Phase 1.5: Deduplicate by file (same file → first only)
+	// Deduplicate by file (same file → first only)
 	allApps := apps
 	apps = r.appDetector.DeduplicateAppsByFile(apps)
 
@@ -110,7 +110,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	// Phase 2: Validate App annotations
+	// Validate App annotations
 	if err := r.appDetector.ValidateAppAnnotations(pass, apps); err != nil {
 		// Report validation error
 		if appErr, ok := err.(*detect.AppValidationError); ok {
@@ -125,7 +125,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 		return nil, nil
 	}
 
-	// Phase 2.5: Report duplicate registration errors collected during dependency phase
+	// Report duplicate registration errors collected during dependency phase
 	if r.duplicateRegistry != nil {
 		duplicates := r.duplicateRegistry.GetAll()
 		for _, dup := range duplicates {
@@ -138,7 +138,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	// Phase 3: Retrieve all providers, injectors, and variables from global registries
+	// Retrieve all providers, injectors, and variables from global registries
 	providers := r.provideRegistry.GetAll()
 	injectors := r.injectRegistry.GetAll()
 	var variables []*registry.VariableInfo
@@ -146,7 +146,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 		variables = r.variableRegistry.GetAll()
 	}
 
-	// Phase 4: Build dependency graph
+	// Build dependency graph
 	depGraph, err := r.graphBuilder.BuildGraph(pass, providers, injectors, variables)
 	if err != nil {
 		// Check for unresolvable type with name mismatch hint (Req 6.5)
@@ -173,7 +173,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 		return nil, nil
 	}
 
-	// Phase 5: Extract app option to determine mode (default vs container)
+	// Extract app option to determine mode (default vs container)
 	optionMeta, optionErr := r.appOptionExtractor.ExtractAppOption(pass, apps[0])
 
 	// Handle option extraction errors (e.g. non-struct type parameter)
