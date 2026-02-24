@@ -22,8 +22,6 @@ const (
 	CategoryAppValidation = "braider:app-validation"
 	// CategoryBootstrapGeneration is for bootstrap code generation diagnostics.
 	CategoryBootstrapGeneration = "braider:bootstrap-generation"
-	// CategoryPackageLoading is for package loading and wait timeout diagnostics.
-	CategoryPackageLoading = "braider:package-loading"
 	// CategoryOptionValidation is for annotation option constraint violation diagnostics.
 	// Maps to SeverityCritical in phasedchecker, aborting the pipeline.
 	CategoryOptionValidation = "braider:option-validation"
@@ -77,12 +75,6 @@ type DiagnosticEmitter interface {
 
 	// EmitDuplicateAppWarning reports duplicate annotation.App.
 	EmitDuplicateAppWarning(reporter Reporter, pos token.Pos)
-
-	// EmitPackageLoadWarning reports a warning when package loading fails.
-	EmitPackageLoadWarning(reporter Reporter, pos token.Pos, reason string)
-
-	// EmitPackageWaitWarning reports a warning when waiting for packages times out.
-	EmitPackageWaitWarning(reporter Reporter, pos token.Pos, reason string)
 
 	// EmitGraphBuildError reports a dependency graph construction error.
 	EmitGraphBuildError(reporter Reporter, pos token.Pos, reason string)
@@ -226,31 +218,6 @@ func (e *diagnosticEmitter) EmitDuplicateAppWarning(reporter Reporter, pos token
 	)
 }
 
-// EmitPackageLoadWarning reports a warning when package loading fails.
-func (e *diagnosticEmitter) EmitPackageLoadWarning(reporter Reporter, pos token.Pos, reason string) {
-	reporter.Report(
-		analysis.Diagnostic{
-			Pos:      pos,
-			Category: CategoryPackageLoading,
-			Message:  fmt.Sprintf("warning: failed to load module packages: %s (bootstrap may be incomplete)", reason),
-		},
-	)
-}
-
-// EmitPackageWaitWarning reports a warning when waiting for packages times out.
-func (e *diagnosticEmitter) EmitPackageWaitWarning(reporter Reporter, pos token.Pos, reason string) {
-	reporter.Report(
-		analysis.Diagnostic{
-			Pos:      pos,
-			Category: CategoryPackageLoading,
-			Message: fmt.Sprintf(
-				"warning: timeout waiting for package analysis: %s (bootstrap may be incomplete)",
-				reason,
-			),
-		},
-	)
-}
-
 // EmitGraphBuildError reports a dependency graph construction error.
 func (e *diagnosticEmitter) EmitGraphBuildError(reporter Reporter, pos token.Pos, reason string) {
 	reporter.Report(
@@ -307,36 +274,48 @@ func (e *diagnosticEmitter) EmitUnsupportedVariableExpression(reporter Reporter,
 
 // EmitInvalidStructTagError reports an invalid braider struct tag value (braider:"").
 func (e *diagnosticEmitter) EmitInvalidStructTagError(reporter Reporter, pos token.Pos, fieldName string) {
-	reporter.Report(analysis.Diagnostic{
-		Pos:      pos,
-		Category: CategoryStructTagValidation,
-		Message:  fmt.Sprintf("invalid braider struct tag on field %s: tag value must not be empty", fieldName),
-	})
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:      pos,
+			Category: CategoryStructTagValidation,
+			Message:  fmt.Sprintf("invalid braider struct tag on field %s: tag value must not be empty", fieldName),
+		},
+	)
 }
 
 // EmitStructTagConflictError reports a braider struct tag conflict with WithoutConstructor.
-func (e *diagnosticEmitter) EmitStructTagConflictError(reporter Reporter, pos token.Pos, fieldName string, reason string) {
-	reporter.Report(analysis.Diagnostic{
-		Pos:      pos,
-		Category: CategoryStructTagValidation,
-		Message:  fmt.Sprintf("braider struct tag conflict on field %s: %s", fieldName, reason),
-	})
+func (e *diagnosticEmitter) EmitStructTagConflictError(
+	reporter Reporter, pos token.Pos, fieldName string, reason string,
+) {
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:      pos,
+			Category: CategoryStructTagValidation,
+			Message:  fmt.Sprintf("braider struct tag conflict on field %s: %s", fieldName, reason),
+		},
+	)
 }
 
 // EmitContainerTypeError reports a non-struct container type parameter.
 func (e *diagnosticEmitter) EmitContainerTypeError(reporter Reporter, pos token.Pos, typeName string) {
-	reporter.Report(analysis.Diagnostic{
-		Pos:      pos,
-		Category: CategoryContainerValidation,
-		Message:  fmt.Sprintf("container type parameter must be a struct type, got %s", typeName),
-	})
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:      pos,
+			Category: CategoryContainerValidation,
+			Message:  fmt.Sprintf("container type parameter must be a struct type, got %s", typeName),
+		},
+	)
 }
 
 // EmitContainerFieldError reports an unresolvable container field.
-func (e *diagnosticEmitter) EmitContainerFieldError(reporter Reporter, pos token.Pos, fieldName string, fieldType string, reason string) {
-	reporter.Report(analysis.Diagnostic{
-		Pos:      pos,
-		Category: CategoryContainerValidation,
-		Message:  fmt.Sprintf("container field %q (type %s): %s", fieldName, fieldType, reason),
-	})
+func (e *diagnosticEmitter) EmitContainerFieldError(
+	reporter Reporter, pos token.Pos, fieldName string, fieldType string, reason string,
+) {
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:      pos,
+			Category: CategoryContainerValidation,
+			Message:  fmt.Sprintf("container field %q (type %s): %s", fieldName, fieldType, reason),
+		},
+	)
 }
