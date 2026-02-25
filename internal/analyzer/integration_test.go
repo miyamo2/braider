@@ -5,7 +5,6 @@
 package analyzer
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/miyamo2/braider/internal/detect"
@@ -208,6 +207,7 @@ func TestIntegration(t *testing.T) {
 		{name: "ErrorVariableNameMismatch", testdir: "error_variable_name_mismatch", appSuggestFix: false},
 		{name: "ErrorVariableUnresolvableExpression", testdir: "error_variable_unresolvable", appSuggestFix: false},
 		{name: "ErrorDuplicateName", testdir: "error_duplicate_name", appSuggestFix: false},
+		{name: "ErrorVariableDuplicateName", testdir: "error_variable_duplicate_name", appSuggestFix: false},
 
 		// --- Error cases (non-fatal, AppAnalyzer still generates bootstrap) ---
 		{name: "ErrorUnresolvedParam", testdir: "unresolvedparam", appSuggestFix: true},
@@ -252,91 +252,5 @@ func TestIntegration(t *testing.T) {
 				}
 			},
 		)
-	}
-}
-
-// TestIntegration_ErrorVariableDuplicateName tests duplicate (TypeName, Name) detection for Variables:
-// Same named Variable registered twice -> Critical diagnostic emitted, aborting bootstrap generation.
-// Uses programmatic registry access since checkertest cannot naturally test duplicate registration.
-func TestIntegration_ErrorVariableDuplicateName(t *testing.T) {
-	variableReg := registry.NewVariableRegistry()
-
-	// First registration succeeds
-	err := variableReg.Register(
-		&registry.VariableInfo{
-			TypeName:       "os.File",
-			PackagePath:    "os",
-			PackageName:    "os",
-			LocalName:      "File",
-			ExpressionText: "os.Stdout",
-			Dependencies:   []string{},
-			Name:           "stdout",
-		},
-	)
-	if err != nil {
-		t.Fatalf("First registration should succeed, got: %v", err)
-	}
-
-	// Duplicate registration returns error
-	err = variableReg.Register(
-		&registry.VariableInfo{
-			TypeName:       "os.File",
-			PackagePath:    "another",
-			PackageName:    "another",
-			LocalName:      "File",
-			ExpressionText: "another.Stdout",
-			Dependencies:   []string{},
-			Name:           "stdout",
-		},
-	)
-	if err == nil {
-		t.Fatal("Duplicate registration should return error")
-	}
-	if !strings.Contains(err.Error(), "duplicate named dependency") {
-		t.Fatalf("Error should mention 'duplicate named dependency', got: %v", err)
-	}
-}
-
-// TestIntegration_ErrorInjectorDuplicateName tests that duplicate (TypeName, Name) registration
-// returns an error from Registry.Register(). The error is collected in DuplicateRegistry and
-// reported as a Critical diagnostic by AppAnalyzeRunner, aborting bootstrap generation.
-func TestIntegration_ErrorInjectorDuplicateName(t *testing.T) {
-	injectorReg := registry.NewInjectorRegistry()
-
-	// First registration succeeds
-	err := injectorReg.Register(
-		&registry.InjectorInfo{
-			TypeName:        "example.com/repo.Repository",
-			PackagePath:     "example.com/repo",
-			PackageName:     "repo",
-			LocalName:       "Repository",
-			ConstructorName: "NewRepository",
-			Dependencies:    []string{},
-			Name:            "primary",
-			OptionMetadata:  detect.OptionMetadata{Name: "primary"},
-		},
-	)
-	if err != nil {
-		t.Fatalf("First registration should succeed, got: %v", err)
-	}
-
-	// Duplicate registration returns error
-	err = injectorReg.Register(
-		&registry.InjectorInfo{
-			TypeName:        "example.com/repo.Repository",
-			PackagePath:     "example.com/repo2",
-			PackageName:     "repo2",
-			LocalName:       "Repository",
-			ConstructorName: "NewRepository",
-			Dependencies:    []string{},
-			Name:            "primary",
-			OptionMetadata:  detect.OptionMetadata{Name: "primary"},
-		},
-	)
-	if err == nil {
-		t.Fatal("Duplicate registration should return error")
-	}
-	if !strings.Contains(err.Error(), "duplicate") {
-		t.Errorf("Error should mention 'duplicate', got: %v", err)
 	}
 }

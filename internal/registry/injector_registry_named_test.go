@@ -185,3 +185,99 @@ func TestInjectorRegistry_GetByName(t *testing.T) {
 		}
 	})
 }
+
+func TestInjectorRegistryNamed_Register_DuplicateNamed(t *testing.T) {
+	t.Run("returns error for duplicate named injector", func(t *testing.T) {
+		r := NewInjectorRegistry()
+
+		info1 := &InjectorInfo{
+			TypeName:        "example.com/repo.Repository",
+			PackagePath:     "pkg1",
+			PackageName:     "repo1",
+			LocalName:       "Repository",
+			ConstructorName: "NewRepository",
+			Name:            "primary",
+			OptionMetadata:  detect.OptionMetadata{Name: "primary"},
+		}
+		info2 := &InjectorInfo{
+			TypeName:        "example.com/repo.Repository",
+			PackagePath:     "pkg2",
+			PackageName:     "repo2",
+			LocalName:       "Repository",
+			ConstructorName: "NewRepository",
+			Name:            "primary",
+			OptionMetadata:  detect.OptionMetadata{Name: "primary"},
+		}
+
+		if err := r.Register(info1); err != nil {
+			t.Fatalf("Register(info1) returned error: %v", err)
+		}
+
+		err := r.Register(info2)
+		if err == nil {
+			t.Fatal("Register(info2) should return error for duplicate named injector, got nil")
+		}
+	})
+
+	t.Run("allows same type with different names", func(t *testing.T) {
+		r := NewInjectorRegistry()
+
+		info1 := &InjectorInfo{
+			TypeName:        "example.com/repo.Repository",
+			PackagePath:     "pkg1",
+			PackageName:     "repo1",
+			LocalName:       "Repository",
+			ConstructorName: "NewRepository",
+			Name:            "primary",
+			OptionMetadata:  detect.OptionMetadata{Name: "primary"},
+		}
+		info2 := &InjectorInfo{
+			TypeName:        "example.com/repo.Repository",
+			PackagePath:     "pkg2",
+			PackageName:     "repo2",
+			LocalName:       "Repository",
+			ConstructorName: "NewRepository",
+			Name:            "secondary",
+			OptionMetadata:  detect.OptionMetadata{Name: "secondary"},
+		}
+
+		if err := r.Register(info1); err != nil {
+			t.Fatalf("Register(info1) returned error: %v", err)
+		}
+		if err := r.Register(info2); err != nil {
+			t.Fatalf("Register(info2) returned error: %v", err)
+		}
+
+		got1, ok1 := r.GetByName("example.com/repo.Repository", "primary")
+		got2, ok2 := r.GetByName("example.com/repo.Repository", "secondary")
+
+		if !ok1 || !ok2 {
+			t.Fatal("GetByName() returned ok=false for one or both named injectors")
+		}
+		if got1.Name != "primary" {
+			t.Errorf("got1.Name = %q, want %q", got1.Name, "primary")
+		}
+		if got2.Name != "secondary" {
+			t.Errorf("got2.Name = %q, want %q", got2.Name, "secondary")
+		}
+	})
+
+	t.Run("named and unnamed injectors of same type coexist", func(t *testing.T) {
+		r := NewInjectorRegistry()
+
+		unnamed := &InjectorInfo{TypeName: "example.com/repo.Repository", Name: ""}
+		named := &InjectorInfo{TypeName: "example.com/repo.Repository", Name: "primary", PackagePath: "pkg1", OptionMetadata: detect.OptionMetadata{Name: "primary"}}
+
+		if err := r.Register(unnamed); err != nil {
+			t.Fatalf("Register(unnamed) returned error: %v", err)
+		}
+		if err := r.Register(named); err != nil {
+			t.Fatalf("Register(named) returned error: %v", err)
+		}
+
+		got := r.GetAll()
+		if len(got) != 2 {
+			t.Errorf("expected 2, got %d", len(got))
+		}
+	})
+}
