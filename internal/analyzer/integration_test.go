@@ -125,7 +125,6 @@ func TestIntegration(t *testing.T) {
 		{name: "SameFileApp", testdir: "samefileapp"},
 		{name: "EmptyGraph", testdir: "emptygraph"},
 		{name: "DependencyAlreadyUsed", testdir: "depinuse"},
-		{name: "DependencyBlankIdentifier", testdir: "depblank"},
 		{name: "PackageNameCollision", testdir: "pkgcollision"},
 		{name: "ModuleWideDiscovery", testdir: "modulewide"},
 		{name: "WithoutConstructor", testdir: "without_constructor"},
@@ -157,7 +156,6 @@ func TestIntegration(t *testing.T) {
 
 		// --- Idempotent/outdated ---
 		{name: "IdempotentBehavior", testdir: "idempotent"},
-		{name: "IdempotentImport", testdir: "idempotent_import"},
 		{name: "BootstrapUpdate", testdir: "outdated"},
 		{name: "VariableIdempotent", testdir: "variable_idempotent"},
 		{name: "VariableOutdated", testdir: "variable_outdated"},

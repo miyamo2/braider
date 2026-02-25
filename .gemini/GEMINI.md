@@ -144,15 +144,15 @@ Tests use `github.com/miyamo2/phasedchecker/checkertest` with testdata directori
 
 ### Key Test Directories
 
-- `testdata/e2e/` — 83 test case directories organized by category:
-  - Core: basic, simpleapp, multitype, crosspackage, modulewide, samefileapp, emptygraph, depinuse, depblank, pkgcollision, without_constructor
+- `testdata/e2e/` — 81 test case directories organized by category:
+  - Core: basic, simpleapp, multitype, crosspackage, modulewide, samefileapp, emptygraph, depinuse, pkgcollision, without_constructor
   - Interface: iface, ifacedep, crossiface, unresiface
   - Typed/Named inject: typed_inject, named_inject
   - Provide: provide_typed, provide_named, provide_cross_type
   - Variable: variable_basic, variable_named, variable_typed, variable_typed_named, variable_cross_package, variable_pkg_collision, variable_alias_import, variable_ident_ext_type, variable_mixed
   - Container: container_anonymous, container_basic, container_cross_package, container_idempotent, container_iface_field, container_mixed_option, container_named, container_named_field, container_outdated, container_provide_cross_type, container_transitive, container_variable
   - Struct tag: struct_tag_all_excluded, struct_tag_exclude, struct_tag_idempotent, struct_tag_mixed, struct_tag_named, struct_tag_outdated, struct_tag_typed_fields
-  - Idempotent: idempotent, idempotent_import, outdated, variable_idempotent, variable_outdated
+  - Idempotent: idempotent, outdated, variable_idempotent, variable_outdated
   - Error: error_cases, error_duplicate_name, error_nonliteral, error_provide_typed, error_variable_*, error_struct_tag_*, error_container_*, circular, ambiguous*, unresolvedparam, unresparam, unresolvedif, nonmainapp, noapp, multipleapp
   - Constructor generation: constructorgen (per-file test cases with .go/.golden pairs)
   - Dependency-only: dep_basic, dep_missing_constructor, dep_cross_package, dep_abstrct
