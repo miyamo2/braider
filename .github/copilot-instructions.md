@@ -13,7 +13,8 @@ This file provides guidance to GitHub Copilot when working with code in this rep
 ```bash
 go build ./...                                        # Build all packages
 go test ./...                                         # Run all tests
-go test -v -run TestAppAnalyzer ./internal/analyzer   # Run a specific test
+go test -v -run TestIntegration ./internal/analyzer   # Run all e2e integration tests
+go test -v -run TestIntegration/basic ./internal/analyzer  # Run a single e2e test case
 go build -o braider ./cmd/braider                     # Build analyzer binary
 braider ./...                                         # Run analyzer
 braider -fix ./...                                    # Apply suggested fixes
@@ -114,24 +115,20 @@ Annotation types are identified via `types.Implements` checks against sealed mar
 
 ### Internal Package Layers
 
-- **`annotation/`** — sealed marker interfaces (`Injectable`, `Provider`, `Variable`, `App`, and their option variants) used for `types.Implements` checks
-- **`detect/`** — AST pattern recognition (InjectDetector, ProvideCallDetector, VariableCallDetector, AppDetector, AppOptionExtractor, StructDetector, FieldAnalyzer, ConstructorAnalyzer, OptionExtractor, OptionMetadata, NamerValidator, MarkerResolver, ContainerDefinition/ContainerField models)
-- **`registry/`** — shared mutable state (ProviderRegistry, InjectorRegistry, VariableRegistry, DuplicateRegistry)
-- **`graph/`** — DependencyGraphBuilder, TopologicalSorter, InterfaceRegistry, ContainerValidator, ContainerResolver
-- **`generate/`** — ConstructorGenerator, BootstrapGenerator, hash computation, import management, AST-based code generation (ast_builder helpers + format.Node)
-- **`report/`** — SuggestedFixBuilder, DiagnosticEmitter, diagnostic category constants (CategoryOptionValidation, CategoryExpressionValidation, CategoryDependencyRegistration map to SeverityCritical)
-- **`loader/`** — PackageLoader for module package discovery
-- **`analyzer/`** — Aggregator (AfterPhase callback), DependencyResult (per-package result type)
+- **`internal/annotation/`** — sealed marker interfaces (`Injectable`, `Provider`, `Variable`, `App`, and their option variants) used for `types.Implements` checks
+- **`internal/detect/`** — AST pattern recognition (InjectDetector, ProvideCallDetector, VariableCallDetector, AppDetector, AppOptionExtractor, StructDetector, FieldAnalyzer, ConstructorAnalyzer, OptionExtractor, OptionMetadata, NamerValidator, MarkerResolver, ContainerDefinition/ContainerField models)
+- **`internal/registry/`** — shared mutable state (ProviderRegistry, InjectorRegistry, VariableRegistry, DuplicateRegistry)
+- **`internal/graph/`** — DependencyGraphBuilder, TopologicalSorter, InterfaceRegistry, ContainerValidator, ContainerResolver
+- **`internal/generate/`** — ConstructorGenerator, BootstrapGenerator, hash computation, import management, AST-based code generation (ast_builder helpers + format.Node)
+- **`internal/report/`** — SuggestedFixBuilder, DiagnosticEmitter, diagnostic category constants (CategoryOptionValidation, CategoryExpressionValidation, CategoryDependencyRegistration map to SeverityCritical)
+- **`internal/loader/`** — PackageLoader for module package discovery
+- **`internal/analyzer/`** — Aggregator (AfterPhase callback), DependencyResult (per-package result type)
 
 ## Testing Patterns
 
 ### phasedchecker/checkertest Framework
 
-Tests use `github.com/miyamo2/phasedchecker/checkertest` with testdata directories under `internal/analyzer/testdata/`.
-
-- **DependencyAnalyzer-only tests**: `checkertest.Run` (no golden files) — validates diagnostics only
-- **Integration tests (DependencyAnalyzer + AppAnalyzer)**: `checkertest.RunWithSuggestedFixes` — validates generated code against `.golden` files
-- Tests build a `phasedchecker.Config` with the same Pipeline/DiagnosticPolicy as production, using isolated registry instances
+All e2e tests run through a single table-driven `TestIntegration` function in `internal/analyzer/integration_test.go`, using `checkertest.RunWithSuggestedFixes` to validate both diagnostics and generated code against `.golden` files. Each test case builds a `phasedchecker.Config` with the same Pipeline/DiagnosticPolicy as production, using isolated registry instances.
 
 ### Testdata Conventions
 
@@ -154,7 +151,7 @@ Tests use `github.com/miyamo2/phasedchecker/checkertest` with testdata directori
   - Struct tag: struct_tag_all_excluded, struct_tag_exclude, struct_tag_idempotent, struct_tag_mixed, struct_tag_named, struct_tag_outdated, struct_tag_typed_fields
   - Idempotent: idempotent, outdated, variable_idempotent, variable_outdated
   - Error: error_cases, error_duplicate_name, error_nonliteral, error_provide_typed, error_variable_*, error_struct_tag_*, error_container_*, circular, ambiguous*, unresolvedparam, unresparam, unresolvedif, nonmainapp, noapp, multipleapp
-  - Constructor generation: constructorgen (per-file test cases with .go/.golden pairs)
+  - Constructor generation: constructorgen (per-file .go/.golden pairs within a single test case directory)
   - Dependency-only: dep_basic, dep_missing_constructor, dep_cross_package, dep_interface_impl
 
 ## Commit Messages

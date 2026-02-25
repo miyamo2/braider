@@ -24,15 +24,18 @@ This self-hosting pattern means braider's own `cmd/braider/main.go` contains bra
 ### Test Fixtures
 **Location**: `internal/analyzer/testdata/`
 **Purpose**: Go source files used as test inputs for checkertest
-**Pattern**: Organized by test category and analyzer:
-- `testdata/e2e/` - App annotation scenarios (~83 cases: basic, typed_inject, named_inject, provide_typed, provide_named, provide_cross_type, struct_tag_*, container_*, circular, crosspackage, idempotent, without_constructor, error cases, etc.)
-  - `constructorgen/` - Constructor generation scenarios (per-file test cases with .go/.golden pairs)
-  - `dep_basic/`, `dep_missing_constructor/`, `dep_cross_package/`, `dep_interface_impl/` - Dependency-only analysis scenarios
-- `testdata/providefunc/` - Provider function detection scenarios (legacy)
-
-
-
-Variable-related test cases follow the same pattern with `variable_` prefix (variable_basic, variable_typed, variable_named, variable_mixed, variable_cross_package, variable_alias_import, variable_pkg_collision, variable_idempotent, variable_outdated) and `error_variable_` prefix for error scenarios. Struct tag test cases use `struct_tag_` prefix (struct_tag_mixed, struct_tag_named, struct_tag_typed_fields, struct_tag_exclude, struct_tag_all_excluded, struct_tag_idempotent, struct_tag_outdated) and `error_struct_tag_` prefix for error scenarios. Container test cases use `container_` prefix (container_basic, container_anonymous, container_named, container_named_field, container_cross_package, container_iface_field, container_mixed_option, container_transitive, container_variable, container_idempotent, container_outdated) and `error_container_` prefix for error scenarios (error_container_non_struct, error_container_ambiguous, error_container_unresolved, error_container_tag_empty, error_container_tag_exclude).
+**Pattern**: All test cases unified under a single `testdata/e2e/` directory (~81 cases), organized by category prefix:
+- Core scenarios: `basic`, `crosspackage`, `simpleapp`, `modulewide`, `pkgcollision`, `emptygraph`, `depinuse`, `samefileapp`, `without_constructor`
+- Interface resolution: `iface`, `ifacedep`, `crossiface`, `unresiface`
+- Typed/Named inject: `typed_inject`, `named_inject`
+- Provide variations: `provide_typed`, `provide_named`, `provide_cross_type`
+- Variable annotation: `variable_*` prefix (basic, typed, named, mixed, cross_package, alias_import, pkg_collision, idempotent, outdated, ident_ext_type, typed_named)
+- Struct tag: `struct_tag_*` prefix (named, exclude, mixed, all_excluded, typed_fields, idempotent, outdated)
+- Container mode: `container_*` prefix (basic, anonymous, named, named_field, cross_package, iface_field, mixed_option, transitive, variable, idempotent, outdated, provide_cross_type)
+- Idempotent/outdated: `idempotent`, `outdated`
+- Error cases: `error_*` prefix (error_cases, error_duplicate_name, error_nonliteral, error_provide_typed, error_variable_*, error_struct_tag_*, error_container_*)
+- Constructor generation: `constructorgen/` (per-file test cases with .go/.golden pairs)
+- Dependency-only smoke tests: `dep_basic`, `dep_missing_constructor`, `dep_cross_package`, `dep_interface_impl` (no App annotation, no golden files; verify dependency phase runs without unexpected diagnostics)
 
 ## Naming Conventions
 
@@ -127,3 +130,4 @@ _Updated: 2026-02-16 - Sync: App annotation now generic App[T](main) with app op
 _Updated: 2026-02-18 - Sync: Updated e2e case count to ~78; added provide_cross_type test case category; added MarkerInterfaces/ResolveMarkers to detect component description_
 _Updated: 2026-02-20 - Sync: Generate package refactored to AST-based code generation; CodeFormatter removed; generators now use ast_builder.go helpers + format.Node instead of string concatenation_
 _Updated: 2026-02-25 - Sync: Migrated from multichecker to phasedchecker; CLI entry point now uses app.Container[T] and phasedchecker.Main() with Config/Pipeline/DiagnosticPolicy; added Aggregator/DependencyResult to analyzer package; replaced PackageTracker with DuplicateRegistry; updated test framework references from analysistest to checkertest_
+_Updated: 2026-02-26 - Sync: Unified testdata structure under single e2e/ directory (removed legacy bootstrapgen/, constructorgen/, dependency/, providefunc/ top-level directories); updated e2e case count to 81; consolidated redundant test category descriptions into categorized prefix listing; added dep_ smoke test description_

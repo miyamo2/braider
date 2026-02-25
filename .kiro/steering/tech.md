@@ -40,10 +40,11 @@ The pipeline is configured via `phasedchecker.Config` with explicit `Pipeline` (
 
 ### Testing
 - Use `phasedchecker/checkertest` package for analyzer testing
-- `checkertest.Run` for diagnostic-only tests; `checkertest.RunWithSuggestedFixes` for golden file tests
+- All e2e tests consolidated in a single table-driven `TestIntegration` using `checkertest.RunWithSuggestedFixes`
 - Tests build a `phasedchecker.Config` with the same Pipeline/DiagnosticPolicy as production, using isolated registry instances
-- Create testdata directories with Go source fixtures
+- Create testdata directories with Go source fixtures under `testdata/e2e/`
 - Test both positive cases (should report) and negative cases (should not report)
+- Dependency-only smoke tests (no App annotation, no golden files) share the same test runner; `RunWithSuggestedFixes` verifies no unexpected diagnostics
 
 ## Development Environment
 
@@ -171,3 +172,4 @@ _Updated: 2026-02-16 - Sync: App annotation now generic App[T](main) with app op
 _Updated: 2026-02-18 - Sync: Added cross-package constructor qualification pattern (ConstructorPkgPath/ConstructorPkgName separation from PackagePath/PackageName for Provide nodes returning types from different packages); added marker resolution to detect component list_
 _Updated: 2026-02-20 - Sync: Code generation refactored from string concatenation to AST-based approach (go/ast + format.Node); CodeFormatter component removed; added AST-Based Code Generation technical decision; generate package now uses ast_builder.go helpers and renderDecl/renderNode; report package delegates import rendering to generate.RenderImportBlock_
 _Updated: 2026-02-25 - Sync: Migrated from multichecker.Main() to phasedchecker.Main() phased pipeline architecture; replaced analysistest with phasedchecker/checkertest; added Aggregator/DependencyResult cross-phase coordination pattern; replaced Global Registry Pattern with Cross-Phase State section; removed PackageTracker (no longer exists); added DuplicateRegistry; updated dogfooding to use app.Container[T] and phasedchecker.Config; added analyzer package to component list_
+_Updated: 2026-02-26 - Sync: Updated testing section to reflect consolidated table-driven TestIntegration pattern (all e2e tests in single test function using RunWithSuggestedFixes); added dependency-only smoke test pattern_
