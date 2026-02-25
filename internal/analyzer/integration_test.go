@@ -220,11 +220,15 @@ func TestIntegration(t *testing.T) {
 		// --- Constructor generation ---
 		{name: "ConstructorGeneration", testdir: "constructorgen"},
 
-		// --- Dependency-only scenarios ---
-		{name: "DepBasicRegistration", testdir: "dep_basic"},
-		{name: "DepMissingConstructor", testdir: "dep_missing_constructor"},
-		{name: "DepCrossPackage", testdir: "dep_cross_package"},
-		{name: "DepInterfaceImplementation", testdir: "dep_abstrct"},
+		// --- Dependency-only smoke tests ---
+		// These test cases have NO annotation.App, NO // want directives, and NO .golden files.
+		// They verify that the dependency phase processes valid annotation patterns
+		// without crashing and without emitting unexpected diagnostics.
+		// (checkertest reports unexpected diagnostics as test failures via checkDiagnostics)
+		{name: "DepBasicRegistration", testdir: "dep_basic"},              // Injectable + Provide in same package
+		{name: "DepMissingConstructor", testdir: "dep_missing_constructor"}, // plain struct without any annotation
+		{name: "DepCrossPackage", testdir: "dep_cross_package"},            // Injectable depending on cross-package Provide
+		{name: "DepInterfaceImplementation", testdir: "dep_interface_impl"}, // interface + Provide + Injectable
 	}
 
 	for _, tt := range tests {

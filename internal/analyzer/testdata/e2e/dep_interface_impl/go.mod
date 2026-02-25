@@ -1,4 +1,4 @@
-module example.com/dep_abstrct
+module example.com/dep_interface_impl
 
 go 1.25
 

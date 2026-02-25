@@ -155,7 +155,7 @@ Tests use `github.com/miyamo2/phasedchecker/checkertest` with testdata directori
   - Idempotent: idempotent, outdated, variable_idempotent, variable_outdated
   - Error: error_cases, error_duplicate_name, error_nonliteral, error_provide_typed, error_variable_*, error_struct_tag_*, error_container_*, circular, ambiguous*, unresolvedparam, unresparam, unresolvedif, nonmainapp, noapp, multipleapp
   - Constructor generation: constructorgen (per-file test cases with .go/.golden pairs)
-  - Dependency-only: dep_basic, dep_missing_constructor, dep_cross_package, dep_abstrct
+  - Dependency-only: dep_basic, dep_missing_constructor, dep_cross_package, dep_interface_impl
 
 ## Commit Messages
 

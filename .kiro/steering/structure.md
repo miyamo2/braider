@@ -27,7 +27,7 @@ This self-hosting pattern means braider's own `cmd/braider/main.go` contains bra
 **Pattern**: Organized by test category and analyzer:
 - `testdata/e2e/` - App annotation scenarios (~83 cases: basic, typed_inject, named_inject, provide_typed, provide_named, provide_cross_type, struct_tag_*, container_*, circular, crosspackage, idempotent, without_constructor, error cases, etc.)
   - `constructorgen/` - Constructor generation scenarios (per-file test cases with .go/.golden pairs)
-  - `dep_basic/`, `dep_missing_constructor/`, `dep_cross_package/`, `dep_abstrct/` - Dependency-only analysis scenarios
+  - `dep_basic/`, `dep_missing_constructor/`, `dep_cross_package/`, `dep_interface_impl/` - Dependency-only analysis scenarios
 - `testdata/providefunc/` - Provider function detection scenarios (legacy)
 
 
