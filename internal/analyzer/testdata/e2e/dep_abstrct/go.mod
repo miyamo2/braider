@@ -1,4 +1,4 @@
-module example.com/dependency/basic
+module example.com/dep_abstrct
 
 go 1.25
 

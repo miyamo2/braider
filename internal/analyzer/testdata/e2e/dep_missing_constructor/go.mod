@@ -1,4 +1,4 @@
-module example.com/dependency/missing_constructor
+module example.com/dep_missing_constructor
 
 go 1.25
 

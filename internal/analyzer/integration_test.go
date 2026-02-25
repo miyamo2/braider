@@ -114,111 +114,119 @@ func buildIntegrationDeps(t *testing.T) (
 // pipeline via checkertest, and verifies diagnostics and suggested fixes.
 func TestIntegration(t *testing.T) {
 	tests := []struct {
-		name          string
-		testdir       string
-		appSuggestFix bool
+		name    string
+		testdir string
 	}{
 		// --- Core scenarios ---
-		{name: "BasicSinglePackage", testdir: "basic", appSuggestFix: true},
-		{name: "CrossPackageImports", testdir: "crosspackage", appSuggestFix: true},
-		{name: "MultiTypeCrossPackage", testdir: "multitype", appSuggestFix: true},
-		{name: "SimpleApp", testdir: "simpleapp", appSuggestFix: true},
-		{name: "SameFileApp", testdir: "samefileapp", appSuggestFix: true},
-		{name: "EmptyGraph", testdir: "emptygraph", appSuggestFix: true},
-		{name: "DependencyAlreadyUsed", testdir: "depinuse", appSuggestFix: true},
-		{name: "DependencyBlankIdentifier", testdir: "depblank", appSuggestFix: true},
-		{name: "PackageNameCollision", testdir: "pkgcollision", appSuggestFix: true},
-		{name: "ModuleWideDiscovery", testdir: "modulewide", appSuggestFix: true},
-		{name: "WithoutConstructor", testdir: "without_constructor", appSuggestFix: true},
+		{name: "BasicSinglePackage", testdir: "basic"},
+		{name: "CrossPackageImports", testdir: "crosspackage"},
+		{name: "MultiTypeCrossPackage", testdir: "multitype"},
+		{name: "SimpleApp", testdir: "simpleapp"},
+		{name: "SameFileApp", testdir: "samefileapp"},
+		{name: "EmptyGraph", testdir: "emptygraph"},
+		{name: "DependencyAlreadyUsed", testdir: "depinuse"},
+		{name: "DependencyBlankIdentifier", testdir: "depblank"},
+		{name: "PackageNameCollision", testdir: "pkgcollision"},
+		{name: "ModuleWideDiscovery", testdir: "modulewide"},
+		{name: "WithoutConstructor", testdir: "without_constructor"},
 
 		// --- Interface resolution ---
-		{name: "InterfaceResolution", testdir: "iface", appSuggestFix: true},
-		{name: "InterfaceDependency", testdir: "ifacedep", appSuggestFix: true},
-		{name: "CrossPackageInterface", testdir: "crossiface", appSuggestFix: true},
+		{name: "InterfaceResolution", testdir: "iface"},
+		{name: "InterfaceDependency", testdir: "ifacedep"},
+		{name: "CrossPackageInterface", testdir: "crossiface"},
 
 		// --- Typed/Named inject ---
-		{name: "TypedInject", testdir: "typed_inject", appSuggestFix: true},
-		{name: "NamedInject", testdir: "named_inject", appSuggestFix: true},
+		{name: "TypedInject", testdir: "typed_inject"},
+		{name: "NamedInject", testdir: "named_inject"},
 
 		// --- Provide variations ---
-		{name: "ProvideTyped", testdir: "provide_typed", appSuggestFix: true},
-		{name: "ProvideNamed", testdir: "provide_named", appSuggestFix: true},
-		{name: "ProvideCrossType", testdir: "provide_cross_type", appSuggestFix: true},
+		{name: "ProvideTyped", testdir: "provide_typed"},
+		{name: "ProvideNamed", testdir: "provide_named"},
+		{name: "ProvideCrossType", testdir: "provide_cross_type"},
 
 		// --- Variable annotation ---
-		{name: "VariableBasic", testdir: "variable_basic", appSuggestFix: true},
-		{name: "VariableTyped", testdir: "variable_typed", appSuggestFix: true},
-		{name: "VariableNamed", testdir: "variable_named", appSuggestFix: true},
-		{name: "VariableMixed", testdir: "variable_mixed", appSuggestFix: true},
-		{name: "VariableTypedNamed", testdir: "variable_typed_named", appSuggestFix: true},
-		{name: "VariableCrossPackage", testdir: "variable_cross_package", appSuggestFix: true},
-		{name: "VariableAliasImport", testdir: "variable_alias_import", appSuggestFix: true},
-		{name: "VariablePkgCollision", testdir: "variable_pkg_collision", appSuggestFix: true},
-		{name: "VariableIdentExternalType", testdir: "variable_ident_ext_type", appSuggestFix: true},
+		{name: "VariableBasic", testdir: "variable_basic"},
+		{name: "VariableTyped", testdir: "variable_typed"},
+		{name: "VariableNamed", testdir: "variable_named"},
+		{name: "VariableMixed", testdir: "variable_mixed"},
+		{name: "VariableTypedNamed", testdir: "variable_typed_named"},
+		{name: "VariableCrossPackage", testdir: "variable_cross_package"},
+		{name: "VariableAliasImport", testdir: "variable_alias_import"},
+		{name: "VariablePkgCollision", testdir: "variable_pkg_collision"},
+		{name: "VariableIdentExternalType", testdir: "variable_ident_ext_type"},
 
 		// --- Idempotent/outdated ---
-		{name: "IdempotentBehavior", testdir: "idempotent", appSuggestFix: true},
-		{name: "IdempotentImport", testdir: "idempotent_import", appSuggestFix: true},
-		{name: "BootstrapUpdate", testdir: "outdated", appSuggestFix: true},
-		{name: "VariableIdempotent", testdir: "variable_idempotent", appSuggestFix: true},
-		{name: "VariableOutdated", testdir: "variable_outdated", appSuggestFix: true},
+		{name: "IdempotentBehavior", testdir: "idempotent"},
+		{name: "IdempotentImport", testdir: "idempotent_import"},
+		{name: "BootstrapUpdate", testdir: "outdated"},
+		{name: "VariableIdempotent", testdir: "variable_idempotent"},
+		{name: "VariableOutdated", testdir: "variable_outdated"},
 
 		// --- Struct tag ---
-		{name: "StructTagNamed", testdir: "struct_tag_named", appSuggestFix: true},
-		{name: "StructTagExclude", testdir: "struct_tag_exclude", appSuggestFix: true},
-		{name: "StructTagMixed", testdir: "struct_tag_mixed", appSuggestFix: true},
-		{name: "StructTagAllExcluded", testdir: "struct_tag_all_excluded", appSuggestFix: true},
-		{name: "StructTagIdempotent", testdir: "struct_tag_idempotent", appSuggestFix: true},
-		{name: "StructTagOutdated", testdir: "struct_tag_outdated", appSuggestFix: true},
-		{name: "StructTagTypedFields", testdir: "struct_tag_typed_fields", appSuggestFix: true},
+		{name: "StructTagNamed", testdir: "struct_tag_named"},
+		{name: "StructTagExclude", testdir: "struct_tag_exclude"},
+		{name: "StructTagMixed", testdir: "struct_tag_mixed"},
+		{name: "StructTagAllExcluded", testdir: "struct_tag_all_excluded"},
+		{name: "StructTagIdempotent", testdir: "struct_tag_idempotent"},
+		{name: "StructTagOutdated", testdir: "struct_tag_outdated"},
+		{name: "StructTagTypedFields", testdir: "struct_tag_typed_fields"},
 
 		// --- Container mode ---
-		{name: "ContainerBasic", testdir: "container_basic", appSuggestFix: true},
-		{name: "ContainerNamed", testdir: "container_named", appSuggestFix: true},
-		{name: "ContainerIdempotent", testdir: "container_idempotent", appSuggestFix: true},
-		{name: "ContainerOutdated", testdir: "container_outdated", appSuggestFix: true},
-		{name: "ContainerAnonymous", testdir: "container_anonymous", appSuggestFix: true},
-		{name: "ContainerNamedField", testdir: "container_named_field", appSuggestFix: true},
-		{name: "ContainerIfaceField", testdir: "container_iface_field", appSuggestFix: true},
-		{name: "ContainerCrossPackage", testdir: "container_cross_package", appSuggestFix: true},
-		{name: "ContainerTransitive", testdir: "container_transitive", appSuggestFix: true},
-		{name: "ContainerVariable", testdir: "container_variable", appSuggestFix: true},
-		{name: "ContainerMixedOption", testdir: "container_mixed_option", appSuggestFix: true},
-		{name: "ContainerProvideCrossType", testdir: "container_provide_cross_type", appSuggestFix: true},
+		{name: "ContainerBasic", testdir: "container_basic"},
+		{name: "ContainerNamed", testdir: "container_named"},
+		{name: "ContainerIdempotent", testdir: "container_idempotent"},
+		{name: "ContainerOutdated", testdir: "container_outdated"},
+		{name: "ContainerAnonymous", testdir: "container_anonymous"},
+		{name: "ContainerNamedField", testdir: "container_named_field"},
+		{name: "ContainerIfaceField", testdir: "container_iface_field"},
+		{name: "ContainerCrossPackage", testdir: "container_cross_package"},
+		{name: "ContainerTransitive", testdir: "container_transitive"},
+		{name: "ContainerVariable", testdir: "container_variable"},
+		{name: "ContainerMixedOption", testdir: "container_mixed_option"},
+		{name: "ContainerProvideCrossType", testdir: "container_provide_cross_type"},
 
 		// --- Container error cases ---
-		{name: "ErrorContainerUnresolved", testdir: "error_container_unresolved", appSuggestFix: false},
-		{name: "ErrorContainerTagExclude", testdir: "error_container_tag_exclude", appSuggestFix: false},
-		{name: "ErrorContainerTagEmpty", testdir: "error_container_tag_empty", appSuggestFix: false},
-		{name: "ErrorContainerNonStruct", testdir: "error_container_non_struct", appSuggestFix: false},
-		{name: "ErrorContainerAmbiguous", testdir: "error_container_ambiguous", appSuggestFix: false},
+		{name: "ErrorContainerUnresolved", testdir: "error_container_unresolved"},
+		{name: "ErrorContainerTagExclude", testdir: "error_container_tag_exclude"},
+		{name: "ErrorContainerTagEmpty", testdir: "error_container_tag_empty"},
+		{name: "ErrorContainerNonStruct", testdir: "error_container_non_struct"},
+		{name: "ErrorContainerAmbiguous", testdir: "error_container_ambiguous"},
 
 		// --- App-only (no DependencyAnalyzer) ---
-		{name: "NonMainReference", testdir: "nonmainapp", appSuggestFix: true},
-		{name: "NoAppAnnotation", testdir: "noapp", appSuggestFix: true},
-		{name: "MultipleEntryPoints", testdir: "multipleapp", appSuggestFix: true},
+		{name: "NonMainReference", testdir: "nonmainapp"},
+		{name: "NoAppAnnotation", testdir: "noapp"},
+		{name: "MultipleEntryPoints", testdir: "multipleapp"},
 
-		// --- Error cases (AppAnalyzer uses Run, not RunWithSuggestedFixes) ---
-		{name: "ErrorCases", testdir: "error_cases", appSuggestFix: false},
-		{name: "ErrorNonLiteralNamer", testdir: "error_nonliteral", appSuggestFix: false},
-		{name: "ErrorProvideTyped", testdir: "error_provide_typed", appSuggestFix: false},
-		{name: "ErrorVariableTyped", testdir: "error_variable_typed", appSuggestFix: false},
-		{name: "ErrorVariableNamer", testdir: "error_variable_namer", appSuggestFix: false},
-		{name: "ErrorVariableNameMismatch", testdir: "error_variable_name_mismatch", appSuggestFix: false},
-		{name: "ErrorVariableUnresolvableExpression", testdir: "error_variable_unresolvable", appSuggestFix: false},
-		{name: "ErrorDuplicateName", testdir: "error_duplicate_name", appSuggestFix: false},
-		{name: "ErrorVariableDuplicateName", testdir: "error_variable_duplicate_name", appSuggestFix: false},
+		// --- Error cases ---
+		{name: "ErrorCases", testdir: "error_cases"},
+		{name: "ErrorNonLiteralNamer", testdir: "error_nonliteral"},
+		{name: "ErrorProvideTyped", testdir: "error_provide_typed"},
+		{name: "ErrorVariableTyped", testdir: "error_variable_typed"},
+		{name: "ErrorVariableNamer", testdir: "error_variable_namer"},
+		{name: "ErrorVariableNameMismatch", testdir: "error_variable_name_mismatch"},
+		{name: "ErrorVariableUnresolvableExpression", testdir: "error_variable_unresolvable"},
+		{name: "ErrorDuplicateName", testdir: "error_duplicate_name"},
+		{name: "ErrorVariableDuplicateName", testdir: "error_variable_duplicate_name"},
 
 		// --- Error cases (non-fatal, AppAnalyzer still generates bootstrap) ---
-		{name: "ErrorUnresolvedParam", testdir: "unresolvedparam", appSuggestFix: true},
-		{name: "ErrorUnresolvedParamDetail", testdir: "unresparam", appSuggestFix: true},
-		{name: "CircularDependency", testdir: "circular", appSuggestFix: true},
-		{name: "AmbiguousInterface", testdir: "ambiguous", appSuggestFix: true},
-		{name: "AmbiguousInterfaceProvide", testdir: "ambiguousiface", appSuggestFix: true},
-		{name: "UnresolvedInterface", testdir: "unresiface", appSuggestFix: true},
-		{name: "UnresolvedInterfaceDependency", testdir: "unresolvedif", appSuggestFix: true},
-		{name: "ErrorStructTagEmpty", testdir: "error_struct_tag_empty", appSuggestFix: true},
-		{name: "ErrorStructTagConflict", testdir: "error_struct_tag_conflict", appSuggestFix: true},
+		{name: "ErrorUnresolvedParam", testdir: "unresolvedparam"},
+		{name: "ErrorUnresolvedParamDetail", testdir: "unresparam"},
+		{name: "CircularDependency", testdir: "circular"},
+		{name: "AmbiguousInterface", testdir: "ambiguous"},
+		{name: "AmbiguousInterfaceProvide", testdir: "ambiguousiface"},
+		{name: "UnresolvedInterface", testdir: "unresiface"},
+		{name: "UnresolvedInterfaceDependency", testdir: "unresolvedif"},
+		{name: "ErrorStructTagEmpty", testdir: "error_struct_tag_empty"},
+		{name: "ErrorStructTagConflict", testdir: "error_struct_tag_conflict"},
+
+		// --- Constructor generation ---
+		{name: "ConstructorGeneration", testdir: "constructorgen"},
+
+		// --- Dependency-only scenarios ---
+		{name: "DepBasicRegistration", testdir: "dep_basic"},
+		{name: "DepMissingConstructor", testdir: "dep_missing_constructor"},
+		{name: "DepCrossPackage", testdir: "dep_cross_package"},
+		{name: "DepInterfaceImplementation", testdir: "dep_abstrct"},
 	}
 
 	for _, tt := range tests {
@@ -245,11 +253,7 @@ func TestIntegration(t *testing.T) {
 					},
 				}
 
-				if tt.appSuggestFix {
-					checkertest.RunWithSuggestedFixes(t, testdir, cfg, "./...")
-				} else {
-					checkertest.Run(t, testdir, cfg, "./...")
-				}
+				checkertest.RunWithSuggestedFixes(t, testdir, cfg, "./...")
 			},
 		)
 	}

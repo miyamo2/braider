@@ -144,7 +144,7 @@ Tests use `github.com/miyamo2/phasedchecker/checkertest` with testdata directori
 
 ### Key Test Directories
 
-- `testdata/e2e/` — 78 test case directories organized by category:
+- `testdata/e2e/` — 83 test case directories organized by category:
   - Core: basic, simpleapp, multitype, crosspackage, modulewide, samefileapp, emptygraph, depinuse, depblank, pkgcollision, without_constructor
   - Interface: iface, ifacedep, crossiface, unresiface
   - Typed/Named inject: typed_inject, named_inject
@@ -154,8 +154,8 @@ Tests use `github.com/miyamo2/phasedchecker/checkertest` with testdata directori
   - Struct tag: struct_tag_all_excluded, struct_tag_exclude, struct_tag_idempotent, struct_tag_mixed, struct_tag_named, struct_tag_outdated, struct_tag_typed_fields
   - Idempotent: idempotent, idempotent_import, outdated, variable_idempotent, variable_outdated
   - Error: error_cases, error_duplicate_name, error_nonliteral, error_provide_typed, error_variable_*, error_struct_tag_*, error_container_*, circular, ambiguous*, unresolvedparam, unresparam, unresolvedif, nonmainapp, noapp, multipleapp
-- `testdata/constructorgen/` — per-file test cases: simple, multifield, pointer, existing, imported, aliasedimport, definedtypes, typealias, struct_tag_named, struct_tag_exclude, uppercamel
-- `testdata/dependency/` — DependencyAnalyzer-only tests: basic, abstrct, cross_package, missing_constructor
+  - Constructor generation: constructorgen (per-file test cases with .go/.golden pairs)
+  - Dependency-only: dep_basic, dep_missing_constructor, dep_cross_package, dep_abstrct
 
 ## Commit Messages
 

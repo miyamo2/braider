@@ -1,7 +1,7 @@
 package service
 
 import (
-	"example.com/dependency/cross_package/repo"
+	"example.com/dep_cross_package/repo"
 
 	"github.com/miyamo2/braider/pkg/annotation"
 	"github.com/miyamo2/braider/pkg/annotation/inject"

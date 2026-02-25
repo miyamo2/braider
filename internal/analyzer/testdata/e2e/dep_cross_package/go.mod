@@ -1,4 +1,4 @@
-module example.com/dependency/abstract
+module example.com/dep_cross_package
 
 go 1.25
 
