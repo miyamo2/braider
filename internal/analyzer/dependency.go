@@ -96,6 +96,17 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 			}
 		}
 
+		// Skip constructor generation when WithoutConstructor is set.
+		// The user provides their own constructor manually.
+		// Note: option validation errors are not emitted here; Phase 3 handles them.
+		if candidate.InjectField != nil && r.optionExtractor != nil {
+			concreteType := types.NewPointer(pass.TypesInfo.ObjectOf(candidate.TypeSpec.Name).Type())
+			metadata, err := r.optionExtractor.ExtractInjectOptions(pass, candidate.InjectField.Type, concreteType)
+			if err == nil && metadata.WithoutConstructor {
+				continue
+			}
+		}
+
 		// Filter out excluded fields (braider:"-") for constructor generation
 		var filteredFields []detect.FieldInfo
 		for _, field := range fields {

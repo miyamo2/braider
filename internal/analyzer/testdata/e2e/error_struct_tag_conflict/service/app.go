@@ -14,7 +14,7 @@ type AppService struct {
 	logger Logger `braider:"-"` // want `braider struct tag conflict on field logger: field is excluded via braider:"-" but matches constructor parameter type`
 }
 
-func NewAppService(logger Logger) *AppService { // want "outdated constructor for AppService"
+func NewAppService(logger Logger) *AppService {
 	return &AppService{logger: logger}
 }
 
