@@ -45,7 +45,7 @@ func (a *Aggregator) AfterDependencyPhase(graph *checker.Graph) error {
 		}
 		for _, p := range result.Providers {
 			if err := a.ProviderRegistry.Register(p); err != nil {
-				existingLocation := p.PackagePath
+				existingLocation := "unknown"
 				if existing, ok := a.ProviderRegistry.GetByName(p.TypeName, p.Name); ok {
 					existingLocation = existing.PackagePath
 				}
@@ -56,7 +56,7 @@ func (a *Aggregator) AfterDependencyPhase(graph *checker.Graph) error {
 		}
 		for _, i := range result.Injectors {
 			if err := a.InjectorRegistry.Register(i); err != nil {
-				existingLocation := i.PackagePath
+				existingLocation := "unknown"
 				if existing, ok := a.InjectorRegistry.GetByName(i.TypeName, i.Name); ok {
 					existingLocation = existing.PackagePath
 				}
@@ -67,7 +67,7 @@ func (a *Aggregator) AfterDependencyPhase(graph *checker.Graph) error {
 		}
 		for _, v := range result.Variables {
 			if err := a.VariableRegistry.Register(v); err != nil {
-				existingLocation := v.PackagePath
+				existingLocation := "unknown"
 				if existing, ok := a.VariableRegistry.GetByName(v.TypeName, v.Name); ok {
 					existingLocation = existing.PackagePath
 				}

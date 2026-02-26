@@ -122,7 +122,7 @@ Annotation types are identified via `types.Implements` checks against sealed mar
 - **`internal/generate/`** — ConstructorGenerator, BootstrapGenerator, hash computation, import management, AST-based code generation (ast_builder helpers + format.Node)
 - **`internal/report/`** — SuggestedFixBuilder, DiagnosticEmitter, diagnostic category constants (CategoryOptionValidation, CategoryExpressionValidation, CategoryDependencyRegistration map to SeverityCritical)
 - **`internal/loader/`** — PackageLoader for module package discovery
-- **`internal/analyzer/`** — Aggregator (AfterPhase callback), DependencyResult (per-package result type)
+- **`internal/analyzer/`** — Aggregator (AfterDependencyPhase callback), DependencyResult (per-package result type)
 
 ## Testing Patterns
 
