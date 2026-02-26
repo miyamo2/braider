@@ -205,6 +205,7 @@ func TestIntegration(t *testing.T) {
 		{name: "ErrorVariableUnresolvableExpression", testdir: "error_variable_unresolvable"},
 		{name: "ErrorDuplicateName", testdir: "error_duplicate_name"},
 		{name: "ErrorVariableDuplicateName", testdir: "error_variable_duplicate_name"},
+		{name: "ErrorDuplicateProvideVariable", testdir: "error_duplicate_provide_variable"},
 
 		// --- Error cases (non-fatal, AppAnalyzer still generates bootstrap) ---
 		{name: "ErrorUnresolvedParam", testdir: "unresolvedparam"},
