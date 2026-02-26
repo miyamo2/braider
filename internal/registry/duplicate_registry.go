@@ -1,6 +1,8 @@
 package registry
 
 import (
+	"sync"
+
 	"github.com/miyamo2/braider/pkg/annotation"
 	"github.com/miyamo2/braider/pkg/annotation/provide"
 )
@@ -20,6 +22,7 @@ var _ = annotation.Provide[provide.Default](NewDuplicateRegistry)
 // DuplicateRegistry collects duplicate (TypeName, Name) registration errors
 // detected during aggregation for deferred diagnostic reporting.
 type DuplicateRegistry struct {
+	mu         sync.RWMutex
 	duplicates []DuplicateRegistration
 }
 
@@ -30,10 +33,16 @@ func NewDuplicateRegistry() *DuplicateRegistry {
 
 // Add records a duplicate registration error.
 func (r *DuplicateRegistry) Add(dup DuplicateRegistration) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.duplicates = append(r.duplicates, dup)
 }
 
 // GetAll returns all collected duplicate registrations.
 func (r *DuplicateRegistry) GetAll() []DuplicateRegistration {
-	return r.duplicates
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	result := make([]DuplicateRegistration, len(r.duplicates))
+	copy(result, r.duplicates)
+	return result
 }

@@ -45,6 +45,9 @@ func (a *Aggregator) AfterDependencyPhase(graph *checker.Graph) error {
 		}
 		for _, p := range result.Providers {
 			if err := a.ProviderRegistry.Register(p); err != nil {
+				// GetByName is expected to succeed here because Register returned
+				// a duplicate-key error, meaning the entry already exists.
+				// The "unknown" fallback is a defensive measure for robustness.
 				existingLocation := "unknown"
 				if existing, ok := a.ProviderRegistry.GetByName(p.TypeName, p.Name); ok {
 					existingLocation = existing.PackagePath
@@ -56,6 +59,9 @@ func (a *Aggregator) AfterDependencyPhase(graph *checker.Graph) error {
 		}
 		for _, i := range result.Injectors {
 			if err := a.InjectorRegistry.Register(i); err != nil {
+				// GetByName is expected to succeed here because Register returned
+				// a duplicate-key error, meaning the entry already exists.
+				// The "unknown" fallback is a defensive measure for robustness.
 				existingLocation := "unknown"
 				if existing, ok := a.InjectorRegistry.GetByName(i.TypeName, i.Name); ok {
 					existingLocation = existing.PackagePath
@@ -67,6 +73,9 @@ func (a *Aggregator) AfterDependencyPhase(graph *checker.Graph) error {
 		}
 		for _, v := range result.Variables {
 			if err := a.VariableRegistry.Register(v); err != nil {
+				// GetByName is expected to succeed here because Register returned
+				// a duplicate-key error, meaning the entry already exists.
+				// The "unknown" fallback is a defensive measure for robustness.
 				existingLocation := "unknown"
 				if existing, ok := a.VariableRegistry.GetByName(v.TypeName, v.Name); ok {
 					existingLocation = existing.PackagePath

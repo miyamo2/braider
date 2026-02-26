@@ -462,6 +462,9 @@ func extractParameterNames(ctor *ast.FuncDecl) []string {
 }
 
 // parameterNamesMatch checks if two parameter name lists are identical (order-sensitive).
+// Go function signatures depend on parameter ordering, so this complements
+// dependenciesMatch (which only checks type-set equality) by verifying that
+// parameter names appear in the expected order.
 func parameterNamesMatch(expected, actual []string) bool {
 	if len(expected) != len(actual) {
 		return false
@@ -474,8 +477,10 @@ func parameterNamesMatch(expected, actual []string) bool {
 	return true
 }
 
-// dependenciesMatch checks if two dependency lists are equivalent.
+// dependenciesMatch checks if two dependency lists are equivalent as sets.
 // Returns true if both lists contain the same dependencies (order-independent).
+// Only type-set equality is checked here; parameter ordering is verified
+// separately by parameterNamesMatch.
 func dependenciesMatch(expected, actual []string) bool {
 	if len(expected) != len(actual) {
 		return false
