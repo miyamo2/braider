@@ -170,7 +170,6 @@ func TestNewDiagnosticEmitter(t *testing.T) {
 	var _ report.DiagnosticEmitter = emitter
 }
 
-
 func TestDiagnosticEmitter_EmitNonMainAppError(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -195,34 +194,36 @@ func TestDiagnosticEmitter_EmitNonMainAppError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			emitter := report.NewDiagnosticEmitter()
-			reporter := &mockReporter{}
-			pos := token.Pos(150)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				emitter := report.NewDiagnosticEmitter()
+				reporter := &mockReporter{}
+				pos := token.Pos(150)
 
-			emitter.EmitNonMainAppError(reporter, pos, tt.funcName)
+				emitter.EmitNonMainAppError(reporter, pos, tt.funcName)
 
-			if len(reporter.diagnostics) != 1 {
-				t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
-			}
+				if len(reporter.diagnostics) != 1 {
+					t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+				}
 
-			d := reporter.diagnostics[0]
+				d := reporter.diagnostics[0]
 
-			// Verify position
-			if d.Pos != pos {
-				t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
-			}
+				// Verify position
+				if d.Pos != pos {
+					t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+				}
 
-			// Verify message
-			if d.Message != tt.wantMsg {
-				t.Errorf("diagnostic.Message = %q, want %q", d.Message, tt.wantMsg)
-			}
+				// Verify message
+				if d.Message != tt.wantMsg {
+					t.Errorf("diagnostic.Message = %q, want %q", d.Message, tt.wantMsg)
+				}
 
-			// No suggested fixes for this error
-			if len(d.SuggestedFixes) != 0 {
-				t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
-			}
-		})
+				// No suggested fixes for this error
+				if len(d.SuggestedFixes) != 0 {
+					t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
+				}
+			},
+		)
 	}
 }
 
@@ -253,45 +254,49 @@ func TestDiagnosticEmitter_EmitBootstrapFix(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			emitter := report.NewDiagnosticEmitter()
-			reporter := &mockReporter{}
-			pos := token.Pos(50)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				emitter := report.NewDiagnosticEmitter()
+				reporter := &mockReporter{}
+				pos := token.Pos(50)
 
-			emitter.EmitBootstrapFix(reporter, pos, tt.fix)
+				emitter.EmitBootstrapFix(reporter, pos, tt.fix)
 
-			if len(reporter.diagnostics) != 1 {
-				t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
-			}
+				if len(reporter.diagnostics) != 1 {
+					t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+				}
 
-			d := reporter.diagnostics[0]
+				d := reporter.diagnostics[0]
 
-			// Verify position
-			if d.Pos != pos {
-				t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
-			}
+				// Verify position
+				if d.Pos != pos {
+					t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+				}
 
-			// Verify static message
-			expectedMsg := "bootstrap code is missing"
-			if d.Message != expectedMsg {
-				t.Errorf("diagnostic.Message = %q, want %q", d.Message, expectedMsg)
-			}
+				// Verify static message
+				expectedMsg := "bootstrap code is missing"
+				if d.Message != expectedMsg {
+					t.Errorf("diagnostic.Message = %q, want %q", d.Message, expectedMsg)
+				}
 
-			// Verify exactly 1 SuggestedFix
-			if len(d.SuggestedFixes) != 1 {
-				t.Fatalf("expected 1 SuggestedFix, got %d", len(d.SuggestedFixes))
-			}
+				// Verify exactly 1 SuggestedFix
+				if len(d.SuggestedFixes) != 1 {
+					t.Fatalf("expected 1 SuggestedFix, got %d", len(d.SuggestedFixes))
+				}
 
-			// Verify fix is passed through unchanged
-			if d.SuggestedFixes[0].Message != tt.fix.Message {
-				t.Errorf("SuggestedFix.Message = %q, want %q", d.SuggestedFixes[0].Message, tt.fix.Message)
-			}
+				// Verify fix is passed through unchanged
+				if d.SuggestedFixes[0].Message != tt.fix.Message {
+					t.Errorf("SuggestedFix.Message = %q, want %q", d.SuggestedFixes[0].Message, tt.fix.Message)
+				}
 
-			if len(d.SuggestedFixes[0].TextEdits) != len(tt.fix.TextEdits) {
-				t.Errorf("SuggestedFix.TextEdits length = %d, want %d",
-					len(d.SuggestedFixes[0].TextEdits), len(tt.fix.TextEdits))
-			}
-		})
+				if len(d.SuggestedFixes[0].TextEdits) != len(tt.fix.TextEdits) {
+					t.Errorf(
+						"SuggestedFix.TextEdits length = %d, want %d",
+						len(d.SuggestedFixes[0].TextEdits), len(tt.fix.TextEdits),
+					)
+				}
+			},
+		)
 	}
 }
 
@@ -322,45 +327,49 @@ func TestDiagnosticEmitter_EmitBootstrapUpdateFix(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			emitter := report.NewDiagnosticEmitter()
-			reporter := &mockReporter{}
-			pos := token.Pos(75)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				emitter := report.NewDiagnosticEmitter()
+				reporter := &mockReporter{}
+				pos := token.Pos(75)
 
-			emitter.EmitBootstrapUpdateFix(reporter, pos, tt.fix)
+				emitter.EmitBootstrapUpdateFix(reporter, pos, tt.fix)
 
-			if len(reporter.diagnostics) != 1 {
-				t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
-			}
+				if len(reporter.diagnostics) != 1 {
+					t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+				}
 
-			d := reporter.diagnostics[0]
+				d := reporter.diagnostics[0]
 
-			// Verify position
-			if d.Pos != pos {
-				t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
-			}
+				// Verify position
+				if d.Pos != pos {
+					t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+				}
 
-			// Verify static message (different from EmitBootstrapFix)
-			expectedMsg := "bootstrap code is outdated"
-			if d.Message != expectedMsg {
-				t.Errorf("diagnostic.Message = %q, want %q", d.Message, expectedMsg)
-			}
+				// Verify static message (different from EmitBootstrapFix)
+				expectedMsg := "bootstrap code is outdated"
+				if d.Message != expectedMsg {
+					t.Errorf("diagnostic.Message = %q, want %q", d.Message, expectedMsg)
+				}
 
-			// Verify exactly 1 SuggestedFix
-			if len(d.SuggestedFixes) != 1 {
-				t.Fatalf("expected 1 SuggestedFix, got %d", len(d.SuggestedFixes))
-			}
+				// Verify exactly 1 SuggestedFix
+				if len(d.SuggestedFixes) != 1 {
+					t.Fatalf("expected 1 SuggestedFix, got %d", len(d.SuggestedFixes))
+				}
 
-			// Verify fix is passed through unchanged
-			if d.SuggestedFixes[0].Message != tt.fix.Message {
-				t.Errorf("SuggestedFix.Message = %q, want %q", d.SuggestedFixes[0].Message, tt.fix.Message)
-			}
+				// Verify fix is passed through unchanged
+				if d.SuggestedFixes[0].Message != tt.fix.Message {
+					t.Errorf("SuggestedFix.Message = %q, want %q", d.SuggestedFixes[0].Message, tt.fix.Message)
+				}
 
-			if len(d.SuggestedFixes[0].TextEdits) != len(tt.fix.TextEdits) {
-				t.Errorf("SuggestedFix.TextEdits length = %d, want %d",
-					len(d.SuggestedFixes[0].TextEdits), len(tt.fix.TextEdits))
-			}
-		})
+				if len(d.SuggestedFixes[0].TextEdits) != len(tt.fix.TextEdits) {
+					t.Errorf(
+						"SuggestedFix.TextEdits length = %d, want %d",
+						len(d.SuggestedFixes[0].TextEdits), len(tt.fix.TextEdits),
+					)
+				}
+			},
+		)
 	}
 }
 
@@ -394,133 +403,6 @@ func TestDiagnosticEmitter_EmitDuplicateAppWarning(t *testing.T) {
 	}
 }
 
-func TestDiagnosticEmitter_EmitPackageLoadWarning(t *testing.T) {
-	tests := []struct {
-		name   string
-		reason string
-	}{
-		{
-			name:   "standard error",
-			reason: "module not found",
-		},
-		{
-			name:   "empty reason",
-			reason: "",
-		},
-		{
-			name:   "long error message",
-			reason: strings.Repeat("error: ", 50), // 350 chars
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			emitter := report.NewDiagnosticEmitter()
-			reporter := &mockReporter{}
-			pos := token.Pos(300)
-
-			emitter.EmitPackageLoadWarning(reporter, pos, tt.reason)
-
-			if len(reporter.diagnostics) != 1 {
-				t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
-			}
-
-			d := reporter.diagnostics[0]
-
-			// Verify position
-			if d.Pos != pos {
-				t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
-			}
-
-			// Verify message contains reason
-			if !strings.Contains(d.Message, tt.reason) {
-				t.Errorf("diagnostic.Message should contain reason %q, got %q", tt.reason, d.Message)
-			}
-
-			// Verify message format
-			expectedPrefix := "warning: failed to load module packages:"
-			if !strings.Contains(d.Message, expectedPrefix) {
-				t.Errorf("diagnostic.Message should contain %q, got %q", expectedPrefix, d.Message)
-			}
-
-			expectedSuffix := "(bootstrap may be incomplete)"
-			if !strings.Contains(d.Message, expectedSuffix) {
-				t.Errorf("diagnostic.Message should contain %q, got %q", expectedSuffix, d.Message)
-			}
-
-			// No suggested fixes for warning
-			if len(d.SuggestedFixes) != 0 {
-				t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
-			}
-		})
-	}
-}
-
-func TestDiagnosticEmitter_EmitPackageWaitWarning(t *testing.T) {
-	tests := []struct {
-		name   string
-		reason string
-	}{
-		{
-			name:   "timeout error",
-			reason: "context deadline exceeded",
-		},
-		{
-			name:   "empty reason",
-			reason: "",
-		},
-		{
-			name:   "multiline error message",
-			reason: "timeout error:\npackage A not ready\npackage B not ready",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			emitter := report.NewDiagnosticEmitter()
-			reporter := &mockReporter{}
-			pos := token.Pos(350)
-
-			emitter.EmitPackageWaitWarning(reporter, pos, tt.reason)
-
-			if len(reporter.diagnostics) != 1 {
-				t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
-			}
-
-			d := reporter.diagnostics[0]
-
-			// Verify position
-			if d.Pos != pos {
-				t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
-			}
-
-			// Verify message contains reason
-			if !strings.Contains(d.Message, tt.reason) {
-				t.Errorf("diagnostic.Message should contain reason %q, got %q", tt.reason, d.Message)
-			}
-
-			// Verify message contains "warning:" and "timeout"
-			if !strings.Contains(d.Message, "warning:") {
-				t.Errorf("diagnostic.Message should contain 'warning:', got %q", d.Message)
-			}
-
-			if !strings.Contains(d.Message, "timeout") {
-				t.Errorf("diagnostic.Message should contain 'timeout', got %q", d.Message)
-			}
-
-			expectedSuffix := "(bootstrap may be incomplete)"
-			if !strings.Contains(d.Message, expectedSuffix) {
-				t.Errorf("diagnostic.Message should contain %q, got %q", expectedSuffix, d.Message)
-			}
-
-			// No suggested fixes for warning
-			if len(d.SuggestedFixes) != 0 {
-				t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
-			}
-		})
-	}
-}
-
 func TestDiagnosticEmitter_EmitGraphBuildError(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -545,40 +427,42 @@ func TestDiagnosticEmitter_EmitGraphBuildError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			emitter := report.NewDiagnosticEmitter()
-			reporter := &mockReporter{}
-			pos := token.Pos(400)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				emitter := report.NewDiagnosticEmitter()
+				reporter := &mockReporter{}
+				pos := token.Pos(400)
 
-			emitter.EmitGraphBuildError(reporter, pos, tt.reason)
+				emitter.EmitGraphBuildError(reporter, pos, tt.reason)
 
-			if len(reporter.diagnostics) != 1 {
-				t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
-			}
+				if len(reporter.diagnostics) != 1 {
+					t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+				}
 
-			d := reporter.diagnostics[0]
+				d := reporter.diagnostics[0]
 
-			// Verify position
-			if d.Pos != pos {
-				t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
-			}
+				// Verify position
+				if d.Pos != pos {
+					t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+				}
 
-			// Verify message contains reason
-			if !strings.Contains(d.Message, tt.reason) {
-				t.Errorf("diagnostic.Message should contain reason %q, got %q", tt.reason, d.Message)
-			}
+				// Verify message contains reason
+				if !strings.Contains(d.Message, tt.reason) {
+					t.Errorf("diagnostic.Message should contain reason %q, got %q", tt.reason, d.Message)
+				}
 
-			// Verify message format
-			expectedPrefix := "failed to build dependency graph:"
-			if !strings.Contains(d.Message, expectedPrefix) {
-				t.Errorf("diagnostic.Message should contain %q, got %q", expectedPrefix, d.Message)
-			}
+				// Verify message format
+				expectedPrefix := "failed to build dependency graph:"
+				if !strings.Contains(d.Message, expectedPrefix) {
+					t.Errorf("diagnostic.Message should contain %q, got %q", expectedPrefix, d.Message)
+				}
 
-			// No suggested fixes for error
-			if len(d.SuggestedFixes) != 0 {
-				t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
-			}
-		})
+				// No suggested fixes for error
+				if len(d.SuggestedFixes) != 0 {
+					t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
+				}
+			},
+		)
 	}
 }
 
@@ -633,31 +517,33 @@ func TestDiagnosticEmitter_EmitInvalidStructTagError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			emitter := report.NewDiagnosticEmitter()
-			reporter := &mockReporter{}
-			pos := token.Pos(600)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				emitter := report.NewDiagnosticEmitter()
+				reporter := &mockReporter{}
+				pos := token.Pos(600)
 
-			emitter.EmitInvalidStructTagError(reporter, pos, tt.fieldName)
+				emitter.EmitInvalidStructTagError(reporter, pos, tt.fieldName)
 
-			if len(reporter.diagnostics) != 1 {
-				t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
-			}
+				if len(reporter.diagnostics) != 1 {
+					t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+				}
 
-			d := reporter.diagnostics[0]
+				d := reporter.diagnostics[0]
 
-			if d.Pos != pos {
-				t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
-			}
+				if d.Pos != pos {
+					t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+				}
 
-			if d.Message != tt.wantMsg {
-				t.Errorf("diagnostic.Message = %q, want %q", d.Message, tt.wantMsg)
-			}
+				if d.Message != tt.wantMsg {
+					t.Errorf("diagnostic.Message = %q, want %q", d.Message, tt.wantMsg)
+				}
 
-			if len(d.SuggestedFixes) != 0 {
-				t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
-			}
-		})
+				if len(d.SuggestedFixes) != 0 {
+					t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
+				}
+			},
+		)
 	}
 }
 
@@ -689,31 +575,33 @@ func TestDiagnosticEmitter_EmitStructTagConflictError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			emitter := report.NewDiagnosticEmitter()
-			reporter := &mockReporter{}
-			pos := token.Pos(700)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				emitter := report.NewDiagnosticEmitter()
+				reporter := &mockReporter{}
+				pos := token.Pos(700)
 
-			emitter.EmitStructTagConflictError(reporter, pos, tt.fieldName, tt.reason)
+				emitter.EmitStructTagConflictError(reporter, pos, tt.fieldName, tt.reason)
 
-			if len(reporter.diagnostics) != 1 {
-				t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
-			}
+				if len(reporter.diagnostics) != 1 {
+					t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+				}
 
-			d := reporter.diagnostics[0]
+				d := reporter.diagnostics[0]
 
-			if d.Pos != pos {
-				t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
-			}
+				if d.Pos != pos {
+					t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+				}
 
-			if d.Message != tt.wantMsg {
-				t.Errorf("diagnostic.Message = %q, want %q", d.Message, tt.wantMsg)
-			}
+				if d.Message != tt.wantMsg {
+					t.Errorf("diagnostic.Message = %q, want %q", d.Message, tt.wantMsg)
+				}
 
-			if len(d.SuggestedFixes) != 0 {
-				t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
-			}
-		})
+				if len(d.SuggestedFixes) != 0 {
+					t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
+				}
+			},
+		)
 	}
 }
 
@@ -741,31 +629,33 @@ func TestDiagnosticEmitter_EmitContainerTypeError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			emitter := report.NewDiagnosticEmitter()
-			reporter := &mockReporter{}
-			pos := token.Pos(800)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				emitter := report.NewDiagnosticEmitter()
+				reporter := &mockReporter{}
+				pos := token.Pos(800)
 
-			emitter.EmitContainerTypeError(reporter, pos, tt.typeName)
+				emitter.EmitContainerTypeError(reporter, pos, tt.typeName)
 
-			if len(reporter.diagnostics) != 1 {
-				t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
-			}
+				if len(reporter.diagnostics) != 1 {
+					t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+				}
 
-			d := reporter.diagnostics[0]
+				d := reporter.diagnostics[0]
 
-			if d.Pos != pos {
-				t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
-			}
+				if d.Pos != pos {
+					t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+				}
 
-			if d.Message != tt.wantMsg {
-				t.Errorf("diagnostic.Message = %q, want %q", d.Message, tt.wantMsg)
-			}
+				if d.Message != tt.wantMsg {
+					t.Errorf("diagnostic.Message = %q, want %q", d.Message, tt.wantMsg)
+				}
 
-			if len(d.SuggestedFixes) != 0 {
-				t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
-			}
-		})
+				if len(d.SuggestedFixes) != 0 {
+					t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
+				}
+			},
+		)
 	}
 }
 
@@ -851,31 +741,32 @@ func TestDiagnosticEmitter_EmitContainerFieldError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			emitter := report.NewDiagnosticEmitter()
-			reporter := &mockReporter{}
-			pos := token.Pos(900)
+		t.Run(
+			tt.name, func(t *testing.T) {
+				emitter := report.NewDiagnosticEmitter()
+				reporter := &mockReporter{}
+				pos := token.Pos(900)
 
-			emitter.EmitContainerFieldError(reporter, pos, tt.fieldName, tt.fieldType, tt.reason)
+				emitter.EmitContainerFieldError(reporter, pos, tt.fieldName, tt.fieldType, tt.reason)
 
-			if len(reporter.diagnostics) != 1 {
-				t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
-			}
+				if len(reporter.diagnostics) != 1 {
+					t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+				}
 
-			d := reporter.diagnostics[0]
+				d := reporter.diagnostics[0]
 
-			if d.Pos != pos {
-				t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
-			}
+				if d.Pos != pos {
+					t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+				}
 
-			if d.Message != tt.wantMsg {
-				t.Errorf("diagnostic.Message = %q, want %q", d.Message, tt.wantMsg)
-			}
+				if d.Message != tt.wantMsg {
+					t.Errorf("diagnostic.Message = %q, want %q", d.Message, tt.wantMsg)
+				}
 
-			if len(d.SuggestedFixes) != 0 {
-				t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
-			}
-		})
+				if len(d.SuggestedFixes) != 0 {
+					t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
+				}
+			},
+		)
 	}
 }
-

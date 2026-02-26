@@ -515,34 +515,6 @@ func TestDetectPackageCollisions(t *testing.T) {
 	}
 }
 
-func TestImportInfo_HasAlias(t *testing.T) {
-	tests := []struct {
-		name string
-		info ImportInfo
-		want bool
-	}{
-		{
-			name: "with alias",
-			info: ImportInfo{Path: "example.com/v1/user", Alias: "v1user"},
-			want: true,
-		},
-		{
-			name: "without alias",
-			info: ImportInfo{Path: "example.com/user", Alias: ""},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.info.HasAlias()
-			if got != tt.want {
-				t.Errorf("HasAlias() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestExtractVersion(t *testing.T) {
 	tests := []struct {
 		name    string

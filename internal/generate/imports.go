@@ -18,11 +18,6 @@ type ImportInfo struct {
 	Alias string // Alias name (empty string = no alias needed)
 }
 
-// HasAlias returns true if this import requires an alias.
-func (i *ImportInfo) HasAlias() bool {
-	return i.Alias != ""
-}
-
 // CollectImports extracts unique package paths from the dependency graph.
 // It excludes the current package and returns a sorted list of import info with aliases,
 // along with an alias map (pkgPath -> alias) for use by qualifier functions.
