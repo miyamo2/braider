@@ -9,7 +9,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/miyamo2/braider)](https://goreportcard.com/report/github.com/miyamo2/braider)
 [![GitHub License](https://img.shields.io/github/license/miyamo2/braider?&color=blue)](https://img.shields.io/github/license/miyamo2/braider?&color=blue)
 
-braider is a `go vet` analyzer that resolves dependency injection (DI) bindings and generates constructors and bootstrap wiring using `analysis.SuggestedFix`. It integrates with the standard Go toolchain, produces plain Go code with no runtime container, and is inspired by google/wire.
+braider is a `go/analysis` analyzer that resolves dependency injection (DI) bindings and generates constructors and bootstrap wiring using `analysis.SuggestedFix`. It integrates with the standard Go toolchain, produces plain Go code with no runtime container, and is inspired by google/wire.
 
 ## Overview
 
