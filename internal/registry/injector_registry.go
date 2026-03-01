@@ -32,7 +32,6 @@ type InjectorInfo struct {
 	// or already exists on disk (false). Enables single-pass constructor and bootstrap generation.
 	IsPending bool
 
-	// NEW: Option-derived fields for annotation refinement feature
 	// RegisteredType is the type to use for registration - interface type for Typed[I], concrete type otherwise
 	RegisteredType types.Type
 	// Name is the dependency name from Named[N] option, empty if unnamed

@@ -88,8 +88,7 @@ func makeNodeKey(typeName, name string) string {
 	return typeName
 }
 
-// BuildGraph constructs the dependency graph from registered providers and injectors.
-// Injectables are retrieved from GlobalProviderRegistry and GlobalInjectorRegistry.
+// BuildGraph constructs the dependency graph from the given providers, injectors, and variables.
 //
 // This method executes sequentially and is NOT safe for concurrent calls on the same graph.
 // Each analyzer run should create its own graph instance.

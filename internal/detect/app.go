@@ -33,7 +33,7 @@ type AppDetector interface {
 	DetectAppAnnotations(pass *analysis.Pass) []*AppAnnotation
 
 	// ValidateAppAnnotations validates all detected App annotations.
-	// Multiple App annotations are allowed (e.g., in multi-main packages).
+	// Multiple App annotations are allowed (e.g., across multiple files).
 	// Each annotation must reference the main function.
 	// Returns error if any annotation references a non-main function.
 	ValidateAppAnnotations(pass *analysis.Pass, apps []*AppAnnotation) error

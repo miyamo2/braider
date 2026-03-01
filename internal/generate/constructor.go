@@ -80,11 +80,11 @@ func (g *constructorGenerator) GenerateConstructor(
 }
 
 // GenerateConstructorWithOptions creates constructor code with option-aware return type.
-// Returns nil if WithoutConstructor option is set (Task 5.1).
+// Returns nil if WithoutConstructor option is set.
 func (g *constructorGenerator) GenerateConstructorWithOptions(
 	candidate detect.ConstructorCandidate, fields []detect.FieldInfo, info *registry.InjectorInfo,
 ) (*GeneratedConstructor, error) {
-	// Task 5.1: Check WithoutConstructor option - skip generation if set
+	// Check WithoutConstructor option - skip generation if set
 	if info != nil && info.OptionMetadata.WithoutConstructor {
 		return nil, nil
 	}
@@ -92,7 +92,7 @@ func (g *constructorGenerator) GenerateConstructorWithOptions(
 	structName := candidate.TypeSpec.Name.Name
 	funcName := "New" + ToUpperCamelCase(structName)
 
-	// Task 5.1: Determine return type based on options
+	// Determine return type based on options
 	returnTypeExpr, err := g.determineReturnTypeExpr(structName, info)
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine return type for %s: %w", structName, err)
@@ -118,12 +118,12 @@ func (g *constructorGenerator) GenerateConstructorWithOptions(
 }
 
 // GenerateConstructorWithNamedDeps creates constructor code with named dependency parameters.
-// Task 5.2: Supports custom parameter names for named dependencies.
+// Supports custom parameter names for named dependencies.
 func (g *constructorGenerator) GenerateConstructorWithNamedDeps(
 	candidate detect.ConstructorCandidate, fields []detect.FieldInfo, info *registry.InjectorInfo,
 	dependencyNames map[string]string,
 ) (*GeneratedConstructor, error) {
-	// Task 5.1: Check WithoutConstructor option first
+	// Check WithoutConstructor option first
 	if info != nil && info.OptionMetadata.WithoutConstructor {
 		return nil, nil
 	}
@@ -131,7 +131,7 @@ func (g *constructorGenerator) GenerateConstructorWithNamedDeps(
 	structName := candidate.TypeSpec.Name.Name
 	funcName := "New" + ToUpperCamelCase(structName)
 
-	// Task 5.1: Determine return type based on options
+	// Determine return type based on options
 	returnTypeExpr, err := g.determineReturnTypeExpr(structName, info)
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine return type for %s: %w", structName, err)
@@ -229,7 +229,7 @@ func (g *constructorGenerator) resolveParamName(fieldName string, dependencyName
 }
 
 // determineReturnTypeExpr determines constructor return type as an ast.Expr based on option metadata.
-// Task 5.1: Returns interface type for Typed[I] option, pointer to struct otherwise.
+// Returns interface type for Typed[I] option, pointer to struct otherwise.
 func (g *constructorGenerator) determineReturnTypeExpr(structName string, info *registry.InjectorInfo) (ast.Expr, error) {
 	if info == nil || info.OptionMetadata.TypedInterface == nil {
 		// Default: return pointer to struct

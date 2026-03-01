@@ -134,7 +134,7 @@ func (e *optionExtractorImpl) ExtractVariableOptions(
 	// Extract option type T
 	optionType := typeArgs.At(0)
 
-	// For Variable, concreteType is the argument expreFssion's type
+	// For Variable, concreteType is the argument expression's type
 	return e.extractMetadataFromOptionType(pass, optionType, argumentType)
 }
 

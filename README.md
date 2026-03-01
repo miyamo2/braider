@@ -274,9 +274,7 @@ type Clock interface {
 
 type realClock struct{}
 
-func (realClock) Now() time.Time {
-	return time.Now()
-}
+func (realClock) Now() time.Time { return time.Now() }
 
 var _ = annotation.Provide[provide.Typed[Clock]](NewClock)
 
