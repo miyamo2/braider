@@ -8,7 +8,7 @@ braider implements a **phased pipeline architecture** using `phasedchecker.Main(
 
 Between phases, `Aggregator.AfterDependencyPhase` iterates all per-package `DependencyResult` values (via `checker.Graph`) and populates shared registries. Duplicate registrations are collected into `DuplicateRegistry` for deferred reporting by AppAnalyzer. Each analyzer implements the `analysis.Analyzer` interface, performs static analysis on Go AST, and proposes code fixes via `SuggestedFix`.
 
-The pipeline is configured via `phasedchecker.Config` with explicit `Pipeline` (phase ordering, per-phase analyzers, AfterPhase callbacks) and `DiagnosticPolicy` (category-to-severity mappings that can abort the pipeline).
+The pipeline is configured via `phasedchecker.Config` with explicit `Pipeline` (phase ordering, per-phase analyzers, AfterPhase callbacks) and `DiagnosticPolicy` (category-to-severity mappings that can abort the pipeline, plus `DefaultSeverity: SeverityWarn` for diagnostics not matching any explicit category rule).
 
 ## Core Technologies
 
@@ -22,7 +22,7 @@ The pipeline is configured via `phasedchecker.Config` with explicit `Pipeline` (
 - **`golang.org/x/tools/go/analysis`**: Core analyzer interface and diagnostic reporting
 - **`golang.org/x/tools/go/analysis/passes/inspect`**: AST inspection utilities
 - **`golang.org/x/tools/go/ast/inspector`**: Efficient AST traversal
-- **`github.com/miyamo2/phasedchecker`**: Phased pipeline orchestration with `phasedchecker.Main()`, `Config`, `Pipeline`, `Phase`, `DiagnosticPolicy`, `CategoryRule`, `SeverityCritical`
+- **`github.com/miyamo2/phasedchecker`**: Phased pipeline orchestration with `phasedchecker.Main()`, `Config`, `Pipeline`, `Phase`, `DiagnosticPolicy`, `CategoryRule`, `SeverityCritical`, `SeverityWarn`
 - **`golang.org/x/tools/go/analysis/checker`**: `checker.Graph` used by `Aggregator.AfterDependencyPhase` to iterate per-package analysis results
 
 ## Development Standards
@@ -173,3 +173,4 @@ _Updated: 2026-02-18 - Sync: Added cross-package constructor qualification patte
 _Updated: 2026-02-20 - Sync: Code generation refactored from string concatenation to AST-based approach (go/ast + format.Node); CodeFormatter component removed; added AST-Based Code Generation technical decision; generate package now uses ast_builder.go helpers and renderDecl/renderNode; report package delegates import rendering to generate.RenderImportBlock_
 _Updated: 2026-02-25 - Sync: Migrated from multichecker.Main() to phasedchecker.Main() phased pipeline architecture; replaced analysistest with phasedchecker/checkertest; added Aggregator/DependencyResult cross-phase coordination pattern; replaced Global Registry Pattern with Cross-Phase State section; removed PackageTracker (no longer exists); added DuplicateRegistry; updated dogfooding to use app.Container[T] and phasedchecker.Config; added analyzer package to component list_
 _Updated: 2026-02-26 - Sync: Updated testing section to reflect consolidated table-driven TestIntegration pattern (all e2e tests in single test function using RunWithSuggestedFixes); added dependency-only smoke test pattern_
+_Updated: 2026-03-02 - Sync: DiagnosticPolicy now includes DefaultSeverity (SeverityWarn) for diagnostics not matching explicit category rules; added SeverityWarn to phasedchecker library references_

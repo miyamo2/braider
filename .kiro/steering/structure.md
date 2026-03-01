@@ -21,10 +21,15 @@ This self-hosting pattern means braider's own `cmd/braider/main.go` contains bra
 **Purpose**: Core analyzer logic, not importable by external packages
 **Pattern**: Organized into focused subpackages by responsibility (see Internal Package Organization below)
 
+### Runnable Examples
+**Location**: `examples/`
+**Purpose**: Self-contained, runnable braider usage examples for documentation and user onboarding
+**Pattern**: Each subdirectory is an independent Go module (own `go.mod`) with a `main.go` demonstrating one annotation pattern. Isolated from the root module via `go.mod`'s `ignore` directive. Named by feature using kebab-case (e.g., `container-basic`, `typed-inject`, `struct-tag-named`).
+
 ### Test Fixtures
 **Location**: `internal/analyzer/testdata/`
 **Purpose**: Go source files used as test inputs for checkertest
-**Pattern**: All test cases unified under a single `testdata/e2e/` directory (~81 cases), organized by category prefix:
+**Pattern**: All test cases unified under a single `testdata/e2e/` directory (~82 cases), organized by category prefix:
 - Core scenarios: `basic`, `crosspackage`, `simpleapp`, `modulewide`, `pkgcollision`, `emptygraph`, `depinuse`, `samefileapp`, `without_constructor`
 - Interface resolution: `iface`, `ifacedep`, `crossiface`, `unresiface`
 - Typed/Named inject: `typed_inject`, `named_inject`
@@ -131,3 +136,4 @@ _Updated: 2026-02-18 - Sync: Updated e2e case count to ~78; added provide_cross_
 _Updated: 2026-02-20 - Sync: Generate package refactored to AST-based code generation; CodeFormatter removed; generators now use ast_builder.go helpers + format.Node instead of string concatenation_
 _Updated: 2026-02-25 - Sync: Migrated from multichecker to phasedchecker; CLI entry point now uses app.Container[T] and phasedchecker.Main() with Config/Pipeline/DiagnosticPolicy; added Aggregator/DependencyResult to analyzer package; replaced PackageTracker with DuplicateRegistry; updated test framework references from analysistest to checkertest_
 _Updated: 2026-02-26 - Sync: Unified testdata structure under single e2e/ directory (removed legacy bootstrapgen/, constructorgen/, dependency/, providefunc/ top-level directories); updated e2e case count to 81; consolidated redundant test category descriptions into categorized prefix listing; added dep_ smoke test description_
+_Updated: 2026-03-02 - Sync: Added examples/ directory pattern (runnable examples as independent Go modules); updated e2e case count from ~81 to ~82_
