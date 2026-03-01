@@ -3,7 +3,7 @@ module github.com/miyamo2/braider
 go 1.25
 
 require (
-	github.com/miyamo2/phasedchecker v0.2.2
+	github.com/miyamo2/phasedchecker v0.3.0
 	golang.org/x/tools v0.42.0
 )
 
