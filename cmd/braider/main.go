@@ -47,7 +47,7 @@ func main() {
 	)
 }
 
-// braider:hash:ebe186a2490ad887
+// braider:hash:f1c474d4ddb64d45
 var dependency = func() struct {
 	dependencyAnalyzer *analysis.Analyzer
 	appAnalyzer        *analysis.Analyzer
@@ -72,40 +72,15 @@ var dependency = func() struct {
 	packageLoader := loader.NewPackageLoader()
 	namerValidatorImpl := detect.NewNamerValidatorImpl(packageLoader)
 	optionExtractorImpl := detect.NewOptionExtractorImpl(markerInterfaces, namerValidatorImpl)
+	duplicateRegistry := registry.NewDuplicateRegistry()
 	injectorRegistry := registry.NewInjectorRegistry()
 	providerRegistry := registry.NewProviderRegistry()
 	variableRegistry := registry.NewVariableRegistry()
-	duplicateRegistry := registry.NewDuplicateRegistry()
 	aggregator := analyzer.NewAggregator(providerRegistry, injectorRegistry, variableRegistry, duplicateRegistry)
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
-	appAnalyzeRunner := analyzer.NewAppAnalyzeRunner(
-		appDetector,
-		injectorRegistry,
-		providerRegistry,
-		dependencyGraphBuilder,
-		topologicalSorter,
-		bootstrapGenerator,
-		suggestedFixBuilder,
-		diagnosticEmitter,
-		variableRegistry,
-		appOptionExtractorImpl,
-		containerValidatorImpl,
-		containerResolverImpl,
-		duplicateRegistry,
-	)
-	dependencyAnalyzeRunner := analyzer.NewDependencyAnalyzeRunner(
-		provideCallDetector,
-		injectDetector,
-		structDetector,
-		fieldAnalyzer,
-		constructorAnalyzer,
-		optionExtractorImpl,
-		constructorGenerator,
-		suggestedFixBuilder,
-		diagnosticEmitter,
-		variableCallDetector,
-	)
+	appAnalyzeRunner := analyzer.NewAppAnalyzeRunner(appDetector, injectorRegistry, providerRegistry, dependencyGraphBuilder, topologicalSorter, bootstrapGenerator, suggestedFixBuilder, diagnosticEmitter, variableRegistry, appOptionExtractorImpl, containerValidatorImpl, containerResolverImpl, duplicateRegistry)
+	dependencyAnalyzeRunner := analyzer.NewDependencyAnalyzeRunner(provideCallDetector, injectDetector, structDetector, fieldAnalyzer, constructorAnalyzer, optionExtractorImpl, constructorGenerator, suggestedFixBuilder, diagnosticEmitter, variableCallDetector)
 	appAnalyzer := analyzer.NewAppAnalyzer(appAnalyzeRunner)
 	dependencyAnalyzer := analyzer.NewDependencyAnalyzer(dependencyAnalyzeRunner)
 	return struct {
