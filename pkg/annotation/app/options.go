@@ -26,13 +26,14 @@ type Default interface {
 //		"net/http"
 //
 //		"github.com/miyamo2/braider/pkg/annotation"
+//		"github.com/miyamo2/braider/pkg/annotation/app"
 //	)
 //
-//	var _ = annotation.App[DefinedContainer[struct {
+//	var _ = annotation.App[app.Container[struct {
 //		handler http.Handler `braider:"handler"`
 //	}]](main)
 //
-//	func() main() {}
+//	func main() {}
 //
 // Example generated main function:
 //
@@ -42,9 +43,10 @@ type Default interface {
 //		"net/http"
 //
 //		"github.com/miyamo2/braider/pkg/annotation"
+//		"github.com/miyamo2/braider/pkg/annotation/app"
 //	)
 //
-//	var _ = annotation.App[app.DefinedContainer[struct {
+//	var _ = annotation.App[app.Container[struct {
 //		handler http.Handler `braider:"handler"`
 //	}]](main)
 //

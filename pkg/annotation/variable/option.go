@@ -39,11 +39,11 @@ type Typed[T any] interface {
 //
 // Example:
 //
-//	type stdoutName struct{}
+//	type stdoutNamer struct{}
 //
-//	func (stdoutName) Name() string { return "stdout" }
+//	func (stdoutNamer) Name() string { return "stdout" }
 //
-//	var _ = annotation.Variable[variable.Named[stdoutName]](os.Stdout)
+//	var _ = annotation.Variable[variable.Named[stdoutNamer]](os.Stdout)
 type Named[T namer.Namer] interface {
 	Option
 	annotation.VariableNamed

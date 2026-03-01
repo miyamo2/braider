@@ -27,14 +27,12 @@ type ConstructorGenerator interface {
 
 	// GenerateConstructorWithOptions creates constructor code with option-aware return type.
 	// Returns nil if WithoutConstructor option is set.
-	// Task 5.1: Implement option-aware return type selection.
 	GenerateConstructorWithOptions(
 		candidate detect.ConstructorCandidate, fields []detect.FieldInfo, info *registry.InjectorInfo,
 	) (*GeneratedConstructor, error)
 
 	// GenerateConstructorWithNamedDeps creates constructor code with named dependency parameters.
 	// dependencyNames maps field names to custom parameter names for named dependencies.
-	// Task 5.2: Implement named dependency parameter naming.
 	GenerateConstructorWithNamedDeps(
 		candidate detect.ConstructorCandidate, fields []detect.FieldInfo, info *registry.InjectorInfo,
 		dependencyNames map[string]string,

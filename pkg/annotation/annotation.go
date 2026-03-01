@@ -95,6 +95,7 @@ func (a app[T]) option() T {
 //		"time"
 //
 //		"github.com/miyamo2/braider/pkg/annotation"
+//		"github.com/miyamo2/braider/pkg/annotation/app"
 //		"github.com/miyamo2/braider/pkg/annotation/inject"
 //		"github.com/miyamo2/braider/pkg/annotation/provide"
 //	)
@@ -128,6 +129,7 @@ func (a app[T]) option() T {
 //		"time"
 //
 //		"github.com/miyamo2/braider/pkg/annotation"
+//		"github.com/miyamo2/braider/pkg/annotation/app"
 //		"github.com/miyamo2/braider/pkg/annotation/inject"
 //		"github.com/miyamo2/braider/pkg/annotation/provide"
 //	)

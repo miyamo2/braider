@@ -23,7 +23,7 @@ import (
 //     Edges["UserService"] = ["UserRepository"]
 //
 // InDegree interpretation (reverse edges):
-//   - InDegree counts how many types depend on this node
+//   - InDegree counts how many dependencies this node has
 //   - Used by Kahn's algorithm for topological sorting
 //   - InDegree == 0 means no dependencies, can be initialized first
 //   - As nodes are processed, InDegree is decremented for dependents
@@ -44,7 +44,7 @@ type Node struct {
 	ConstructorPkgName  string     // Package name of the constructor function's package
 	ConstructorPkgAlias string     // Alias for the constructor's package when collision occurs (empty = no alias)
 	Dependencies        []string   // Types this depends on
-	InDegree            int        // Number of types that depend on this node (for Kahn's algorithm)
+	InDegree            int        // Number of dependencies this node has (for Kahn's algorithm)
 	IsField             bool       // True for Inject/Provide nodes exposed as dependency struct fields; false for Variable nodes (local variables only)
 	RegisteredType      types.Type // Interface type for Typed[I], concrete type otherwise (nil = use concrete type)
 	Name                string     // Dependency name from Named[N], empty if unnamed
