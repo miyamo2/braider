@@ -25,7 +25,7 @@
 Unlike runtime DI frameworks, braider provides:
 - **Compile-time Safety**: Errors detected during analysis, not at runtime
 - **Zero Runtime Overhead**: Generated code is plain Go, no reflection or containers
-- **Toolchain Integration**: Works with existing `go vet` workflow, no custom build steps
+- **Toolchain Integration**: Works with existing `braider -fix` workflow, no custom build steps
 - **Inspired by Wire**: Similar philosophy to google/wire, but leveraging go/analysis for broader tooling integration
 
 ---
@@ -37,3 +37,4 @@ _Updated: 2026-02-12 - Sync: Added Variable[T](value) annotation as a core capab
 _Updated: 2026-02-14 - Sync: Constructor generation now applies to all Injectable[T] structs, including zero-dependency structs (no HasInjectableFields guard)_
 _Updated: 2026-02-15 - Sync: Added struct tag support for field-level DI control; Provide annotations now included as bootstrap struct fields_
 _Updated: 2026-02-16 - Sync: App annotation now uses generic form App[T](main) with app option type parameter; added container definition support via app.Container[T] option_
+_Updated: 2026-03-02 - Sync: Corrected misleading go vet references to braider/phasedchecker standalone binary; updated toolchain integration description to braider -fix workflow_
