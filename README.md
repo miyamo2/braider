@@ -128,21 +128,21 @@ type AppService struct {
 ```go
 type AppService struct {
     annotation.Injectable[inject.Default]
-    logger   Logger
-    debugger Debugger `braider:"-"`
+    logger Logger
+    mu     sync.Mutex `braider:"-"`
 }
 ```
 
-The generated constructor will only accept `logger` as a parameter; `debugger` is ignored.
+The generated constructor will only accept `logger` as a parameter; `mu` is ignored.
 
 Struct tags can be combined freely — some fields tagged with names, some excluded, and others resolved by type:
 
 ```go
 type AppService struct {
     annotation.Injectable[inject.Default]
-    repo     *UserRepository `braider:"primaryRepo"`
-    logger   Logger
-    debugger Debugger        `braider:"-"`
+    repo   *UserRepository `braider:"primaryRepo"`
+    logger Logger
+    mu     sync.Mutex      `braider:"-"`
 }
 ```
 
