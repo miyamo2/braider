@@ -42,6 +42,7 @@ func main() {
 					{Category: report.CategoryExpressionValidation, Severity: phasedchecker.SeverityCritical},
 					{Category: report.CategoryDependencyRegistration, Severity: phasedchecker.SeverityCritical},
 				},
+				DefaultSeverity: phasedchecker.SeverityWarn,
 			},
 		},
 	)
@@ -79,8 +80,33 @@ var dependency = func() struct {
 	aggregator := analyzer.NewAggregator(providerRegistry, injectorRegistry, variableRegistry, duplicateRegistry)
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
-	appAnalyzeRunner := analyzer.NewAppAnalyzeRunner(appDetector, injectorRegistry, providerRegistry, dependencyGraphBuilder, topologicalSorter, bootstrapGenerator, suggestedFixBuilder, diagnosticEmitter, variableRegistry, appOptionExtractorImpl, containerValidatorImpl, containerResolverImpl, duplicateRegistry)
-	dependencyAnalyzeRunner := analyzer.NewDependencyAnalyzeRunner(provideCallDetector, injectDetector, structDetector, fieldAnalyzer, constructorAnalyzer, optionExtractorImpl, constructorGenerator, suggestedFixBuilder, diagnosticEmitter, variableCallDetector)
+	appAnalyzeRunner := analyzer.NewAppAnalyzeRunner(
+		appDetector,
+		injectorRegistry,
+		providerRegistry,
+		dependencyGraphBuilder,
+		topologicalSorter,
+		bootstrapGenerator,
+		suggestedFixBuilder,
+		diagnosticEmitter,
+		variableRegistry,
+		appOptionExtractorImpl,
+		containerValidatorImpl,
+		containerResolverImpl,
+		duplicateRegistry,
+	)
+	dependencyAnalyzeRunner := analyzer.NewDependencyAnalyzeRunner(
+		provideCallDetector,
+		injectDetector,
+		structDetector,
+		fieldAnalyzer,
+		constructorAnalyzer,
+		optionExtractorImpl,
+		constructorGenerator,
+		suggestedFixBuilder,
+		diagnosticEmitter,
+		variableCallDetector,
+	)
 	appAnalyzer := analyzer.NewAppAnalyzer(appAnalyzeRunner)
 	dependencyAnalyzer := analyzer.NewDependencyAnalyzer(dependencyAnalyzeRunner)
 	return struct {
