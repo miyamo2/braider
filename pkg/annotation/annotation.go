@@ -35,10 +35,10 @@ import (
 //
 // Mixed options can be composed with embedded option interfaces:
 //
-//	type SpecialService struct {
+//	type SpecialRepository struct {
 //		annotation.Injectable[interface {
 //			inject.Typed[Repository]
-//			inject.Named[ServiceName]
+//			inject.Named[RepositoryName]
 //		}]
 //	}
 type Injectable[T inject.Option] interface {

@@ -49,7 +49,9 @@ func (ServiceNamer) Name() string {
 var _ namer.Namer = ServiceNamer{}
 
 // IService is an example interface for provider type registration.
-type IService any
+type IService interface {
+	Run()
+}
 
 // Service is an example concrete type implementing IService.
 type Service struct{}

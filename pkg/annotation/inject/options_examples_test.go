@@ -59,16 +59,15 @@ func ExampleWithoutConstructor() {
 // Create an anonymous interface embedding multiple option interfaces
 // to combine behaviors such as Typed[I] and WithoutConstructor.
 func ExampleOption_custom() {
-	type IService any
-
-	type Repository any
+	type IService interface {
+		Run()
+	}
 
 	type Service struct {
 		annotation.Injectable[interface {
 			inject.Typed[IService]
 			inject.WithoutConstructor
 		}]
-		repository Repository
 	}
 	_ = Service{}
 }

@@ -149,10 +149,10 @@ type AppService struct {
 **Mixed options** are supported by embedding multiple option interfaces in a single anonymous interface:
 
 ```go
-type MixedService struct {
+type MixedRepository struct {
     annotation.Injectable[interface {
         inject.Typed[Repository]
-        inject.Named[ServiceName]
+        inject.Named[RepositoryName]
     }]
 }
 ```

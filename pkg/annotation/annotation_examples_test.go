@@ -1,6 +1,7 @@
 package annotation_test
 
 import (
+	"io"
 	"os"
 
 	"github.com/miyamo2/braider/pkg/annotation"
@@ -121,14 +122,19 @@ func ExampleVariable_default() {
 // When Variable[variable.Typed[I]] is used, braider registers the variable
 // under the interface type I instead of the argument's declared type.
 func ExampleVariable_typed() {
-	var _ = annotation.Variable[variable.Typed[any]](os.Stdout)
+	var _ = annotation.Variable[variable.Typed[io.Writer]](os.Stdout)
 }
+
+// stdoutNamer is a Namer implementation for os.Stdout used in examples.
+type stdoutNamer struct{}
+
+func (stdoutNamer) Name() string { return "stdout" }
 
 // ExampleVariable_named demonstrates registering a variable with a name.
 // When Variable[variable.Named[N]] is used, braider registers the variable
 // with the name returned by N.Name().
 func ExampleVariable_named() {
-	var _ = annotation.Variable[variable.Named[primaryDBName]](os.Stdout)
+	var _ = annotation.Variable[variable.Named[stdoutNamer]](os.Stdout)
 }
 
 // ExampleApp demonstrates marking the entry point for bootstrap code generation.

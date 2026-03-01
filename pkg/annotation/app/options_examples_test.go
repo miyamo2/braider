@@ -10,8 +10,9 @@ func ExampleDefault() {
 }
 
 func ExampleContainer() {
+	type Service struct{}
 	var _ = annotation.App[app.Container[struct {
-		someDependency string `braider:"someDependency"`
+		Svc *Service
 	}]](main)
 }
 
