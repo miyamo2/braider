@@ -12,10 +12,10 @@
 // Options can be combined by embedding multiple option interfaces in an
 // anonymous interface:
 //
-//	type MyService struct {
+//	type SpecialRepository struct {
 //	    annotation.Injectable[interface {
-//	        inject.Typed[ServiceInterface]
-//	        inject.Named[ServiceName]
+//	        inject.Typed[Repository]
+//	        inject.Named[RepositoryName]
 //	    }]
 //	}
 //
