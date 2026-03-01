@@ -6,7 +6,7 @@ build:
 	go build -o ./bin/braider ./cmd/braider
 
 run: build
-	./bin/braider -test=false $(TARGET)
+	./bin/braider -test=false -json $(TARGET)
 
 fix: build
 	./bin/braider -fix -test=false $(TARGET)
