@@ -23,7 +23,7 @@ func ExampleInjectable_default() {
 
 // ExampleInjectable_typed demonstrates registering a dependency as an interface type.
 // When Injectable[inject.Typed[I]] is used, braider generates a constructor
-// that returns the interface type I and registers the dependency as that interface.
+// that returns *ConcreteStruct and registers the dependency as the interface type I in bootstrap code.
 func ExampleInjectable_typed() {
 	type Repository interface {
 		FindByID(id string) (string, error)

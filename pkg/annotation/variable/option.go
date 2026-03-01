@@ -1,3 +1,22 @@
+// Package variable provides option interfaces for configuring
+// annotation.Variable behavior in braider's dependency injection system.
+//
+// Options control how the braider analyzer registers pre-existing variables
+// or package-qualified identifiers as dependencies. Available options:
+//
+//   - [Default]: registers the variable under its declared type
+//   - [Typed]: registers the variable as a specific interface type instead of the declared type
+//   - [Named]: registers the variable with a specific name for disambiguation
+//
+// Options can be combined by embedding multiple option interfaces in an
+// anonymous interface:
+//
+//	var _ = annotation.Variable[interface {
+//	    variable.Typed[io.Writer]
+//	    variable.Named[StdoutName]
+//	}](os.Stdout)
+//
+// Custom option types must implement the [Option] interface.
 package variable
 
 import (
