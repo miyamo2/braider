@@ -14,7 +14,7 @@ jobs:
     steps:
       - name: Skip for closed PR
         run: echo "Pull request closed without merge; skipping job."
-  run:
+  braider:
     needs:
       - check-closed-without-merging
     if: ${{ always() && needs.check-closed-without-merging.result == 'skipped' }}
