@@ -42,7 +42,7 @@ type Default interface {
 	annotation.InjectableDefault
 }
 
-// Typed configures the annotation.Injectable to register an instance in the container with a specific type.
+// Typed configures the annotation.Injectable to register a dependency with a specific type.
 // If not set, a pointer to the struct type is used as the registration type.
 //
 // Example:
@@ -60,7 +60,7 @@ type Typed[T any] interface {
 	typeParam() T
 }
 
-// Named configures the annotation.Injectable to register an instance in the container with a specific name.
+// Named configures the annotation.Injectable to register a dependency with a specific name.
 // If not set, the injectable is registered without a name.
 //
 // Name values must come from a Namer implementation that returns a string literal.

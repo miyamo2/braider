@@ -18,7 +18,7 @@ type Default interface {
 }
 
 // Container configures annotation.App to use a user-defined container.
-// The analyzer generates a bootstrap function that returns the container instance provided by type parameter.
+// The analyzer generates a bootstrap IIFE that returns the container instance provided by type parameter.
 //
 // Container fields are matched to registered dependencies by type.
 // Use braider:"name" struct tags to match named dependencies.

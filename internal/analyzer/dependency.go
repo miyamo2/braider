@@ -82,7 +82,7 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 	reporter := &passReporter{pass: pass}
 	result := &DependencyResult{}
 
-	// Phase 1: Constructor Generation for Inject structs
+	// Constructor Generation for Inject structs
 	// Detect Inject structs that need constructors and generate them via SuggestedFix
 	injectCandidates := r.structDetector.DetectCandidates(pass)
 	for _, candidate := range injectCandidates {
@@ -193,7 +193,7 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 		}
 	}
 
-	// Phase 2: Detect and register Provide calls (var _ = annotation.Provide[T](fn))
+	// Detect and register Provide calls (var _ = annotation.Provide[T](fn))
 	providers := r.provideCallDetector.DetectProviders(pass)
 	for _, provider := range providers {
 		// Extract dependencies from provider function parameters
@@ -274,7 +274,7 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 		})
 	}
 
-	// Phase 2.5: Detect and register Variable annotations
+	// Detect and register Variable annotations
 	if r.variableCallDetector != nil {
 		variables, detectionErrors := r.variableCallDetector.DetectVariables(pass)
 		for _, detErr := range detectionErrors {
@@ -332,8 +332,8 @@ func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) 
 		}
 	}
 
-	// Phase 3: Detect and register Inject structs with IsPending flag
-	// Re-detect injectors to include state after constructor generation
+	// Detect and register Inject structs with IsPending flag
+	// Re-detect injectors to determine IsPending (generated vs existing constructor)
 	injectors := r.structDetector.DetectCandidates(pass)
 	for _, injector := range injectors {
 		var dependencies []string

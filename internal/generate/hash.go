@@ -16,7 +16,8 @@ const hashLength = 16
 
 // ComputeGraphHash computes a deterministic hash from the dependency graph.
 // It generates a 16-character hex string (64-bit hash) based on sorted type names,
-// constructor names, IsField flags, ExpressionText (for Variable nodes), and their dependencies.
+// constructor names, IsField flags, ExpressionText (for Variable nodes),
+// ConstructorPkgPath (conditional: only when it differs from PackagePath), and their dependencies.
 // Using 64-bit reduces collision probability compared to 32-bit hashes.
 //
 // The hash is computed from node fields (ConstructorName, Dependencies, ExpressionText) which must

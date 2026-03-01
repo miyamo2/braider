@@ -64,7 +64,7 @@ func (i *ProviderInfo) GetName() string {
 
 var _ = annotation.Provide[provide.Default](NewProviderRegistry)
 
-// ProviderRegistry stores all discovered provider structs.
+// ProviderRegistry stores all discovered provider entries.
 // Thread-safe for potential parallel analyzer execution.
 // Uses RWMutex to allow concurrent reads for improved performance.
 type ProviderRegistry struct {
@@ -79,9 +79,9 @@ func NewProviderRegistry() *ProviderRegistry {
 	}
 }
 
-// Register adds a provider struct to the registry.
-// Returns an error if a duplicate (TypeName, Name) pair is detected with a non-empty name.
-// If a provider with the same TypeName already exists and names don't conflict, it will be overwritten.
+// Register adds a provider entry to the registry.
+// Returns an error if a duplicate (TypeName, Name) pair is detected with a non-empty Name.
+// For unnamed entries (Name == ""), the same (TypeName, "") key is silently overwritten.
 func (r *ProviderRegistry) Register(info *ProviderInfo) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -100,8 +100,8 @@ func (r *ProviderRegistry) Register(info *ProviderInfo) error {
 	return nil
 }
 
-// GetAll returns all registered provider structs.
-// The returned slice is sorted alphabetically by TypeName for deterministic output.
+// GetAll returns all registered provider entries.
+// The returned slice is sorted alphabetically by TypeName, then by Name for deterministic output.
 // Returns a copy of the slice to prevent external mutation.
 func (r *ProviderRegistry) GetAll() []*ProviderInfo {
 	r.mu.RLock()
@@ -133,7 +133,7 @@ func (r *ProviderRegistry) GetAll() []*ProviderInfo {
 
 // GetByName retrieves a named provider by fully qualified type name and name.
 // Returns (info, true) if found with matching name, (nil, false) otherwise.
-// This supports named dependency lookup for Provider[provide.Named[N]] annotations.
+// This supports named dependency lookup for annotation.Provide[provide.Named[N]] annotations.
 func (r *ProviderRegistry) GetByName(typeName, name string) (*ProviderInfo, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

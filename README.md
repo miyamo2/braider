@@ -167,7 +167,7 @@ func (PrimaryDBName) Name() string { return "primaryDB" }
 
 ### Variable
 
-`annotation.Variable[T](value)` registers a pre-existing variable or package-qualified identifier as a DI dependency. Unlike `Injectable` and `Provide`, no constructor is generated or invoked — the value is assigned directly in the bootstrap code.
+`annotation.Variable[T](value)` registers a pre-existing variable or package-qualified identifier as a DI dependency. Unlike `Injectable` and `Provide`, no constructor is generated or invoked — the value is used directly in the bootstrap code.
 
 Supported argument expressions: identifiers (`myVar`) and package-qualified selectors (`os.Stdout`). Literals, function calls, and composite literals are not supported.
 
@@ -183,7 +183,7 @@ import (
 var _ = annotation.Variable[variable.Default](os.Stdout)
 ```
 
-In the generated bootstrap code, this becomes a direct assignment: `stdout := os.Stdout`.
+In the generated bootstrap code, the variable is referenced directly (e.g., `out := os.Stdout` when used as a dependency, or `_ = os.Stdout` when not depended upon).
 
 ### App Options
 
@@ -195,7 +195,7 @@ In the generated bootstrap code, this becomes a direct assignment: `stdout := os
 var _ = annotation.App[app.Default](main)
 ```
 
-**`app.Container[T]`** — generates a bootstrap function that returns a user-defined container type `T`:
+**`app.Container[T]`** — generates a bootstrap IIFE that returns a user-defined container type `T`:
 
 ```go
 var _ = annotation.App[app.Container[struct {
@@ -300,7 +300,7 @@ func main() {
     _ = dependency
 }
 
-// braider:hash:blurblurblur
+// braider:hash:<hash>
 var dependency = func() struct {
     clock   Clock
     service *Service

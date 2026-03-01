@@ -39,7 +39,7 @@ type Default interface {
 	annotation.VariableDefault
 }
 
-// Typed configures the annotation.Variable to register an instance in the container with a specific type.
+// Typed configures the annotation.Variable to register a dependency with a specific type.
 // If not set, the type of the variable is used as the registration type.
 //
 // Example:
@@ -51,7 +51,7 @@ type Typed[T any] interface {
 	typeParam() T
 }
 
-// Named configures the annotation.Variable to register an instance in the container with a specific name.
+// Named configures the annotation.Variable to register a dependency with a specific name.
 // If not set, the variable is registered without a name.
 //
 // Name values must come from a Namer implementation that returns a string literal.

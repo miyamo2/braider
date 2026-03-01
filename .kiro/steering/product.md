@@ -1,6 +1,6 @@
 # Product Overview
 
-**braider** is a go vet analyzer that resolves Dependency Injection (DI) bindings and generates wiring code automatically. It integrates seamlessly with the standard Go toolchain via `go vet`, providing compile-time DI resolution without runtime overhead.
+**braider** is a go/analysis analyzer that resolves Dependency Injection (DI) bindings and generates wiring code automatically. It runs as a standalone binary built on the `go/analysis` framework, providing compile-time DI resolution without runtime overhead.
 
 ## Core Capabilities
 
@@ -12,7 +12,7 @@
 - **Interface Support**: Automatic resolution of interface dependencies to concrete implementations via `Provide[provide.Typed[I]](fn)`, `Injectable[inject.Typed[I]]`, and `Variable[variable.Typed[I]](value)`
 - **Struct Tag Control**: Field-level DI customization via `braider` struct tags (`braider:"name"` for named resolution, `braider:"-"` to exclude fields from DI)
 - **Container Definition**: User-defined container structs via `App[app.Container[T]]` option, enabling typed access to resolved dependencies through a custom struct type rather than an anonymous struct
-- **Go Vet Integration**: Works as a standard go vet tool, enabling `go vet -fix` workflow for applying suggested fixes
+- **Standalone Binary**: Runs as `braider ./...` (or `braider -fix ./...` to apply suggested fixes), built on the go/analysis framework
 
 ## Target Use Cases
 

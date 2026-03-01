@@ -29,7 +29,7 @@ This self-hosting pattern means braider's own `cmd/braider/main.go` contains bra
 ### Test Fixtures
 **Location**: `internal/analyzer/testdata/`
 **Purpose**: Go source files used as test inputs for checkertest
-**Pattern**: All test cases unified under a single `testdata/e2e/` directory (~82 cases), organized by category prefix:
+**Pattern**: All test cases unified under a single `testdata/e2e/` directory (82 cases), organized by category prefix:
 - Core scenarios: `basic`, `crosspackage`, `simpleapp`, `modulewide`, `pkgcollision`, `emptygraph`, `depinuse`, `samefileapp`, `without_constructor`
 - Interface resolution: `iface`, `ifacedep`, `crossiface`, `unresiface`
 - Typed/Named inject: `typed_inject`, `named_inject`
@@ -38,7 +38,7 @@ This self-hosting pattern means braider's own `cmd/braider/main.go` contains bra
 - Struct tag: `struct_tag_*` prefix (named, exclude, mixed, all_excluded, typed_fields, idempotent, outdated)
 - Container mode: `container_*` prefix (basic, anonymous, named, named_field, cross_package, iface_field, mixed_option, transitive, variable, idempotent, outdated, provide_cross_type)
 - Idempotent/outdated: `idempotent`, `outdated`
-- Error cases: `error_*` prefix (error_cases, error_duplicate_name, error_nonliteral, error_provide_typed, error_variable_*, error_struct_tag_*, error_container_*)
+- Error cases: `error_*` prefix (error_cases, error_duplicate_name, error_duplicate_provide_variable, error_nonliteral, error_provide_typed, error_variable_*, error_struct_tag_*, error_struct_tag_conflict, error_container_*), plus `circular`, `ambiguous*`, `unresolvedparam`, `unresparam`, `unresolvedif`, `nonmainapp`, `noapp`, `multipleapp`
 - Constructor generation: `constructorgen/` (per-file test cases with .go/.golden pairs)
 - Dependency-only smoke tests: `dep_basic`, `dep_missing_constructor`, `dep_cross_package`, `dep_interface_impl` (no App annotation, no golden files; verify dependency phase runs without unexpected diagnostics)
 

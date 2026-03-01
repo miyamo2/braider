@@ -12,7 +12,7 @@ import (
 )
 
 // InjectorInfo contains information about an Inject struct.
-// These are constructor generation targets that become fields in the dependency struct.
+// These are constructor generation targets that become nodes in the dependency graph.
 type InjectorInfo struct {
 	// TypeName is the fully qualified type name (e.g., "example.com/service.UserService")
 	TypeName string
@@ -70,8 +70,8 @@ func NewInjectorRegistry() *InjectorRegistry {
 }
 
 // Register adds an injector struct to the registry.
-// Returns an error if a duplicate (TypeName, Name) pair is detected with a non-empty name.
-// If an injector with the same TypeName already exists and names don't conflict, it will be overwritten.
+// Returns an error if a duplicate (TypeName, Name) pair is detected with a non-empty Name.
+// For unnamed entries (Name == ""), the same (TypeName, "") key is silently overwritten.
 func (r *InjectorRegistry) Register(info *InjectorInfo) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -91,7 +91,7 @@ func (r *InjectorRegistry) Register(info *InjectorInfo) error {
 }
 
 // GetAll returns all registered injector structs.
-// The returned slice is sorted alphabetically by TypeName for deterministic output.
+// The returned slice is sorted alphabetically by TypeName, then by Name for deterministic output.
 // Returns a copy of the slice to prevent external mutation.
 func (r *InjectorRegistry) GetAll() []*InjectorInfo {
 	r.mu.RLock()

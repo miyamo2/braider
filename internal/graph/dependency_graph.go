@@ -22,7 +22,7 @@ import (
 //   - Example: If UserService depends on UserRepository,
 //     Edges["UserService"] = ["UserRepository"]
 //
-// InDegree interpretation (incoming dependency count):
+// InDegree interpretation (dependency count):
 //   - InDegree counts how many dependencies this node has
 //   - Used by Kahn's algorithm for topological sorting
 //   - InDegree == 0 means no dependencies, can be initialized first

@@ -93,7 +93,7 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 	// Track field names
 	fieldNames := make(map[string]string) // typeName -> fieldName
 
-	// Phase 1: Build struct fields for Inject and Provide nodes (IsField=true)
+	// Build struct fields for Inject and Provide nodes (IsField=true)
 	var astStructFields []*ast.Field
 	var fieldNameList []string // parallel to astStructFields
 
@@ -125,7 +125,7 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		}
 	}
 
-	// Phase 2: Generate initialization statements as AST
+	// Generate initialization statements as AST
 	var initStmts []ast.Stmt
 	for _, typeName := range sortedTypes {
 		node := g.Nodes[typeName]
@@ -159,7 +159,7 @@ func (bg *bootstrapGenerator) GenerateBootstrap(
 		initStmts = append(initStmts, &ast.AssignStmt{Lhs: []ast.Expr{&ast.Ident{Name: varName}}, Tok: token.DEFINE, Rhs: []ast.Expr{callExpr}})
 	}
 
-	// Phase 3: Build IIFE as AST
+	// Build IIFE as AST
 	// struct type for return type (used in func signature)
 	returnStructType := &ast.StructType{Fields: &ast.FieldList{List: astStructFields}}
 

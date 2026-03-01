@@ -58,7 +58,7 @@ In `InjectorInfo`, `IsPending=true` means the constructor was generated in the c
 
 ### Hash-Based Idempotency
 
-Bootstrap code includes a `// braider:hash:<hash>` comment. On subsequent runs, if the computed hash matches the existing one, regeneration is skipped. Hash inputs: `TypeName`, `ConstructorName`, `IsField`, `Dependencies`, `ExpressionText` (NOT `RegisteredType`).
+Bootstrap code includes a `// braider:hash:<hash>` comment. On subsequent runs, if the computed hash matches the existing one, regeneration is skipped. Hash inputs: `TypeName`, `ConstructorName`, `IsField`, `Dependencies`, `ExpressionText`, `ConstructorPkgPath` (conditional: only when it differs from `PackagePath`) (NOT `RegisteredType`).
 
 ### Dependency Graph
 
@@ -122,7 +122,7 @@ Annotation types are identified via `types.Implements` checks against sealed mar
 - **`internal/generate/`** — ConstructorGenerator, BootstrapGenerator, hash computation, import management, AST-based code generation (ast_builder helpers + format.Node)
 - **`internal/report/`** — SuggestedFixBuilder, DiagnosticEmitter, diagnostic category constants (CategoryOptionValidation, CategoryExpressionValidation, CategoryDependencyRegistration map to SeverityCritical)
 - **`internal/loader/`** — PackageLoader for module package discovery
-- **`internal/analyzer/`** — Aggregator (AfterDependencyPhase callback), DependencyResult (per-package result type)
+- **`internal/analyzer/`** — Aggregator (AfterDependencyPhase callback), DependencyResult (per-package result type), DependencyAnalyzeRunner, AppAnalyzeRunner
 
 ## Testing Patterns
 
@@ -136,7 +136,7 @@ All e2e tests run through a single table-driven `TestIntegration` function in `i
 - `.golden` files must match the source file content after SuggestedFix application
 - For idempotent tests (no `// want` on App annotation): existing bootstrap hash must match computed hash
 - **Golden file workflow**: create placeholder `.golden` → run test → get diff → paste actual output as golden
-- Testdata modules use `replace` directives: from `testdata/<case>/` to `pkg` = `../../../../../pkg` (count `..` levels carefully)
+- Testdata modules use `replace` directives: `replace github.com/miyamo2/braider => ./../../../../..` (points to the module root, count `..` levels carefully)
 - Avoid `string`/primitive fields in testdata structs — they become unresolvable DI dependencies
 
 ### Key Test Directories
