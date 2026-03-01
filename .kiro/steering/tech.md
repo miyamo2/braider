@@ -15,7 +15,7 @@ The pipeline is configured via `phasedchecker.Config` with explicit `Pipeline` (
 - **Language**: go 1.25
 - **Framework**: `golang.org/x/tools/go/analysis` (Go analyzer framework)
 - **Pipeline**: `github.com/miyamo2/phasedchecker` (phased multi-analyzer orchestration)
-- **Runtime**: Standard Go toolchain (`go vet`)
+- **Runtime**: Standalone binary via `phasedchecker.Main()`
 
 ## Key Libraries
 
@@ -71,7 +71,7 @@ braider -fix ./...
 
 ### SuggestedFix for Code Generation
 Code generation is implemented via `analysis.SuggestedFix` rather than separate codegen tools. This enables:
-- Integration with `go vet -fix` workflow
+- Integration with `braider -fix` workflow
 - IDE integration (fixes appear as quick actions)
 - Atomic application of related changes
 
