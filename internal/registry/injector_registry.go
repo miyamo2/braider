@@ -54,7 +54,7 @@ func (i *InjectorInfo) GetName() string {
 
 var _ = annotation.Provide[provide.Default](NewInjectorRegistry)
 
-// InjectorRegistry stores all discovered injector structs globally.
+// InjectorRegistry stores all discovered injector structs.
 // Thread-safe for potential parallel analyzer execution.
 // Uses RWMutex to allow concurrent reads for improved performance.
 type InjectorRegistry struct {

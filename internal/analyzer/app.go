@@ -138,7 +138,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	// Retrieve all providers, injectors, and variables from global registries
+	// Retrieve all providers, injectors, and variables from shared registries
 	providers := r.provideRegistry.GetAll()
 	injectors := r.injectRegistry.GetAll()
 	var variables []*registry.VariableInfo

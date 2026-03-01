@@ -1,4 +1,4 @@
-// Task 7.2: Outdated hash test for braider struct tags.
+// Outdated hash test for braider struct tags.
 // Verifies that when bootstrap hash is stale, regeneration occurs.
 // The braider:"-" tag on AppService.logger excludes it from hash computation.
 // The wrong hash triggers "bootstrap code is outdated" diagnostic.

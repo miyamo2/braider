@@ -316,7 +316,16 @@ func (e *diagnosticEmitter) EmitContainerFieldError(
 		analysis.Diagnostic{
 			Pos:      pos,
 			Category: CategoryContainerValidation,
-			Message:  fmt.Sprintf("container field %q (type %s): %s", fieldName, fieldType, reason),
+			Message:  formatContainerFieldError(fieldName, fieldType, reason),
 		},
 	)
+}
+
+// formatContainerFieldError formats a container field error message.
+// When fieldType is empty, the type information is omitted from the message.
+func formatContainerFieldError(fieldName, fieldType, reason string) string {
+	if fieldType == "" {
+		return fmt.Sprintf("container field %q: %s", fieldName, reason)
+	}
+	return fmt.Sprintf("container field %q (type %s): %s", fieldName, fieldType, reason)
 }

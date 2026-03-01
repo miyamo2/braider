@@ -2,7 +2,7 @@
 // dependency injection code generation.
 //
 // This package defines annotations that instruct the braider analyzer
-// to generate constructors, wiring code, and main function bootstrapping.
+// to generate constructors, wiring code, and IIFE bootstrap variables.
 package annotation
 
 import (
@@ -121,7 +121,7 @@ func (a app[T]) option() T {
 //
 //	func main() {}
 //
-// Example generated main function:
+// Example after braider generates constructors and bootstrap code:
 //
 //	package main
 //

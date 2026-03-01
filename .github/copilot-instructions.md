@@ -89,7 +89,7 @@ Mixed options via anonymous interface embedding: `Injectable[interface{ inject.T
 - **`app.Default`** — standard bootstrap: generates anonymous struct with all dependencies as fields
 - **`app.Container[T]`** — user-defined container: `T` is a struct type (named or anonymous) whose fields map to dependencies; bootstrap returns an instance of `T`
 
-Container fields use `braider:"name"` struct tags to match named dependencies. Fields without tags match by type. `braider:"-"` excludes a field from resolution.
+Container fields use `braider:"name"` struct tags to match named dependencies. Fields without tags match by type. Note: `braider:"-"` is not permitted on container fields and produces a validation error.
 
 ### Variable Annotation Details
 

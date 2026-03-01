@@ -13,7 +13,7 @@ type InternalState interface {
 	Reset()
 }
 
-// Task 8.1: Type compatibility test across all supported field types with struct tags.
+// Type compatibility test across all supported field types with struct tags.
 // Verifies constructor generation and bootstrap wiring for:
 // - Pointer field with braider:"primaryCache" named tag
 // - Pointer field with braider:"mainDB" named tag

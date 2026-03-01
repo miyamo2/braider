@@ -6,7 +6,7 @@ import "go/types"
 // This metadata is extracted during annotation detection and stored in registry
 // for use during code generation.
 type OptionMetadata struct {
-	// IsDefault indicates inject.Default or provide.Default option
+	// IsDefault indicates inject.Default, provide.Default, or variable.Default option
 	IsDefault bool
 
 	// TypedInterface contains the interface type for Typed[I] option (nil if not typed)

@@ -26,14 +26,14 @@ func (n DependencyAnalyzerNamer) Name() string {
 	return "dependencyAnalyzer"
 }
 
-// NewDependencyAnalyzer detects annotation.Provide and annotation.Injectable structs
-// across all packages and registers them to global registries.
+// NewDependencyAnalyzer detects annotation.Injectable, annotation.Provide, and annotation.Variable
+// annotations and collects them into per-package DependencyResults.
 func NewDependencyAnalyzer(
 	runner *DependencyAnalyzeRunner,
 ) *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name:       "braider_dependency",
-		Doc:        "detects Provide, Inject, and Variable annotated structs and registers to global registry",
+		Doc:        "detects Provide, Injectable, and Variable annotations and collects per-package results",
 		Run:        runner.Run,
 		ResultType: reflect.TypeOf((*DependencyResult)(nil)),
 		Requires:   []*analysis.Analyzer{inspect.Analyzer},

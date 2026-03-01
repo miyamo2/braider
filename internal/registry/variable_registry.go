@@ -62,7 +62,7 @@ func (i *VariableInfo) GetName() string {
 	return i.Name
 }
 
-// VariableRegistry stores all discovered Variable annotations globally.
+// VariableRegistry stores all discovered Variable annotations.
 // Thread-safe for potential parallel analyzer execution.
 // Uses RWMutex to allow concurrent reads for improved performance.
 type VariableRegistry struct {

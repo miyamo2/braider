@@ -138,7 +138,7 @@ func ExampleVariable_named() {
 }
 
 // ExampleApp demonstrates marking the entry point for bootstrap code generation.
-// annotation.App(main) triggers braider to generate an IIFE that initializes
+// annotation.App[T](main) triggers braider to generate an IIFE that initializes
 // all registered dependencies in topological order.
 func ExampleApp() {
 	main := func() {}

@@ -3,7 +3,6 @@
 // When inject.WithoutConstructor is used, the braider analyzer:
 //   - Skips constructor generation for the annotated struct
 //   - Requires a manually-provided New<TypeName> function
-//   - Validates that the manual constructor exists during analysis
 //
 // This is useful when the constructor has custom initialization logic
 // that cannot be expressed by braider's auto-generated constructors.

@@ -12,8 +12,8 @@ import (
 	"github.com/miyamo2/braider/internal/registry"
 )
 
-// TestConstructorGenerator_OptionAwareReturnType tests Task 5.1:
-// Implement option-aware return type selection in ConstructorGenerator
+// TestConstructorGenerator_OptionAwareReturnType tests
+// option-aware return type selection in ConstructorGenerator
 func TestConstructorGenerator_OptionAwareReturnType(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -122,8 +122,8 @@ func TestConstructorGenerator_OptionAwareReturnType(t *testing.T) {
 	}
 }
 
-// TestConstructorGenerator_NamedDependencyParameters tests Task 5.2:
-// Implement named dependency parameter naming in ConstructorGenerator
+// TestConstructorGenerator_NamedDependencyParameters tests
+// named dependency parameter naming in ConstructorGenerator
 func TestConstructorGenerator_NamedDependencyParameters(t *testing.T) {
 	tests := []struct {
 		name             string

@@ -1,3 +1,5 @@
+// Package app provides option interfaces for configuring
+// annotation.App behavior in braider's dependency injection system.
 package app
 
 import "github.com/miyamo2/braider/internal/annotation"

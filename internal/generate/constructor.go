@@ -250,7 +250,7 @@ func (g *constructorGenerator) determineReturnTypeExpr(structName string, info *
 // Rules:
 // 1. Convert to lowerCamelCase (handle all-caps like "DB" -> "db")
 // 2. If result is a Go keyword, append underscore
-// 3. If result conflicts with builtin, use field name with "Param" suffix
+// 3. If result conflicts with builtin, append "Param" suffix to the derived parameter name
 func DeriveParamName(fieldName string) string {
 	if fieldName == "" {
 		return "param"

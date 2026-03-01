@@ -1,5 +1,5 @@
-// Package registry provides global registries for storing discovered
-// provider and injector structs across packages during analysis.
+// Package registry provides shared registries for storing discovered
+// provider, injector, and variable annotations across packages during analysis.
 // These registries enable cross-package dependency discovery for
 // bootstrap code generation.
 package registry
@@ -38,8 +38,8 @@ type ProviderInfo struct {
 	// Implements contains fully qualified interface types this struct implements
 	Implements []string
 	// IsPending indicates whether the constructor is being generated in the current pass (true)
-	// or already exists on disk (false). Typically false for Provide annotations as they require
-	// existing constructors, but included for consistency with InjectorInfo.
+	// or already exists on disk (false). Always false for Provide annotations, as they reference
+	// existing functions rather than generating constructors.
 	IsPending bool
 
 	// RegisteredType is the type to use for registration - interface type for Typed[I], return type otherwise
@@ -64,7 +64,7 @@ func (i *ProviderInfo) GetName() string {
 
 var _ = annotation.Provide[provide.Default](NewProviderRegistry)
 
-// ProviderRegistry stores all discovered provider structs globally.
+// ProviderRegistry stores all discovered provider structs.
 // Thread-safe for potential parallel analyzer execution.
 // Uses RWMutex to allow concurrent reads for improved performance.
 type ProviderRegistry struct {
