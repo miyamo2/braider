@@ -4,7 +4,7 @@ This file provides guidance to Gemini CLI when working with code in this reposit
 
 ## Project Overview
 
-**braider** is a `go vet` analyzer that resolves DI (Dependency Injection) bindings and generates wiring code automatically using `analysis.SuggestedFix`. Inspired by [google/wire](https://github.com/google/wire), it produces plain Go code with no runtime container.
+**braider** is a `go/analysis`-based analyzer that resolves DI (Dependency Injection) bindings and generates wiring code automatically using `analysis.SuggestedFix`. Inspired by [google/wire](https://github.com/google/wire), it produces plain Go code with no runtime container.
 
 - **go 1.25** / **`golang.org/x/tools/go/analysis`** / **`github.com/miyamo2/phasedchecker`**
 
@@ -58,7 +58,7 @@ In `InjectorInfo`, `IsPending=true` means the constructor was generated in the c
 
 ### Hash-Based Idempotency
 
-Bootstrap code includes a `// braider:hash:<hash>` comment. On subsequent runs, if the computed hash matches the existing one, regeneration is skipped. Hash inputs: `TypeName`, `ConstructorName`, `IsField`, `Dependencies`, `ExpressionText` (NOT `RegisteredType`).
+Bootstrap code includes a `// braider:hash:<hash>` comment. On subsequent runs, if the computed hash matches the existing one, regeneration is skipped. Hash inputs: `TypeName`, `ConstructorName`, `IsField`, `Dependencies`, `ExpressionText`, `ConstructorPkgPath` (conditional: only when it differs from `PackagePath`) (NOT `RegisteredType`).
 
 ### Dependency Graph
 
@@ -89,7 +89,7 @@ Mixed options via anonymous interface embedding: `Injectable[interface{ inject.T
 - **`app.Default`** — standard bootstrap: generates anonymous struct with all dependencies as fields
 - **`app.Container[T]`** — user-defined container: `T` is a struct type (named or anonymous) whose fields map to dependencies; bootstrap returns an instance of `T`
 
-Container fields use `braider:"name"` struct tags to match named dependencies. Fields without tags match by type. `braider:"-"` excludes a field from resolution.
+Container fields use `braider:"name"` struct tags to match named dependencies. Fields without tags match by type. Note: `braider:"-"` is not permitted on container fields and produces a validation error.
 
 ### Variable Annotation Details
 
@@ -122,7 +122,7 @@ Annotation types are identified via `types.Implements` checks against sealed mar
 - **`internal/generate/`** — ConstructorGenerator, BootstrapGenerator, hash computation, import management, AST-based code generation (ast_builder helpers + format.Node)
 - **`internal/report/`** — SuggestedFixBuilder, DiagnosticEmitter, diagnostic category constants (CategoryOptionValidation, CategoryExpressionValidation, CategoryDependencyRegistration map to SeverityCritical)
 - **`internal/loader/`** — PackageLoader for module package discovery
-- **`internal/analyzer/`** — Aggregator (AfterDependencyPhase callback), DependencyResult (per-package result type)
+- **`internal/analyzer/`** — Aggregator (AfterDependencyPhase callback), DependencyResult (per-package result type), DependencyAnalyzeRunner, AppAnalyzeRunner
 
 ## Testing Patterns
 
@@ -136,12 +136,12 @@ All e2e tests run through a single table-driven `TestIntegration` function in `i
 - `.golden` files must match the source file content after SuggestedFix application
 - For idempotent tests (no `// want` on App annotation): existing bootstrap hash must match computed hash
 - **Golden file workflow**: create placeholder `.golden` → run test → get diff → paste actual output as golden
-- Testdata modules use `replace` directives: from `testdata/<case>/` to `pkg` = `../../../../../pkg` (count `..` levels carefully)
+- Testdata modules use `replace` directives: `replace github.com/miyamo2/braider => ./../../../../..` (points to the module root, count `..` levels carefully)
 - Avoid `string`/primitive fields in testdata structs — they become unresolvable DI dependencies
 
 ### Key Test Directories
 
-- `testdata/e2e/` — 81 test case directories organized by category:
+- `testdata/e2e/` — 82 test case directories organized by category:
   - Core: basic, simpleapp, multitype, crosspackage, modulewide, samefileapp, emptygraph, depinuse, pkgcollision, without_constructor
   - Interface: iface, ifacedep, crossiface, unresiface
   - Typed/Named inject: typed_inject, named_inject
@@ -150,7 +150,7 @@ All e2e tests run through a single table-driven `TestIntegration` function in `i
   - Container: container_anonymous, container_basic, container_cross_package, container_idempotent, container_iface_field, container_mixed_option, container_named, container_named_field, container_outdated, container_provide_cross_type, container_transitive, container_variable
   - Struct tag: struct_tag_all_excluded, struct_tag_exclude, struct_tag_idempotent, struct_tag_mixed, struct_tag_named, struct_tag_outdated, struct_tag_typed_fields
   - Idempotent: idempotent, outdated, variable_idempotent, variable_outdated
-  - Error: error_cases, error_duplicate_name, error_nonliteral, error_provide_typed, error_variable_*, error_struct_tag_*, error_container_*, circular, ambiguous*, unresolvedparam, unresparam, unresolvedif, nonmainapp, noapp, multipleapp
+  - Error: error_cases, error_duplicate_name, error_duplicate_provide_variable, error_nonliteral, error_provide_typed, error_variable_*, error_struct_tag_*, error_struct_tag_conflict, error_container_*, circular, ambiguous*, unresolvedparam, unresparam, unresolvedif, nonmainapp, noapp, multipleapp
   - Constructor generation: constructorgen (per-file .go/.golden pairs within a single test case directory)
   - Dependency-only: dep_basic, dep_missing_constructor, dep_cross_package, dep_interface_impl
 

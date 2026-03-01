@@ -4,7 +4,7 @@
 // to combine behaviors. In this example, Typed[I] and Named[N] are
 // combined so the dependency is:
 //   - Registered as the interface type Repository
-//   - Named "service" for disambiguation
+//   - Named "repository" for disambiguation
 //
 // Run the analyzer:
 //
@@ -17,26 +17,26 @@ import (
 	"github.com/miyamo2/braider/pkg/annotation/inject"
 )
 
-// ServiceName is a Namer that returns the name "service".
-type ServiceName struct{}
+// RepositoryName is a Namer that returns the name "repository".
+type RepositoryName struct{}
 
-func (ServiceName) Name() string { return "service" }
+func (RepositoryName) Name() string { return "repository" }
 
 // Repository is the interface type for registration.
 type Repository interface {
 	FindByID(id string) (string, error)
 }
 
-// MixedService combines Typed[Repository] and Named[ServiceName].
-// It is registered as Repository under the name "service".
-type MixedService struct {
+// MixedRepository combines Typed[Repository] and Named[RepositoryName].
+// It is registered as Repository under the name "repository".
+type MixedRepository struct {
 	annotation.Injectable[interface {
 		inject.Typed[Repository]
-		inject.Named[ServiceName]
+		inject.Named[RepositoryName]
 	}]
 }
 
-func (s *MixedService) FindByID(id string) (string, error) {
+func (r *MixedRepository) FindByID(id string) (string, error) {
 	return id, nil
 }
 

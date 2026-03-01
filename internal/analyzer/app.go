@@ -138,7 +138,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 		}
 	}
 
-	// Retrieve all providers, injectors, and variables from global registries
+	// Retrieve all providers, injectors, and variables from shared registries
 	providers := r.provideRegistry.GetAll()
 	injectors := r.injectRegistry.GetAll()
 	var variables []*registry.VariableInfo
@@ -149,7 +149,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 	// Build dependency graph
 	depGraph, err := r.graphBuilder.BuildGraph(pass, providers, injectors, variables)
 	if err != nil {
-		// Check for unresolvable type with name mismatch hint (Req 6.5)
+		// Check for unresolvable type with name mismatch hint
 		errMsg := err.Error()
 		if unresolvedErr, ok := err.(*graph.UnresolvableTypeError); ok && r.variableRegistry != nil {
 			hint := r.buildNameMismatchHint(unresolvedErr.TypeName)
@@ -194,7 +194,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 		// Container mode
 		containerDef := optionMeta.ContainerDef
 
-		// 1. Validate container fields
+		// Validate container fields
 		validationErrors := r.containerValidator.Validate(containerDef, depGraph)
 		if len(validationErrors) > 0 {
 			for _, verr := range validationErrors {
@@ -207,21 +207,21 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 			return nil, nil
 		}
 
-		// 2. Resolve container fields
+		// Resolve container fields
 		resolvedFields, resolveErr := r.containerResolver.ResolveFields(containerDef, depGraph)
 		if resolveErr != nil {
 			r.diagnosticEmitter.EmitGraphBuildError(reporter, apps[0].Pos, resolveErr.Error())
 			return nil, nil
 		}
 
-		// 3. Check idempotency
+		// Check idempotency
 		if existingBootstrap != nil {
 			if r.bootstrapGen.CheckContainerBootstrapCurrent(pass, existingBootstrap, depGraph, containerDef) {
 				return nil, nil
 			}
 		}
 
-		// 4. Generate container bootstrap
+		// Generate container bootstrap
 		bootstrap, genErr := r.bootstrapGen.GenerateContainerBootstrap(
 			pass,
 			depGraph,
@@ -234,7 +234,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 			return nil, nil
 		}
 
-		// 5. Build and emit fix
+		// Build and emit fix
 		var fix analysis.SuggestedFix
 		var fixErr error
 		if existingBootstrap != nil {

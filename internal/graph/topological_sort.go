@@ -100,9 +100,6 @@ func (s *TopologicalSorter) findZeroInDegreeNodes(inDegrees map[string]int) []st
 // For large dependency graphs with many nodes at the same depth level,
 // this could become a bottleneck during topological sort.
 //
-// TODO: Consider using a heap-based priority queue (container/heap) for better
-// performance with large graphs. A min-heap would provide O(log n) insertion
-// while maintaining alphabetical ordering.
 func (s *TopologicalSorter) insertSorted(slice []string, node string) []string {
 	// Find insertion position (O(log n) binary search)
 	pos := sort.SearchStrings(slice, node)

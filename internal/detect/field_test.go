@@ -523,7 +523,7 @@ type MyService struct {
 
 // TestFieldInfo_StructTagMetadataDefaults verifies that the new struct tag metadata
 // fields (NamedDependency, Excluded) default to zero values when no braider tag is present.
-// Covers Task 1.1: struct tag metadata fields on FieldInfo.
+// Covers struct tag metadata fields on FieldInfo.
 func TestFieldInfo_StructTagMetadataDefaults(t *testing.T) {
 	markers, err := detect.ResolveMarkers()
 	if err != nil {

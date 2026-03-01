@@ -62,7 +62,7 @@ func (i *VariableInfo) GetName() string {
 	return i.Name
 }
 
-// VariableRegistry stores all discovered Variable annotations globally.
+// VariableRegistry stores all discovered Variable annotations.
 // Thread-safe for potential parallel analyzer execution.
 // Uses RWMutex to allow concurrent reads for improved performance.
 type VariableRegistry struct {
@@ -80,8 +80,8 @@ func NewVariableRegistry() *VariableRegistry {
 }
 
 // Register adds a variable to the registry.
-// Returns an error if a duplicate (TypeName, Name) pair is detected with a non-empty name.
-// If a variable with the same TypeName already exists and names don't conflict, it will be overwritten.
+// Returns an error if a duplicate (TypeName, Name) pair is detected with a non-empty Name.
+// For unnamed entries (Name == ""), the same (TypeName, "") key is silently overwritten.
 func (r *VariableRegistry) Register(info *VariableInfo) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

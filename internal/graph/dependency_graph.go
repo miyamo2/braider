@@ -22,8 +22,8 @@ import (
 //   - Example: If UserService depends on UserRepository,
 //     Edges["UserService"] = ["UserRepository"]
 //
-// InDegree interpretation (reverse edges):
-//   - InDegree counts how many types depend on this node
+// InDegree interpretation (dependency count):
+//   - InDegree counts how many dependencies this node has
 //   - Used by Kahn's algorithm for topological sorting
 //   - InDegree == 0 means no dependencies, can be initialized first
 //   - As nodes are processed, InDegree is decremented for dependents
@@ -44,7 +44,7 @@ type Node struct {
 	ConstructorPkgName  string     // Package name of the constructor function's package
 	ConstructorPkgAlias string     // Alias for the constructor's package when collision occurs (empty = no alias)
 	Dependencies        []string   // Types this depends on
-	InDegree            int        // Number of types that depend on this node (for Kahn's algorithm)
+	InDegree            int        // Number of dependencies this node has (for Kahn's algorithm)
 	IsField             bool       // True for Inject/Provide nodes exposed as dependency struct fields; false for Variable nodes (local variables only)
 	RegisteredType      types.Type // Interface type for Typed[I], concrete type otherwise (nil = use concrete type)
 	Name                string     // Dependency name from Named[N], empty if unnamed
@@ -88,8 +88,7 @@ func makeNodeKey(typeName, name string) string {
 	return typeName
 }
 
-// BuildGraph constructs the dependency graph from registered providers and injectors.
-// Injectables are retrieved from GlobalProviderRegistry and GlobalInjectorRegistry.
+// BuildGraph constructs the dependency graph from the given providers, injectors, and variables.
 //
 // This method executes sequentially and is NOT safe for concurrent calls on the same graph.
 // Each analyzer run should create its own graph instance.

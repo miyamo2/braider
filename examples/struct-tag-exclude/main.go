@@ -25,7 +25,7 @@ type Logger interface {
 }
 
 type stdLogger struct {
-	annotation.Injectable[inject.Default]
+	annotation.Injectable[inject.Typed[Logger]]
 }
 
 func (l *stdLogger) Log(msg string) {}

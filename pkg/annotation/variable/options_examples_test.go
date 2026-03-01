@@ -1,6 +1,7 @@
 package variable_test
 
 import (
+	"io"
 	"os"
 
 	"github.com/miyamo2/braider/pkg/annotation"
@@ -19,7 +20,7 @@ func ExampleDefault() {
 // When used with annotation.Variable, the analyzer registers the variable
 // as the specified interface type instead of its declared type.
 func ExampleTyped() {
-	var _ = annotation.Variable[variable.Typed[any]](os.Stdout)
+	var _ = annotation.Variable[variable.Typed[io.Writer]](os.Stdout)
 }
 
 // ExampleNamed demonstrates the variable.Named option.
@@ -34,7 +35,7 @@ func ExampleNamed() {
 // to combine behaviors such as Typed[I] and Named[N].
 func ExampleOption_custom() {
 	var _ = annotation.Variable[interface {
-		variable.Typed[any]
+		variable.Typed[io.Writer]
 		variable.Named[stdoutNamer]
 	}](os.Stdout)
 }

@@ -1,5 +1,5 @@
-// Package registry provides global registries for storing discovered
-// provider and injector structs across packages during analysis.
+// Package registry provides shared registries for storing discovered
+// provider, injector, and variable annotations across packages during analysis.
 // These registries enable cross-package dependency discovery for
 // bootstrap code generation.
 package registry
@@ -38,11 +38,10 @@ type ProviderInfo struct {
 	// Implements contains fully qualified interface types this struct implements
 	Implements []string
 	// IsPending indicates whether the constructor is being generated in the current pass (true)
-	// or already exists on disk (false). Typically false for Provide annotations as they require
-	// existing constructors, but included for consistency with InjectorInfo.
+	// or already exists on disk (false). Always false for Provide annotations, as they reference
+	// existing functions rather than generating constructors.
 	IsPending bool
 
-	// NEW: Option-derived fields for annotation refinement feature
 	// RegisteredType is the type to use for registration - interface type for Typed[I], return type otherwise
 	RegisteredType types.Type
 	// Name is the provider name from Named[N] option, empty if unnamed
@@ -65,7 +64,7 @@ func (i *ProviderInfo) GetName() string {
 
 var _ = annotation.Provide[provide.Default](NewProviderRegistry)
 
-// ProviderRegistry stores all discovered provider structs globally.
+// ProviderRegistry stores all discovered provider entries.
 // Thread-safe for potential parallel analyzer execution.
 // Uses RWMutex to allow concurrent reads for improved performance.
 type ProviderRegistry struct {
@@ -80,9 +79,9 @@ func NewProviderRegistry() *ProviderRegistry {
 	}
 }
 
-// Register adds a provider struct to the registry.
-// Returns an error if a duplicate (TypeName, Name) pair is detected with a non-empty name.
-// If a provider with the same TypeName already exists and names don't conflict, it will be overwritten.
+// Register adds a provider entry to the registry.
+// Returns an error if a duplicate (TypeName, Name) pair is detected with a non-empty Name.
+// For unnamed entries (Name == ""), the same (TypeName, "") key is silently overwritten.
 func (r *ProviderRegistry) Register(info *ProviderInfo) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -101,8 +100,8 @@ func (r *ProviderRegistry) Register(info *ProviderInfo) error {
 	return nil
 }
 
-// GetAll returns all registered provider structs.
-// The returned slice is sorted alphabetically by TypeName for deterministic output.
+// GetAll returns all registered provider entries.
+// The returned slice is sorted alphabetically by TypeName, then by Name for deterministic output.
 // Returns a copy of the slice to prevent external mutation.
 func (r *ProviderRegistry) GetAll() []*ProviderInfo {
 	r.mu.RLock()
@@ -134,7 +133,7 @@ func (r *ProviderRegistry) GetAll() []*ProviderInfo {
 
 // GetByName retrieves a named provider by fully qualified type name and name.
 // Returns (info, true) if found with matching name, (nil, false) otherwise.
-// This supports named dependency lookup for Provider[provide.Named[N]] annotations.
+// This supports named dependency lookup for annotation.Provide[provide.Named[N]] annotations.
 func (r *ProviderRegistry) GetByName(typeName, name string) (*ProviderInfo, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

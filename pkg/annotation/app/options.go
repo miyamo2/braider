@@ -1,3 +1,5 @@
+// Package app provides option interfaces for configuring
+// annotation.App behavior in braider's dependency injection system.
 package app
 
 import "github.com/miyamo2/braider/internal/annotation"
@@ -16,50 +18,33 @@ type Default interface {
 }
 
 // Container configures annotation.App to use a user-defined container.
-// The analyzer generates a bootstrap function that returns the container instance provided by type parameter.
+// The analyzer generates a bootstrap IIFE that returns the container instance provided by type parameter.
 //
-// Example:
+// Container fields are matched to registered dependencies by type.
+// Use braider:"name" struct tags to match named dependencies.
 //
-//	package main
+// Example input (service is registered elsewhere with Injectable[inject.Default]):
 //
-//	import (
-//		"net/http"
-//
-//		"github.com/miyamo2/braider/pkg/annotation"
-//	)
-//
-//	var _ = annotation.App[DefinedContainer[struct {
-//		handler http.Handler `braider:"handler"`
+//	var _ = annotation.App[app.Container[struct {
+//		Svc *service.UserService
 //	}]](main)
 //
-//	func() main() {}
+//	func main() {}
 //
-// Example generated main function:
-//
-//	package main
-//
-//	import (
-//		"net/http"
-//
-//		"github.com/miyamo2/braider/pkg/annotation"
-//	)
-//
-//	var _ = annotation.App[app.DefinedContainer[struct {
-//		handler http.Handler `braider:"handler"`
-//	}]](main)
+// Example generated code:
 //
 //	func main() {
 //		_ = dependency
 //	}
 //
 //	var dependency = func() struct {
-//		handler http.Handler `braider:"handler"`
+//		Svc *service.UserService
 //	} {
-//		handler := http.NewServeMux()
+//		userService := service.NewUserService()
 //		return struct {
-//			handler http.Handler `braider:"handler"`
+//			Svc *service.UserService
 //		}{
-//			handler: handler,
+//			Svc: userService,
 //		}
 //	}()
 type Container[T any] interface {

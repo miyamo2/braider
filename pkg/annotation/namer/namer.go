@@ -1,7 +1,7 @@
 // Package namer provides the Namer interface for naming dependencies
 // in braider's dependency injection system.
 //
-// Implementations of Namer are used with inject.Named[N] and provide.Named[N]
+// Implementations of Namer are used with inject.Named[N], provide.Named[N], and variable.Named[N]
 // to register dependencies under specific names, enabling multiple instances
 // of the same type to be distinguished by name.
 //

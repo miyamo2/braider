@@ -1,4 +1,4 @@
-// Task 7.1: Idempotent behavior test for braider struct tags.
+// Idempotent behavior test for braider struct tags.
 // Verifies that when bootstrap code with correct hash already exists,
 // re-running the analyzer produces NO diagnostic (hash stability).
 // The braider:"-" tag on AppService.debug excludes that field from DI,

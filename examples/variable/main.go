@@ -3,7 +3,7 @@
 // When annotation.Variable is used, the braider analyzer:
 //   - Registers a pre-existing variable or package-qualified identifier as a DI dependency
 //   - No constructor is generated or invoked for the variable
-//   - In bootstrap code, the variable is assigned directly (e.g., stdout := os.Stdout)
+//   - In bootstrap code, the variable is referenced directly (e.g., out := os.Stdout when used as a dependency, or _ = os.Stdout when not depended upon)
 //
 // Supported argument expressions are identifiers (myVar) and
 // package-qualified selectors (os.Stdout).

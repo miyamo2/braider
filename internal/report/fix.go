@@ -137,7 +137,7 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 ) (analysis.SuggestedFix, error) {
 	var edits []analysis.TextEdit
 
-	// Phase 1: Handle imports (if needed)
+	// Handle imports (if needed)
 	if len(bootstrap.Imports) > 0 {
 		file := app.File
 		allImportDecls, existingPaths := b.collectAllExistingImports(file)
@@ -185,7 +185,7 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 		}
 	}
 
-	// Phase 2: Add dependency variable
+	// Add dependency variable
 	// Find insertion point for dependency variable
 	// Insert after main function
 	insertPos := b.findBootstrapInsertionPoint(pass, mainFunc)
@@ -200,7 +200,7 @@ func (b *suggestedFixBuilder) BuildBootstrapFix(
 		},
 	)
 
-	// Phase 3: Add main reference if needed
+	// Add main reference if needed
 	// Add main reference if dependency is not referenced and _ = dependency doesn't already exist
 	if mainFunc != nil && !generate.IsDependencyReferenced(mainFunc) && !generate.HasBlankDependencyAssignment(mainFunc) {
 		mainRefPos := b.findMainReferenceInsertionPoint(mainFunc)
@@ -229,7 +229,7 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 ) (analysis.SuggestedFix, error) {
 	var edits []analysis.TextEdit
 
-	// Phase 1: Handle imports (if needed)
+	// Handle imports (if needed)
 	if len(bootstrap.Imports) > 0 {
 		// Find the file containing the existing bootstrap
 		var file *ast.File
@@ -292,7 +292,7 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 		}
 	}
 
-	// Phase 2: Replace existing dependency variable
+	// Replace existing dependency variable
 	start, end := b.calculateBootstrapReplacementRange(existing)
 	edits = append(
 		edits, analysis.TextEdit{
@@ -302,7 +302,7 @@ func (b *suggestedFixBuilder) BuildBootstrapReplacementFix(
 		},
 	)
 
-	// Phase 3: Update main reference if needed
+	// Update main reference if needed
 	// Update main reference if needed (only if not referenced and _ = dependency doesn't exist)
 	if mainFunc != nil && !generate.IsDependencyReferenced(mainFunc) && !generate.HasBlankDependencyAssignment(mainFunc) {
 		mainRefPos := b.findMainReferenceInsertionPoint(mainFunc)

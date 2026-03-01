@@ -190,7 +190,7 @@ func TestIntegration(t *testing.T) {
 		{name: "ErrorContainerNonStruct", testdir: "error_container_non_struct"},
 		{name: "ErrorContainerAmbiguous", testdir: "error_container_ambiguous"},
 
-		// --- App-only (no DependencyAnalyzer) ---
+		// --- App validation (annotation.App-specific error cases) ---
 		{name: "NonMainReference", testdir: "nonmainapp"},
 		{name: "NoAppAnnotation", testdir: "noapp"},
 		{name: "MultipleEntryPoints", testdir: "multipleapp"},

@@ -30,7 +30,7 @@ func NewAggregator(providerRegistry *registry.ProviderRegistry, injectorRegistry
 }
 
 // AfterDependencyPhase is the phasedchecker AfterPhase callback for the dependency phase.
-// It iterates all actions in the graph, extracts DependencyResults, and registers
+// It iterates all results in the graph, extracts DependencyResults, and registers
 // collected providers, injectors, and variables into the shared registries.
 // Duplicate (TypeName, Name) registration errors are collected into DuplicateRegistry
 // for reporting by AppAnalyzeRunner in the subsequent phase.

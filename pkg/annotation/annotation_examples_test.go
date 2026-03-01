@@ -1,6 +1,7 @@
 package annotation_test
 
 import (
+	"io"
 	"os"
 
 	"github.com/miyamo2/braider/pkg/annotation"
@@ -22,7 +23,7 @@ func ExampleInjectable_default() {
 
 // ExampleInjectable_typed demonstrates registering a dependency as an interface type.
 // When Injectable[inject.Typed[I]] is used, braider generates a constructor
-// that returns the interface type I and registers the dependency as that interface.
+// that returns *ConcreteStruct and registers the dependency as the interface type I in bootstrap code.
 func ExampleInjectable_typed() {
 	type Repository interface {
 		FindByID(id string) (string, error)
@@ -121,18 +122,23 @@ func ExampleVariable_default() {
 // When Variable[variable.Typed[I]] is used, braider registers the variable
 // under the interface type I instead of the argument's declared type.
 func ExampleVariable_typed() {
-	var _ = annotation.Variable[variable.Typed[any]](os.Stdout)
+	var _ = annotation.Variable[variable.Typed[io.Writer]](os.Stdout)
 }
+
+// stdoutNamer is a Namer implementation for os.Stdout used in examples.
+type stdoutNamer struct{}
+
+func (stdoutNamer) Name() string { return "stdout" }
 
 // ExampleVariable_named demonstrates registering a variable with a name.
 // When Variable[variable.Named[N]] is used, braider registers the variable
 // with the name returned by N.Name().
 func ExampleVariable_named() {
-	var _ = annotation.Variable[variable.Named[primaryDBName]](os.Stdout)
+	var _ = annotation.Variable[variable.Named[stdoutNamer]](os.Stdout)
 }
 
 // ExampleApp demonstrates marking the entry point for bootstrap code generation.
-// annotation.App(main) triggers braider to generate an IIFE that initializes
+// annotation.App[T](main) triggers braider to generate an IIFE that initializes
 // all registered dependencies in topological order.
 func ExampleApp() {
 	main := func() {}

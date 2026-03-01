@@ -1,7 +1,7 @@
 // Typed-inject example demonstrates Injectable[inject.Typed[I]] usage.
 //
 // When inject.Typed[I] is used, the braider analyzer:
-//   - Generates a constructor that returns the interface type I
+//   - Generates a constructor that returns *ConcreteStruct (as usual)
 //   - Registers the dependency as interface I instead of *ConcreteStruct
 //   - Bootstrap code declares variables with interface type I
 //
