@@ -1,6 +1,13 @@
-# AI-DLC and Spec-Driven Development
+# Agentic SDLC and Spec-Driven Development
 
-Kiro-style Spec Driven Development implementation on AI-DLC (AI Development Life Cycle)
+Kiro-style Spec-Driven Development on an agentic SDLC
+
+## Project Memory
+Project memory keeps persistent guidance (steering, specs notes, component docs) so GitHub Copilot honors your standards each run. Treat it as the long-lived source of truth for patterns, conventions, and decisions.
+
+- Use `.kiro/steering/` for project-wide policies: architecture principles, naming schemes, security constraints, tech stack decisions, api standards, etc.
+- Use local `AGENTS.md` files for feature or library context (e.g. `src/lib/payments/AGENTS.md`): describe domain assumptions, API contracts, or testing conventions specific to that folder.
+- Specs notes stay with each spec (under `.kiro/specs/`) to guide specification-level workflows.
 
 ## Project Context
 
@@ -22,16 +29,31 @@ Kiro-style Spec Driven Development implementation on AI-DLC (AI Development Life
 
 ## Minimal Workflow
 - Phase 0 (optional): `/kiro-steering`, `/kiro-steering-custom`
+- Discovery: `/kiro-discovery "idea"` — determines action path, writes brief.md + roadmap.md for multi-spec projects
 - Phase 1 (Specification):
-  - `/kiro-spec-init "description"`
-  - `/kiro-spec-requirements {feature}`
-  - `/kiro-validate-gap {feature}` (optional: for existing codebase)
-  - `/kiro-spec-design {feature} [-y]`
-  - `/kiro-validate-design {feature}` (optional: design review)
-  - `/kiro-spec-tasks {feature} [-y]`
-- Phase 2 (Implementation): `/kiro-spec-impl {feature} [tasks]`
-  - `/kiro-validate-impl {feature}` (optional: after implementation)
+  - Single spec: `/kiro-spec-quick {feature} [--auto]` or step by step:
+    - `/kiro-spec-init "description"`
+    - `/kiro-spec-requirements {feature}`
+    - `/kiro-validate-gap {feature}` (optional: for existing codebase)
+    - `/kiro-spec-design {feature} [-y]`
+    - `/kiro-validate-design {feature}` (optional: design review)
+    - `/kiro-spec-tasks {feature} [-y]`
+  - Multi-spec: `/kiro-spec-batch` — creates all specs from roadmap.md in parallel by dependency wave
+- Phase 2 (Implementation): `/kiro-impl {feature} [tasks]`
+  - Without task numbers: autonomous mode (subagent per task + independent review + final validation)
+  - With task numbers: manual mode (selected tasks in main context, still reviewer-gated before completion)
+  - `/kiro-validate-impl {feature}` (standalone re-validation)
 - Progress check: `/kiro-spec-status {feature}` (use anytime)
+
+## Skills Structure
+Skills are located in `.github/skills/kiro-*/SKILL.md`
+- Each skill is a directory with a `SKILL.md` file
+- Use `/skills` to inspect currently available skills
+- Invoke a skill directly with `/kiro-<skill-name>`
+- **If there is even a 1% chance a skill applies to the current task, invoke it.** Do not skip skills because the task seems simple.
+- `kiro-review` — task-local adversarial review protocol used by reviewer subagents
+- `kiro-debug` — root-cause-first debug protocol used by debugger subagents
+- `kiro-verify-completion` — fresh-evidence gate before success or completion claims
 
 ## Development Rules
 - 3-phase approval workflow: Requirements → Design → Tasks → Implementation
