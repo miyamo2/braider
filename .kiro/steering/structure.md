@@ -6,41 +6,19 @@ braider follows a **standard Go project layout** with clear separation between p
 
 ## Directory Patterns
 
-### CLI Entry Point
-**Location**: `cmd/braider/`
-**Purpose**: CLI wrapper that instantiates components and invokes multiple analyzers
-**Pattern**: Single `main.go` that uses braider's own annotations (dogfooding):
-1. Declares `annotation.App[app.Container[T]](main)` with a container struct exposing the two analyzers and the Aggregator
-2. braider generates the `dependency` IIFE that wires all internal components (detectors, generators, reporters, registries, graph builders, analyzers)
-3. `main()` calls `phasedchecker.Main()` with a `phasedchecker.Config` that configures the Pipeline (phase ordering, AfterPhase callbacks) and DiagnosticPolicy (category-to-severity rules), using the generated container's fields
+### CLI Entry Point (`cmd/braider/`)
+Single `main.go` that uses braider's own annotations (dogfooding) — `App[app.Container[T]](main)` with a container struct exposing the two analyzers and the Aggregator. braider generates the `dependency` IIFE that wires all internal components; `main()` calls `phasedchecker.Main()` with a `phasedchecker.Config`. The generated container is consumed by the pipeline configuration.
 
-This self-hosting pattern means braider's own `cmd/braider/main.go` contains braider-generated bootstrap code, validating the tool against its own codebase.
+This self-hosting pattern means `cmd/braider/main.go` contains braider-generated bootstrap code, validating the tool against its own codebase.
 
-### Internal Implementation
-**Location**: `internal/`
-**Purpose**: Core analyzer logic, not importable by external packages
-**Pattern**: Organized into focused subpackages by responsibility (see Internal Package Organization below)
+### Internal Implementation (`internal/`)
+Core analyzer logic, not importable by external packages. Organized into focused subpackages by responsibility. See `.claude/rules/internal-layout.md`.
 
-### Runnable Examples
-**Location**: `examples/`
-**Purpose**: Self-contained, runnable braider usage examples for documentation and user onboarding
-**Pattern**: Each subdirectory is an independent Go module (own `go.mod`) with a `main.go` demonstrating one annotation pattern. Isolated from the root module via `go.mod`'s `ignore` directive. Named by feature using kebab-case (e.g., `container-basic`, `typed-inject`, `struct-tag-named`).
+### Runnable Examples (`examples/`)
+Self-contained, runnable braider usage examples for documentation and user onboarding. Each subdirectory is an independent Go module (own `go.mod`) with a `main.go` demonstrating one annotation pattern. Isolated from the root module via `go.mod`'s `ignore` directive. Named using kebab-case.
 
-### Test Fixtures
-**Location**: `internal/analyzer/testdata/`
-**Purpose**: Go source files used as test inputs for checkertest
-**Pattern**: All test cases unified under a single `testdata/e2e/` directory (82 cases), organized by category prefix:
-- Core scenarios: `basic`, `crosspackage`, `simpleapp`, `modulewide`, `pkgcollision`, `emptygraph`, `depinuse`, `samefileapp`, `without_constructor`
-- Interface resolution: `iface`, `ifacedep`, `crossiface`, `unresiface`
-- Typed/Named inject: `typed_inject`, `named_inject`
-- Provide variations: `provide_typed`, `provide_named`, `provide_cross_type`
-- Variable annotation: `variable_*` prefix (basic, typed, named, mixed, cross_package, alias_import, pkg_collision, idempotent, outdated, ident_ext_type, typed_named)
-- Struct tag: `struct_tag_*` prefix (named, exclude, mixed, all_excluded, typed_fields, idempotent, outdated)
-- Container mode: `container_*` prefix (basic, anonymous, named, named_field, cross_package, iface_field, mixed_option, transitive, variable, idempotent, outdated, provide_cross_type)
-- Idempotent/outdated: `idempotent`, `outdated`
-- Error cases: `error_*` prefix (error_cases, error_duplicate_name, error_duplicate_provide_variable, error_nonliteral, error_provide_typed, error_variable_*, error_struct_tag_*, error_struct_tag_conflict, error_container_*), plus `circular`, `ambiguous*`, `unresolvedparam`, `unresparam`, `unresolvedif`, `nonmainapp`, `noapp`, `multipleapp`
-- Constructor generation: `constructorgen/` (per-file test cases with .go/.golden pairs)
-- Dependency-only smoke tests: `dep_basic`, `dep_missing_constructor`, `dep_cross_package`, `dep_interface_impl` (no App annotation, no golden files; verify dependency phase runs without unexpected diagnostics)
+### Test Fixtures (`internal/analyzer/testdata/`)
+Go source files used as test inputs for `checkertest`. All e2e cases unified under `testdata/e2e/` (82 cases). See `.claude/rules/testing.md` for category prefix conventions and individual case listings.
 
 ## Naming Conventions
 
@@ -64,63 +42,33 @@ import (
 )
 ```
 
-**Import Order**:
-1. Standard library
-2. External dependencies (third-party)
-3. Internal packages
+Order: stdlib → external (third-party) → internal packages.
 
 ## Code Organization Principles
 
 ### Component-Based Architecture
-The analyzer is built from composable components with clear responsibilities:
-- **Detectors**: Find DI patterns (`InjectDetector`, `ProvideCallDetector`, `VariableCallDetector`, `AppDetector`, `AppOptionExtractor`, `StructDetector`, `FieldAnalyzer`, `ConstructorAnalyzer`, `OptionExtractor`, `NamerValidator`)
-- **Generators**: Produce code via AST construction + `format.Node` (`ConstructorGenerator`, `BootstrapGenerator`)
-- **Reporters**: Emit diagnostics (`SuggestedFixBuilder`, `DiagnosticEmitter`)
-- **Registries**: Track state (`ProviderRegistry`, `InjectorRegistry`, `VariableRegistry`, `DuplicateRegistry`)
-
-Components are wired in `cmd/braider/main.go` via braider's own DI annotations (dogfooding) and passed to analyzer constructors.
+The analyzer is built from composable components with clear responsibilities (detectors, generators, reporters, registries, graph, loader, analyzer). Components are wired in `cmd/braider/main.go` via braider's own DI annotations (dogfooding) and passed to analyzer constructors. Full component inventory: `.claude/rules/internal-layout.md`.
 
 ### Phased Pipeline Pattern
-The project exposes two coordinated analyzers from `internal/analyzer/`, orchestrated via `phasedchecker.Main()`:
-- **DependencyAnalyzer** (Phase "dependency"): Per-package; detects `Injectable[T]` structs, `Provide[T](fn)` calls, and `Variable[T](value)` calls; generates constructors; returns `*DependencyResult`
-- **AppAnalyzer** (Phase "app"): Runs after dependency phase; generates bootstrap code using all registered providers, injectors, and variables
-- **Aggregator**: `AfterDependencyPhase` callback that iterates per-package results via `checker.Graph` and populates shared registries between phases
+The project exposes two coordinated analyzers orchestrated via `phasedchecker.Main()`:
+
+- `DependencyAnalyzer` (phase "dependency"): per-package; returns `*DependencyResult`
+- `AppAnalyzer` (phase "app"): runs after dependency phase; generates bootstrap code
+- `Aggregator`: `AfterDependencyPhase` callback that iterates per-package results and populates shared registries between phases
 
 State flows from DependencyAnalyzer to AppAnalyzer through shared registries populated by the Aggregator.
 
 ### Minimal Public API
-Only the CLI entry point (`cmd/braider/main.go`) is user-facing. All implementation details are in `internal/` to prevent accidental external dependencies.
+Only the CLI entry point (`cmd/braider/main.go`) is user-facing. All implementation details live in `internal/` to prevent accidental external dependencies.
 
 ### Test Data Isolation
-Test fixtures live in `testdata/e2e/` following checkertest conventions. Each test case is a separate Go package that can be analyzed independently.
+Test fixtures in `testdata/e2e/` follow checkertest conventions. Each test case is a separate Go package analyzable independently.
 
-### Internal Package Organization
-The internal package is split into focused subpackages:
-- `internal/analyzer/` - Analyzer definitions (`DependencyAnalyzer`, `AppAnalyzer`), `Aggregator` (AfterPhase callback), `DependencyResult` (per-package result type), and orchestration runners
-- `internal/annotation/` - Marker interfaces (e.g., `Injectable`, `Provider`, `Variable`, `App`, `AppOption`, `AppDefault`, `AppContainer`) embedded by the public `pkg/annotation/` types; provides the type-level contracts that detectors match against
-- `internal/detect/` - Detection logic for DI patterns (inject, provide call, variable call, app annotations, struct analysis, field analysis, constructor detection, option extraction, namer validation, app option extraction, container definition/field models, marker resolution via `MarkerInterfaces`/`ResolveMarkers`)
-- `internal/generate/` - AST-based code generation (constructors, bootstrap IIFE) and utilities (AST builder helpers, import management, naming conventions, keyword checking, hash generation)
-- `internal/report/` - Diagnostic and suggested fix building
-- `internal/registry/` - Shared state management (provider registry, injector registry, variable registry, duplicate registry)
-- `internal/graph/` - Dependency resolution (dependency graph, interface registry, topological sort, container validation, container field resolution)
-- `internal/loader/` - Package loading utilities for cross-package dependency analysis
+## Public API (`pkg/`)
 
-### Public API (`pkg/`)
-**Location**: `pkg/annotation/` with subpackages `app/`, `inject/`, `provide/`, `variable/`, `namer/`
-**Purpose**: Public annotation types and functions for users to mark DI targets
-**Dependency**: Public types embed marker interfaces from `internal/annotation/` (e.g., `annotation.Injectable` embeds `internal/annotation.Injectable`), establishing the type-level contracts that detectors match against
-**Pattern**: Four annotation mechanisms with generic option types:
-- `Injectable[T inject.Option]` interface - Embed in structs to mark for constructor generation and DI registration
-- `Provide[T provide.Option](fn)` function - Register provider functions via `var _ = annotation.Provide[T](fn)` (struct fields in bootstrap dependency struct)
-- `Variable[T variable.Option](value)` function - Register existing variables/values via `var _ = annotation.Variable[T](value)` (expression assignments in bootstrap IIFE)
-- `App[T app.Option](main)` function - Call in main package to mark entry point for bootstrap code generation; type parameter `T` configures output mode (default anonymous struct or user-defined container)
+`pkg/annotation/` with subpackages `app/`, `inject/`, `provide/`, `variable/`, `namer/`. Four annotation mechanisms (`Injectable`, `Provide`, `Variable`, `App`) with generic option types. Public types embed marker interfaces from `internal/annotation/`, establishing type-level contracts that detectors match against.
 
-**Option subpackages**:
-- `app/` - Options for App: `Default`, `Container[T]`
-- `inject/` - Options for Injectable: `Default`, `Typed[I]`, `Named[N]`, `WithoutConstructor`
-- `provide/` - Options for Provide: `Default`, `Typed[I]`, `Named[N]`
-- `variable/` - Options for Variable: `Default`, `Typed[I]`, `Named[N]`
-- `namer/` - `Namer` interface for Named option types (must return string literal from `Name()`)
+See `.claude/rules/annotations.md` for annotation semantics and option types.
 
 ---
 _Document patterns, not file trees. New files following patterns should not require updates_
@@ -137,3 +85,4 @@ _Updated: 2026-02-20 - Sync: Generate package refactored to AST-based code gener
 _Updated: 2026-02-25 - Sync: Migrated from multichecker to phasedchecker; CLI entry point now uses app.Container[T] and phasedchecker.Main() with Config/Pipeline/DiagnosticPolicy; added Aggregator/DependencyResult to analyzer package; replaced PackageTracker with DuplicateRegistry; updated test framework references from analysistest to checkertest_
 _Updated: 2026-02-26 - Sync: Unified testdata structure under single e2e/ directory (removed legacy bootstrapgen/, constructorgen/, dependency/, providefunc/ top-level directories); updated e2e case count to 81; consolidated redundant test category descriptions into categorized prefix listing; added dep_ smoke test description_
 _Updated: 2026-03-02 - Sync: Added examples/ directory pattern (runnable examples as independent Go modules); updated e2e case count from ~81 to ~82_
+_Updated: 2026-04-21 - Sync: Moved detailed component inventories and testdata case listings into .claude/rules/ (internal-layout, testing); structure.md retains organization philosophy and pattern descriptions, references rules for specifics_

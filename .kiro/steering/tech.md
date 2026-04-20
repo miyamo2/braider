@@ -2,13 +2,11 @@
 
 ## Architecture
 
-braider implements a **phased pipeline architecture** using `phasedchecker.Main()` with two coordinated phases:
-- **Phase "dependency"** (`DependencyAnalyzer`): Runs per-package; detects `annotation.Injectable[T]` structs, `annotation.Provide[T](fn)` calls, and `annotation.Variable[T](value)` calls; generates constructors; returns `*DependencyResult` per package
-- **Phase "app"** (`AppAnalyzer`): Runs on main package after all dependency phase packages complete; detects `annotation.App[T](main)` and generates bootstrap IIFE code; supports default (anonymous struct) and container (user-defined struct) output modes via the App option type parameter
+braider implements a **phased pipeline architecture** using `phasedchecker.Main()` with two coordinated phases (`dependency` → `app`). `Aggregator.AfterDependencyPhase` populates shared registries between phases from per-package `*DependencyResult` values. Each analyzer implements `analysis.Analyzer`, performs static analysis on Go AST, and proposes code fixes via `SuggestedFix`.
 
-Between phases, `Aggregator.AfterDependencyPhase` iterates all per-package `DependencyResult` values (via `checker.Graph`) and populates shared registries. Duplicate registrations are collected into `DuplicateRegistry` for deferred reporting by AppAnalyzer. Each analyzer implements the `analysis.Analyzer` interface, performs static analysis on Go AST, and proposes code fixes via `SuggestedFix`.
+Pipeline is configured via `phasedchecker.Config` with explicit `Pipeline` and `DiagnosticPolicy`. `DiagnosticPolicy` uses `DefaultSeverity: SeverityWarn` for diagnostics outside explicit category rules.
 
-The pipeline is configured via `phasedchecker.Config` with explicit `Pipeline` (phase ordering, per-phase analyzers, AfterPhase callbacks) and `DiagnosticPolicy` (category-to-severity mappings that can abort the pipeline, plus `DefaultSeverity: SeverityWarn` for diagnostics not matching any explicit category rule).
+> Implementation details: see `.claude/rules/architecture.md`, `.claude/rules/internal-layout.md`.
 
 ## Core Technologies
 
@@ -19,11 +17,11 @@ The pipeline is configured via `phasedchecker.Config` with explicit `Pipeline` (
 
 ## Key Libraries
 
-- **`golang.org/x/tools/go/analysis`**: Core analyzer interface and diagnostic reporting
-- **`golang.org/x/tools/go/analysis/passes/inspect`**: AST inspection utilities
-- **`golang.org/x/tools/go/ast/inspector`**: Efficient AST traversal
-- **`github.com/miyamo2/phasedchecker`**: Phased pipeline orchestration with `phasedchecker.Main()`, `Config`, `Pipeline`, `Phase`, `DiagnosticPolicy`, `CategoryRule`, `SeverityCritical`, `SeverityWarn`
-- **`golang.org/x/tools/go/analysis/checker`**: `checker.Graph` used by `Aggregator.AfterDependencyPhase` to iterate per-package analysis results
+- `golang.org/x/tools/go/analysis` — core analyzer interface and diagnostic reporting
+- `golang.org/x/tools/go/analysis/passes/inspect` — AST inspection utilities
+- `golang.org/x/tools/go/ast/inspector` — efficient AST traversal
+- `golang.org/x/tools/go/analysis/checker` — `checker.Graph` used by `Aggregator.AfterDependencyPhase` to iterate per-package results
+- `github.com/miyamo2/phasedchecker` — `Main()`, `Config`, `Pipeline`, `Phase`, `DiagnosticPolicy`, `CategoryRule`, `SeverityCritical`, `SeverityWarn`
 
 ## Development Standards
 
@@ -39,12 +37,10 @@ The pipeline is configured via `phasedchecker.Config` with explicit `Pipeline` (
 - Suggest fixes when possible via `SuggestedFix`
 
 ### Testing
-- Use `phasedchecker/checkertest` package for analyzer testing
-- All e2e tests consolidated in a single table-driven `TestIntegration` using `checkertest.RunWithSuggestedFixes`
-- Tests build a `phasedchecker.Config` with the same Pipeline/DiagnosticPolicy as production, using isolated registry instances
-- Create testdata directories with Go source fixtures under `testdata/e2e/`
-- Test both positive cases (should report) and negative cases (should not report)
-- Dependency-only smoke tests (no App annotation, no golden files) share the same test runner; `RunWithSuggestedFixes` verifies no unexpected diagnostics
+- Use `phasedchecker/checkertest` with isolated registry instances
+- All e2e tests consolidated in a single table-driven `TestIntegration`
+- Test both positive and negative cases
+- See `.claude/rules/testing.md` for testdata conventions, golden workflow, and the 82-case catalog
 
 ## Development Environment
 
@@ -54,111 +50,54 @@ The pipeline is configured via `phasedchecker.Config` with explicit `Pipeline` (
 
 ### Common Commands
 ```bash
-# Build all packages
 go build ./...
-
-# Run all tests
 go test ./...
-
-# Run analyzer
 braider ./...
-
-# Apply suggested fixes
 braider -fix ./...
 ```
 
 ## Key Technical Decisions
 
+Each decision below records **why** the approach was chosen. Implementation details live in `.claude/rules/`.
+
 ### SuggestedFix for Code Generation
-Code generation is implemented via `analysis.SuggestedFix` rather than separate codegen tools. This enables:
-- Integration with `braider -fix` workflow
-- IDE integration (fixes appear as quick actions)
-- Atomic application of related changes
+Code generation is delivered as `analysis.SuggestedFix` rather than separate codegen tooling. Enables `braider -fix` workflow, IDE quick actions, and atomic related-change application. See `.claude/rules/code-generation.md`.
 
 ### Component-Based Architecture
-The analyzer uses composable components (detectors, generators, reporters) wired via braider's own DI annotations in `cmd/braider/main.go` (dogfooding). Each component has a single responsibility and is testable in isolation. Components are organized by concern:
-- **Annotation markers** (`internal/annotation/`): Marker interfaces (`Injectable`, `Provider`, `Variable`, `App`, `AppOption`, `AppDefault`, `AppContainer`) embedded by public `pkg/annotation/` types; defines the type-level contracts that detectors match against
-- **Detectors** (`internal/detect/`): Pattern matching (inject, provide call, variable call, app, struct, field, constructor, option extraction, namer validation, app option extraction, container definition models, marker resolution)
-- **Generators** (`internal/generate/`): AST-based code generation (constructors, bootstrap IIFE) via `go/ast` + `format.Node`; utilities (imports, naming, keyword checking, hash markers for idempotency, AST builder helpers)
-- **Reporters** (`internal/report/`): Diagnostic and suggested fix building; diagnostic category constants (`CategoryOptionValidation`, `CategoryExpressionValidation`, `CategoryDependencyRegistration`) map to `SeverityCritical` in phasedchecker
-- **Registries** (`internal/registry/`): Shared state for cross-phase dependency tracking (provider, injector, variable, duplicate)
-- **Graph** (`internal/graph/`): Dependency graph construction, interface resolution, topological sorting, container validation, container field resolution; Variable nodes participate in graph as zero-dependency leaves
-- **Loader** (`internal/loader/`): Package loading utilities for cross-package analysis
-- **Analyzer** (`internal/analyzer/`): `Aggregator` (AfterPhase callback for registry population), `DependencyResult` (per-package result type), `DependencyAnalyzeRunner`, `AppAnalyzeRunner`
+The analyzer uses composable components (detectors, generators, reporters, registries, graph, analyzer) wired via braider's own DI annotations in `cmd/braider/main.go` (dogfooding). Each component has a single responsibility and is testable in isolation. Component inventory: `.claude/rules/internal-layout.md`.
 
 ### AST-Based Code Generation
-Both constructor and bootstrap code generation build `go/ast` trees programmatically and render them via `format.Node`, rather than using string concatenation (`fmt.Sprintf`, `strings.Builder`). This approach:
-- Produces correctly formatted Go code without a separate formatting pass
-- Eliminates an entire component (`CodeFormatter`) from the dependency graph
-- Makes structural code manipulation safer (no string interpolation bugs)
-- Uses `ast_builder.go` helpers (`astIdent`, `astSelector`, `astStructType`, `astShortVar`, `astFuncDecl`, `astVarDecl`, etc.) to construct AST nodes concisely
-- Renders declarations via `renderDecl` (wraps in dummy file, assigns synthetic positions, strips package prefix) and expressions via `renderNode`
-- Import blocks use `RenderImportBlock` (shared by both generate and report packages)
+Both constructor and bootstrap code build `go/ast` trees programmatically and render via `format.Node`, rather than string concatenation. Produces correctly formatted Go without a separate formatting pass; eliminates `CodeFormatter` from the dependency graph; removes whole classes of string-interpolation bugs. Helpers and rendering functions: `.claude/rules/code-generation.md`.
 
 ### AST Inspector Pattern
 Uses `inspect.Analyzer` as a dependency for efficient AST traversal, following the recommended pattern for go/analysis tools.
 
 ### Cross-Phase State via Registries and Aggregator
-The two phases share state via shared registries (thread-safe, `sync.RWMutex`), populated by the `Aggregator.AfterDependencyPhase` callback between phases:
-- `ProviderRegistry` / `InjectorRegistry` / `VariableRegistry`: nested `map[TypeName]map[Name]*Info`
-- `DuplicateRegistry`: collects duplicate named dependency registrations across packages; reported by AppAnalyzer as Critical diagnostics
-
-`DependencyAnalyzer.Run()` returns `*DependencyResult` per package (providers, injectors, variables) instead of writing directly to registries. After all packages in the dependency phase complete, the Aggregator iterates the `checker.Graph`, extracts each result, and populates the shared registries.
+Two phases share state via thread-safe registries populated by the `Aggregator.AfterDependencyPhase` callback. `DependencyAnalyzer.Run()` returns `*DependencyResult` per package rather than writing directly to registries — isolates per-package analysis from shared-state mutation. Duplicate registrations are deferred via `DuplicateRegistry` for reporting by `AppAnalyzer`. See `.claude/rules/architecture.md`.
 
 ### Bootstrap Struct Field vs Local Variable
-In the dependency graph, `Node.IsField` determines how a dependency appears in the bootstrap IIFE:
-- **IsField=true** (Injectable and Provide nodes): Become fields in the returned dependency struct, accessible to the caller
-- **IsField=false** (Variable nodes): Become local variables within the IIFE, not exposed to the caller
+`Node.IsField` determines how a dependency appears in the bootstrap IIFE. Injectable/Provide become struct fields (caller-accessible); Variable nodes become local variables (not exposed). Rationale: Variable annotations often reference pre-existing external state (`os.Stdout`) that need not leak into the returned container.
 
 ### Cross-Package Constructor Qualification
-When a `Provide[T](fn)` registers a function that returns a type from a different package than where the function is defined, the bootstrap generator must use two separate package qualifiers:
-- **Return type's package** (`PackagePath`/`PackageName`): Used for struct field type qualification (e.g., `analysis.Analyzer`)
-- **Constructor function's package** (`ConstructorPkgPath`/`ConstructorPkgName`): Used for function call qualification (e.g., `analyzer.NewAppAnalyzer(...)`)
-
-The `Node` struct carries both sets of fields (`PackagePath`/`PackageName` and `ConstructorPkgPath`/`ConstructorPkgName`/`ConstructorPkgAlias`). Import collection and collision detection consider both packages. `ConstructorPkgPath` is included in hash computation only when it differs from `PackagePath`, preserving backward compatibility for same-package providers.
+When a `Provide[T](fn)` returns a type from a package **different** than where the function is defined, bootstrap uses two separate qualifiers — return-type package (for field types) and constructor package (for call sites). Both are tracked on `Node`. `ConstructorPkgPath` is included in hash computation only when it differs from `PackagePath`. See `.claude/rules/code-generation.md`.
 
 ### Variable Expression Handling
-Variable annotations accept only simple identifiers (`myVar`) or package-qualified identifiers (`os.Stdout`). The detector normalizes aliased import qualifiers to declared package names (e.g., `import myos "os"` with `myos.Stdout` becomes `os.Stdout` in `ExpressionText`). During bootstrap generation, expression aliases are rewritten if package name collisions occur. Variable nodes that are not depended upon by other nodes use blank assignments (`_ =`) to avoid unused variable errors.
+Variable annotations accept only identifiers or package-qualified selectors. Aliased imports are normalized to declared package names for consistent hashing and later rewritten with collision-safe aliases during bootstrap generation. See `.claude/rules/annotations.md`.
 
 ### App Options and Container Definition
-The `App[T](main)` annotation uses a generic type parameter to configure bootstrap output mode:
-- **`app.Default`**: Standard mode; bootstrap returns an anonymous struct with all dependencies as fields (default behavior)
-- **`app.Container[T]`**: Container mode; `T` is a user-defined struct type (named or anonymous) whose fields map to resolved dependencies; bootstrap returns an instance of `T`
-
-Container fields use the same `braider` struct tag convention as Injectable fields:
-- `braider:"name"` - Resolve the field to a named dependency
-- No tag - Resolve by type (concrete or interface)
-- `braider:"-"` and `braider:""` are not permitted on container fields (emit diagnostic errors)
-
-The container pipeline follows a detect-validate-resolve-generate pattern:
-- **AppOptionExtractor** classifies the type argument as Default or Container and extracts the `ContainerDefinition` model
-- **ContainerValidator** validates all container fields are resolvable against the dependency graph before generation
-- **ContainerResolver** maps each container field to its dependency graph node key and bootstrap variable name
-- **BootstrapGenerator.GenerateContainerBootstrap** produces the typed IIFE code with a struct literal return
-
-Mixed options (combining Container with other App options) are supported via anonymous interface embedding.
+`App[T](main)` type parameter selects between `app.Default` (anonymous struct output) and `app.Container[T]` (user-defined container). Container fields use the same `braider` tag convention as Injectable fields, with stricter rules (`-` / empty not permitted). Detect-validate-resolve-generate pipeline documented in `.claude/rules/annotations.md`. Tag rules: `.claude/rules/struct-tags.md`.
 
 ### Struct Tag Field Control
-Fields in `Injectable[T]` structs can use `braider` struct tags for field-level DI customization:
-- `braider:"name"` - Resolve the field as a named dependency (equivalent to `Named[N]` at the field level)
-- `braider:"-"` - Exclude the field from DI resolution entirely (field is not wired in the constructor)
-- Empty tag `braider:""` emits a diagnostic error (ambiguous intent)
-- Conflicting tags (e.g., `braider:"name"` on a field whose type is already registered with a different name) emit a diagnostic error
+`Injectable[T]` fields can use `braider` tags for field-level DI customization (`name` / `-`). Empty and conflicting tags emit diagnostic errors. See `.claude/rules/struct-tags.md`.
 
 ### Idempotent Code Generation
-Bootstrap code generation uses hash markers (`// braider:hash:<hash>`) to track dependency graph state. The generator compares current graph hash against existing hash comments to determine if regeneration is needed. This prevents unnecessary rewrites and preserves manual edits in unrelated code sections.
+Bootstrap uses hash markers (`// braider:hash:<hash>`) to skip regeneration when the dependency graph is unchanged. Preserves manual edits in unrelated sections. Hash inputs and idempotency semantics: `.claude/rules/code-generation.md`.
 
 ### Dogfooding (Self-Hosting)
-braider uses its own annotations in `cmd/braider/main.go` to wire its internal components. The entry point declares `annotation.App[app.Container[T]](main)` with a container struct that exposes the two analyzers and the Aggregator. braider then generates the `dependency` IIFE that constructs and wires all detectors, generators, reporters, registries, graph builders, and analyzers. The generated container is consumed by `phasedchecker.Main()` to configure the phased pipeline (Pipeline with phases, AfterPhase callbacks, DiagnosticPolicy). This ensures braider validates its own code generation against a real, non-trivial dependency graph.
+braider uses its own annotations in `cmd/braider/main.go`. `App[app.Container[T]](main)` generates the dependency IIFE that wires all internal components. Validates braider against a real, non-trivial dependency graph on every build.
 
 ### Conventional Commits
-Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/v1.0.0/) specification:
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation changes
-- `test`: Test additions/modifications
-- `refactor`: Code refactoring
-- `chore`: Maintenance tasks
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/v1.0.0/): `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `style`.
 
 ---
 _Document standards and patterns, not every dependency_
@@ -174,3 +113,4 @@ _Updated: 2026-02-20 - Sync: Code generation refactored from string concatenatio
 _Updated: 2026-02-25 - Sync: Migrated from multichecker.Main() to phasedchecker.Main() phased pipeline architecture; replaced analysistest with phasedchecker/checkertest; added Aggregator/DependencyResult cross-phase coordination pattern; replaced Global Registry Pattern with Cross-Phase State section; removed PackageTracker (no longer exists); added DuplicateRegistry; updated dogfooding to use app.Container[T] and phasedchecker.Config; added analyzer package to component list_
 _Updated: 2026-02-26 - Sync: Updated testing section to reflect consolidated table-driven TestIntegration pattern (all e2e tests in single test function using RunWithSuggestedFixes); added dependency-only smoke test pattern_
 _Updated: 2026-03-02 - Sync: DiagnosticPolicy now includes DefaultSeverity (SeverityWarn) for diagnostics not matching explicit category rules; added SeverityWarn to phasedchecker library references_
+_Updated: 2026-04-21 - Sync: Extracted implementation details into .claude/rules/ (architecture, annotations, struct-tags, code-generation, testing, internal-layout); steering now retains intent/WHY, references rules for details_
