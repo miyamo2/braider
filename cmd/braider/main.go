@@ -1,11 +1,14 @@
 package main
 
 import (
+	"os"
+
 	"github.com/miyamo2/braider/internal/analyzer"
 	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/generate"
 	"github.com/miyamo2/braider/internal/graph"
 	"github.com/miyamo2/braider/internal/loader"
+	"github.com/miyamo2/braider/internal/lsp"
 	"github.com/miyamo2/braider/internal/registry"
 	"github.com/miyamo2/braider/internal/report"
 	"github.com/miyamo2/braider/pkg/annotation"
@@ -21,6 +24,14 @@ var _ = annotation.App[app.Container[struct {
 }]](main)
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "lsp" {
+		server := lsp.NewServer(os.Stdin, os.Stdout)
+		if err := server.Run(); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
+
 	phasedchecker.Main(
 		phasedchecker.Config{
 			Pipeline: phasedchecker.Pipeline{
