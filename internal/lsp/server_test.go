@@ -340,3 +340,67 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// TestExitLifecycle verifies the LSP shutdown → exit lifecycle by reading
+// shutdownRequested directly after dispatching to the original server instance.
+func TestExitLifecycle(t *testing.T) {
+	t.Run("shutdown sets flag", func(t *testing.T) {
+		var out bytes.Buffer
+		s := NewServer(bytes.NewReader(nil), &out)
+
+		// Call dispatch directly so the flag is set on s itself.
+		params, _ := json.Marshal(nil)
+		if err := s.dispatch(10, "shutdown", params); err != nil {
+			t.Fatalf("shutdown dispatch: %v", err)
+		}
+
+		s.mu.RLock()
+		got := s.shutdownRequested
+		s.mu.RUnlock()
+		if !got {
+			t.Error("expected shutdownRequested=true after shutdown")
+		}
+	})
+
+	t.Run("no shutdown flag initially", func(t *testing.T) {
+		s := newTestServer()
+		s.mu.RLock()
+		got := s.shutdownRequested
+		s.mu.RUnlock()
+		if got {
+			t.Error("expected shutdownRequested=false on fresh server")
+		}
+	})
+}
+
+// TestContentLengthCaseInsensitive verifies that Content-Length headers are
+// accepted regardless of casing or surrounding whitespace.
+func TestContentLengthCaseInsensitive(t *testing.T) {
+	body := []byte(`{"jsonrpc":"2.0","id":1}`)
+
+	cases := []struct {
+		name   string
+		header string
+	}{
+		{"canonical", fmt.Sprintf("Content-Length: %d\r\n\r\n", len(body))},
+		{"lowercase", fmt.Sprintf("content-length: %d\r\n\r\n", len(body))},
+		{"uppercase", fmt.Sprintf("CONTENT-LENGTH: %d\r\n\r\n", len(body))},
+		{"mixed-case", fmt.Sprintf("Content-length: %d\r\n\r\n", len(body))},
+		{"extra spaces", fmt.Sprintf("Content-Length :  %d\r\n\r\n", len(body))},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			input := append([]byte(c.header), body...)
+			var out bytes.Buffer
+			tr := newTransport(bytes.NewReader(input), &out)
+			got, err := tr.readMessage()
+			if err != nil {
+				t.Fatalf("readMessage(%s): %v", c.name, err)
+			}
+			if string(got) != string(body) {
+				t.Errorf("body mismatch for %s: got %q", c.name, got)
+			}
+		})
+	}
+}

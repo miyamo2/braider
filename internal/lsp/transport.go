@@ -37,13 +37,16 @@ func (t *transport) readMessage() ([]byte, error) {
 		if line == "" {
 			break
 		}
-		if strings.HasPrefix(line, "Content-Length: ") {
-			val := strings.TrimPrefix(line, "Content-Length: ")
-			n, err := strconv.Atoi(val)
-			if err != nil {
-				return nil, fmt.Errorf("invalid Content-Length: %w", err)
+		if idx := strings.IndexByte(line, ':'); idx >= 0 {
+			key := strings.TrimSpace(line[:idx])
+			if strings.EqualFold(key, "Content-Length") {
+				val := strings.TrimSpace(line[idx+1:])
+				n, err := strconv.Atoi(val)
+				if err != nil {
+					return nil, fmt.Errorf("invalid Content-Length: %w", err)
+				}
+				contentLength = n
 			}
-			contentLength = n
 		}
 		// Ignore other headers (e.g. Content-Type)
 	}

@@ -120,7 +120,13 @@ func (s *Server) dispatch(id any, method string, rawParams json.RawMessage) erro
 		s.mu.Unlock()
 		return s.sendResult(id, nil)
 	case "exit":
-		os.Exit(0)
+		s.mu.RLock()
+		shutdown := s.shutdownRequested
+		s.mu.RUnlock()
+		if shutdown {
+			os.Exit(0)
+		}
+		os.Exit(1)
 	case "textDocument/didOpen":
 		return s.handleDidOpen(rawParams)
 	case "textDocument/didChange":
@@ -263,18 +269,33 @@ func (s *Server) analyzeWorkspace() {
 		return
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	// Build caches in local maps without holding any lock.
+	localProviders := make(map[string]map[string]*providerEntry)
+	localInjectors := make(map[string]map[string]*injectorEntry)
+	localVariables := make(map[string]map[string]*variableEntry)
 
 	for _, pkg := range pkgs {
-		s.scanPackageForAnnotations(pkg)
+		scanPackageForAnnotations(pkg, localProviders, localInjectors, localVariables)
 	}
+
+	// Swap in the results under a brief write lock.
+	s.mu.Lock()
+	s.providers = localProviders
+	s.injectors = localInjectors
+	s.variables = localVariables
+	s.mu.Unlock()
+
 	s.logger.Printf("workspace analysis complete: %d packages scanned", len(pkgs))
 }
 
 // scanPackageForAnnotations examines a package's AST for braider annotation
-// call expressions and populates the server caches.
-func (s *Server) scanPackageForAnnotations(pkg *packages.Package) {
+// call expressions and writes results into the supplied local maps.
+func scanPackageForAnnotations(
+	pkg *packages.Package,
+	providers map[string]map[string]*providerEntry,
+	injectors map[string]map[string]*injectorEntry,
+	variables map[string]map[string]*variableEntry,
+) {
 	if pkg.TypesInfo == nil {
 		return
 	}
@@ -282,10 +303,10 @@ func (s *Server) scanPackageForAnnotations(pkg *packages.Package) {
 		ast.Inspect(f, func(n ast.Node) bool {
 			switch expr := n.(type) {
 			case *ast.IndexExpr:
-				s.tryRegisterAnnotation(pkg, expr.X, expr.Index)
+				tryRegisterAnnotation(pkg, expr.X, expr.Index, providers, injectors, variables)
 			case *ast.IndexListExpr:
 				for _, idx := range expr.Indices {
-					s.tryRegisterAnnotation(pkg, expr.X, idx)
+					tryRegisterAnnotation(pkg, expr.X, idx, providers, injectors, variables)
 				}
 			}
 			return true
@@ -294,8 +315,15 @@ func (s *Server) scanPackageForAnnotations(pkg *packages.Package) {
 }
 
 // tryRegisterAnnotation checks whether fnExpr is a braider annotation and
-// records the type argument in the appropriate cache.
-func (s *Server) tryRegisterAnnotation(pkg *packages.Package, fnExpr ast.Expr, typeArgExpr ast.Expr) {
+// records the type argument in the appropriate local map.
+func tryRegisterAnnotation(
+	pkg *packages.Package,
+	fnExpr ast.Expr,
+	typeArgExpr ast.Expr,
+	providers map[string]map[string]*providerEntry,
+	injectors map[string]map[string]*injectorEntry,
+	variables map[string]map[string]*variableEntry,
+) {
 	if annotationKind(selectorOrIdent(fnExpr)) == contextNone {
 		return
 	}
@@ -328,25 +356,25 @@ func (s *Server) tryRegisterAnnotation(pkg *packages.Package, fnExpr ast.Expr, t
 
 	switch annotationKind(selectorOrIdent(fnExpr)) {
 	case contextProvide:
-		if s.providers[typeName] == nil {
-			s.providers[typeName] = make(map[string]*providerEntry)
+		if providers[typeName] == nil {
+			providers[typeName] = make(map[string]*providerEntry)
 		}
-		if _, exists := s.providers[typeName][""]; !exists {
-			s.providers[typeName][""] = &providerEntry{PackagePath: pkg.PkgPath}
+		if _, exists := providers[typeName][""]; !exists {
+			providers[typeName][""] = &providerEntry{PackagePath: pkg.PkgPath}
 		}
 	case contextInject:
-		if s.injectors[typeName] == nil {
-			s.injectors[typeName] = make(map[string]*injectorEntry)
+		if injectors[typeName] == nil {
+			injectors[typeName] = make(map[string]*injectorEntry)
 		}
-		if _, exists := s.injectors[typeName][""]; !exists {
-			s.injectors[typeName][""] = &injectorEntry{PackagePath: pkg.PkgPath}
+		if _, exists := injectors[typeName][""]; !exists {
+			injectors[typeName][""] = &injectorEntry{PackagePath: pkg.PkgPath}
 		}
 	case contextVariable:
-		if s.variables[typeName] == nil {
-			s.variables[typeName] = make(map[string]*variableEntry)
+		if variables[typeName] == nil {
+			variables[typeName] = make(map[string]*variableEntry)
 		}
-		if _, exists := s.variables[typeName][""]; !exists {
-			s.variables[typeName][""] = &variableEntry{PackagePath: pkg.PkgPath}
+		if _, exists := variables[typeName][""]; !exists {
+			variables[typeName][""] = &variableEntry{PackagePath: pkg.PkgPath}
 		}
 	}
 }
