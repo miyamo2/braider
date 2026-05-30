@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -285,19 +286,28 @@ func typeAtPosition(fset *token.FileSet, f *ast.File, info *types.Info, line, ch
 }
 
 // uriToFilePath converts an LSP file:// URI to a local filesystem path.
+// Uses net/url for proper percent-decoding and net/url for RFC-compliant parsing.
 func uriToFilePath(uri string) string {
-	path := strings.TrimPrefix(uri, "file://")
-	// On Windows, URIs look like file:///C:/...; strip the leading slash.
-	if len(path) > 2 && path[0] == '/' && path[2] == ':' {
-		path = path[1:]
+	u, err := url.Parse(uri)
+	if err != nil || u.Scheme != "file" {
+		// Fallback: strip prefix without decoding.
+		return strings.TrimPrefix(uri, "file://")
 	}
-	return path
+	p := u.Path // Already percent-decoded; always slash-separated per LSP spec.
+	// On Windows, file URIs look like file:///C:/...; strip the leading slash before the drive letter.
+	if len(p) > 2 && p[0] == '/' && p[2] == ':' {
+		p = p[1:]
+	}
+	return filepath.FromSlash(p)
 }
 
-// filePathToURI converts a local path to an LSP file:// URI.
+// filePathToURI converts a local filesystem path to an LSP file:// URI.
+// Uses filepath.ToSlash for cross-platform slash normalisation and net/url for
+// proper percent-encoding of special characters in the path.
 func filePathToURI(path string) string {
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
+	u := &url.URL{
+		Scheme: "file",
+		Path:   filepath.ToSlash(path),
 	}
-	return "file://" + path
+	return u.String()
 }

@@ -449,6 +449,8 @@ func tryRegisterAnnotation(
 // modPath is the binary's module path (from detect.ModulePath); when non-empty it
 // is used for a fork-safe prefix check.  When modPath is empty it is resolved via
 // detect.ModulePath so the check remains correct in forked modules.
+// Path boundaries are checked explicitly (exact match or "/" separator) to
+// prevent false positives from paths like ".../pkg/annotationevil".
 func isAnnotationPkg(pkgPath, modPath string) bool {
 	if modPath == "" {
 		modPath, _ = detect.ModulePath()
@@ -456,8 +458,10 @@ func isAnnotationPkg(pkgPath, modPath string) bool {
 	if modPath == "" {
 		return false
 	}
-	return strings.HasPrefix(pkgPath, modPath+"/pkg/annotation") ||
-		strings.HasPrefix(pkgPath, modPath+"/internal/annotation")
+	pkgAnnotation := modPath + "/pkg/annotation"
+	internalAnnotation := modPath + "/internal/annotation"
+	return pkgPath == pkgAnnotation || strings.HasPrefix(pkgPath, pkgAnnotation+"/") ||
+		pkgPath == internalAnnotation || strings.HasPrefix(pkgPath, internalAnnotation+"/")
 }
 
 // findSyntaxFile returns the *ast.File in pkg.Syntax whose path matches filePath.

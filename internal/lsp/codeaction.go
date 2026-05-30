@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/token"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/miyamo2/braider/internal/detect"
@@ -120,16 +121,15 @@ func effectiveImportAliases(f *ast.File, modPath string) (annotationAlias, provi
 	annotationPkg := modPath + "/pkg/annotation"
 	providePkg := modPath + "/pkg/annotation/provide"
 	for _, imp := range f.Imports {
-		path := strings.Trim(imp.Path.Value, `"`)
+		importPath := strings.Trim(imp.Path.Value, `"`)
 		var alias string
 		if imp.Name != nil {
 			alias = imp.Name.Name
 		} else {
-			// Derive last path component.
-			parts := strings.Split(path, "/")
-			alias = parts[len(parts)-1]
+			// Derive last path component; Go import paths always use forward slashes.
+			alias = path.Base(importPath)
 		}
-		switch path {
+		switch importPath {
 		case annotationPkg:
 			annotationAlias = alias
 		case providePkg:

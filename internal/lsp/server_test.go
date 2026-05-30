@@ -206,6 +206,8 @@ func TestURIConversions(t *testing.T) {
 	}{
 		{"/home/user/foo.go", "file:///home/user/foo.go"},
 		{"/tmp/bar/baz.go", "file:///tmp/bar/baz.go"},
+		// Percent-encoding: spaces in path must round-trip correctly.
+		{"/home/user/my project/foo.go", "file:///home/user/my%20project/foo.go"},
 	}
 	for _, c := range cases {
 		if got := filePathToURI(c.path); got != c.uri {
@@ -317,6 +319,9 @@ func TestIsAnnotationPkg(t *testing.T) {
 		// Non-annotation packages
 		{"example.com/user/myservice", modPath, false},
 		{modPath + "/internal/registry", modPath, false},
+		// Boundary check: path with annotation as a prefix but not a sub-package must not match.
+		{modPath + "/pkg/annotationevil", modPath, false},
+		{modPath + "/internal/annotationfoo", modPath, false},
 	}
 	for _, c := range cases {
 		if got := isAnnotationPkg(c.pkg, c.modPath); got != c.want {
