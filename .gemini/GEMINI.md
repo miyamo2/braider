@@ -615,7 +615,7 @@ Diagnostic + suggested fix building:
 
 ## `internal/lsp/`
 Minimal LSP (Language Server Protocol) server for editor DI-annotation assistance.
-Exposed as the `braider lsp` subcommand (checked by `cmd/braider/main.go` before delegating to `phasedchecker.Main`).
+Exposed as the standalone `braider-lsp` binary (`cmd/braider-lsp/main.go`).
 
 Key components:
 
@@ -638,14 +638,22 @@ Top-level orchestration:
 - `DependencyResult` — per-package result type returned by `DependencyAnalyzer.Run()`
 - `DependencyAnalyzeRunner`, `AppAnalyzeRunner` — per-analyzer execution drivers
 
-## CLI Entry Point (`cmd/braider/`)
+## CLI Entry Points
+
+### `cmd/braider/`
 
 Single `main.go` using braider's own annotations (dogfooding):
 
-1. Checks `os.Args[1]` for the `"lsp"` subcommand; if present, starts `lsp.Server` over stdio and returns.
-2. Declares `annotation.App[app.Container[T]](main)` with a container struct exposing the two analyzers and the `Aggregator`
-3. braider generates the `dependency` IIFE that wires all internal components
-4. `main()` calls `phasedchecker.Main()` with a `phasedchecker.Config` (Pipeline + DiagnosticPolicy), using the generated container's fields
+1. Declares `annotation.App[app.Container[T]](main)` with a container struct exposing the two analyzers and the `Aggregator`
+2. braider generates the `dependency` IIFE that wires all internal components
+3. `main()` calls `phasedchecker.Main()` with a `phasedchecker.Config` (Pipeline + DiagnosticPolicy), using the generated container's fields
+
+### `cmd/braider-lsp/`
+
+Standalone `main.go` for editor integration:
+
+1. Accepts `--help` / `-h` to print capability description
+2. Creates an `lsp.Server` over stdio and calls `server.Run()`
 
 ## Public API (`pkg/`)
 
