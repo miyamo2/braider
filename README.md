@@ -1,4 +1,4 @@
-# braider — compile-time DI via go/analysis
+# braider — A compile-time DI tool with component-scanning, built using go/analysis
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/miyamo2/braider.svg)](https://pkg.go.dev/github.com/miyamo2/braider)
 [![GitHub go.mod Go version (subdirectory of monorepo)](https://img.shields.io/github/go-mod/go-version/miyamo2/braider?logo=go)](https://img.shields.io/github/go-mod/go-version/miyamo2/braider?logo=go)
