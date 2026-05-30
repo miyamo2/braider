@@ -613,6 +613,23 @@ Diagnostic + suggested fix building:
 ## `internal/loader/`
 `PackageLoader` for module package discovery (cross-package dependency analysis).
 
+## `internal/lsp/`
+Minimal LSP (Language Server Protocol) server for editor DI-annotation assistance.
+Exposed as the standalone `braider-lsp` binary (`cmd/braider-lsp/main.go`).
+
+Key components:
+
+- `Server` — main JSON-RPC 2.0 dispatch loop; manages open-file overlay, in-memory registration caches
+- `transport` — Content-Length framed stdio I/O (`readMessage` / `writeMessage`)
+- LSP capabilities:
+  - **textDocument/completion** (`completion.go`) — type completions for the `T` argument of `Provide[T]` / `Injectable[T]` / `Variable[T]`, ranked by whether the type is already registered
+  - **textDocument/hover** (`hover.go`) — shows the resolved provider/injector/variable binding for the type under the cursor
+  - **textDocument/codeAction** (`codeaction.go`) — "Register with annotation.Provide" quick-fix when the cursor is on an exported constructor function
+- `analysis.go` — `go/packages`-based helpers: `loadPackageForFile`, `collectExportedTypes`, `findCursorContext`, `constructorAtPosition`, `typeAtPosition`
+- `protocol.go` — LSP 3.17 message/capability types (JSON-serializable subset)
+
+The server does **not** depend on the phased analyzer pipeline; it runs a best-effort `go/packages` load on demand and a background workspace scan after `initialized`.
+
 ## `internal/analyzer/`
 Top-level orchestration:
 
@@ -621,13 +638,22 @@ Top-level orchestration:
 - `DependencyResult` — per-package result type returned by `DependencyAnalyzer.Run()`
 - `DependencyAnalyzeRunner`, `AppAnalyzeRunner` — per-analyzer execution drivers
 
-## CLI Entry Point (`cmd/braider/`)
+## CLI Entry Points
+
+### `cmd/braider/`
 
 Single `main.go` using braider's own annotations (dogfooding):
 
 1. Declares `annotation.App[app.Container[T]](main)` with a container struct exposing the two analyzers and the `Aggregator`
 2. braider generates the `dependency` IIFE that wires all internal components
 3. `main()` calls `phasedchecker.Main()` with a `phasedchecker.Config` (Pipeline + DiagnosticPolicy), using the generated container's fields
+
+### `cmd/braider-lsp/`
+
+Standalone `main.go` for editor integration:
+
+1. Accepts `--help` / `-h` to print capability description
+2. Creates an `lsp.Server` over stdio and calls `server.Run()`
 
 ## Public API (`pkg/`)
 
@@ -678,5 +704,5 @@ Order: stdlib → third-party → internal.
 
 ## Minimal Public API Principle
 
-Only the CLI entry point (`cmd/braider/main.go`) is user-facing. All implementation details are in `internal/` to prevent accidental external dependencies.
+Only the CLI entry points (`cmd/braider/main.go` and `cmd/braider-lsp/main.go`) are user-facing. All implementation details are in `internal/` to prevent accidental external dependencies.
 

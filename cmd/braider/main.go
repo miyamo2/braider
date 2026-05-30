@@ -1,6 +1,9 @@
 package main
 
 import (
+	"github.com/miyamo2/phasedchecker"
+	"golang.org/x/tools/go/analysis"
+
 	"github.com/miyamo2/braider/internal/analyzer"
 	"github.com/miyamo2/braider/internal/detect"
 	"github.com/miyamo2/braider/internal/generate"
@@ -10,8 +13,6 @@ import (
 	"github.com/miyamo2/braider/internal/report"
 	"github.com/miyamo2/braider/pkg/annotation"
 	"github.com/miyamo2/braider/pkg/annotation/app"
-	"github.com/miyamo2/phasedchecker"
-	"golang.org/x/tools/go/analysis"
 )
 
 var _ = annotation.App[app.Container[struct {

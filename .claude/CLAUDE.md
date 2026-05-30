@@ -32,6 +32,7 @@ Reverse lookup from intent to the paths you need to touch.
 | Add / modify E2E test cases or update goldens | `internal/analyzer/integration_test.go`, `internal/analyzer/testdata/**` |
 | Add a new `internal/*` package or change package responsibilities | The affected paths themselves, plus this `Rules Index` and the `paths:` of related rule files |
 | Change CLI entry point / command-line behavior | `cmd/braider/main.go` |
+| Add/modify LSP server capabilities (completion, hover, code action) | `internal/lsp/` |
 
 New categories: update this table before starting implementation.
 
