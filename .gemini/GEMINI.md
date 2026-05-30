@@ -704,5 +704,5 @@ Order: stdlib → third-party → internal.
 
 ## Minimal Public API Principle
 
-Only the CLI entry point (`cmd/braider/main.go`) is user-facing. All implementation details are in `internal/` to prevent accidental external dependencies.
+Only the CLI entry points (`cmd/braider/main.go` and `cmd/braider-lsp/main.go`) are user-facing. All implementation details are in `internal/` to prevent accidental external dependencies.
 
