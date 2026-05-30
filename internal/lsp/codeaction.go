@@ -64,9 +64,10 @@ func (s *Server) handleCodeAction(id any, rawParams json.RawMessage) error {
 	}
 
 	// Resolve the module path for fork-safe annotation package import paths.
+	// If unresolvable we cannot generate correct import paths; return empty.
 	modPath, _ := detect.ModulePath()
 	if modPath == "" {
-		modPath = "github.com/miyamo2/braider"
+		return s.sendResult(id, []CodeAction{})
 	}
 
 	// Determine package aliases used in the file.

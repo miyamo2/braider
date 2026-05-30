@@ -447,11 +447,14 @@ func tryRegisterAnnotation(
 
 // isAnnotationPkg reports whether pkgPath belongs to the braider annotation API.
 // modPath is the binary's module path (from detect.ModulePath); when non-empty it
-// is used for a fork-safe prefix check.  Falls back to the canonical module path
-// when modPath is empty (test environments / stripped binaries).
+// is used for a fork-safe prefix check.  When modPath is empty it is resolved via
+// detect.ModulePath so the check remains correct in forked modules.
 func isAnnotationPkg(pkgPath, modPath string) bool {
 	if modPath == "" {
-		modPath = "github.com/miyamo2/braider"
+		modPath, _ = detect.ModulePath()
+	}
+	if modPath == "" {
+		return false
 	}
 	return strings.HasPrefix(pkgPath, modPath+"/pkg/annotation") ||
 		strings.HasPrefix(pkgPath, modPath+"/internal/annotation")

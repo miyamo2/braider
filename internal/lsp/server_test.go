@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+
+	"github.com/miyamo2/braider/internal/detect"
 )
 
 // sendRequest writes a JSON-RPC request with Content-Length framing into a buffer.
@@ -283,32 +285,38 @@ func TestLookupBindingVariable(t *testing.T) {
 }
 
 func TestIsAnnotationPkg(t *testing.T) {
-	const canonical = "github.com/miyamo2/braider"
+	modPath, err := detect.ModulePath()
+	if err != nil || modPath == "" {
+		t.Skip("cannot resolve module path")
+	}
+
+	// forkPath is a synthetic module path used to verify fork-isolation behaviour.
+	const forkPath = "github.com/forker/braider"
 
 	cases := []struct {
 		pkg     string
-		modPath string // empty → fallback to canonical
+		modPath string // empty → resolved via detect.ModulePath()
 		want    bool
 	}{
 		// Canonical module path (explicit)
-		{"github.com/miyamo2/braider/pkg/annotation", canonical, true},
-		{"github.com/miyamo2/braider/pkg/annotation/inject", canonical, true},
-		{"github.com/miyamo2/braider/pkg/annotation/provide", canonical, true},
-		{"github.com/miyamo2/braider/pkg/annotation/variable", canonical, true},
-		{"github.com/miyamo2/braider/pkg/annotation/app", canonical, true},
-		{"github.com/miyamo2/braider/pkg/annotation/namer", canonical, true},
-		{"github.com/miyamo2/braider/internal/annotation", canonical, true},
-		// Fallback (modPath == "")
-		{"github.com/miyamo2/braider/pkg/annotation", "", true},
-		{"github.com/miyamo2/braider/pkg/annotation/inject", "", true},
-		{"github.com/miyamo2/braider/internal/annotation", "", true},
+		{modPath + "/pkg/annotation", modPath, true},
+		{modPath + "/pkg/annotation/inject", modPath, true},
+		{modPath + "/pkg/annotation/provide", modPath, true},
+		{modPath + "/pkg/annotation/variable", modPath, true},
+		{modPath + "/pkg/annotation/app", modPath, true},
+		{modPath + "/pkg/annotation/namer", modPath, true},
+		{modPath + "/internal/annotation", modPath, true},
+		// Fallback (modPath == "") — resolved via detect.ModulePath()
+		{modPath + "/pkg/annotation", "", true},
+		{modPath + "/pkg/annotation/inject", "", true},
+		{modPath + "/internal/annotation", "", true},
 		// Fork scenario
-		{"github.com/forker/braider/pkg/annotation", "github.com/forker/braider", true},
-		{"github.com/forker/braider/pkg/annotation/inject", "github.com/forker/braider", true},
-		{"github.com/miyamo2/braider/pkg/annotation/inject", "github.com/forker/braider", false},
+		{forkPath + "/pkg/annotation", forkPath, true},
+		{forkPath + "/pkg/annotation/inject", forkPath, true},
+		{modPath + "/pkg/annotation/inject", forkPath, false},
 		// Non-annotation packages
-		{"example.com/user/myservice", canonical, false},
-		{"github.com/miyamo2/braider/internal/registry", canonical, false},
+		{"example.com/user/myservice", modPath, false},
+		{modPath + "/internal/registry", modPath, false},
 	}
 	for _, c := range cases {
 		if got := isAnnotationPkg(c.pkg, c.modPath); got != c.want {
