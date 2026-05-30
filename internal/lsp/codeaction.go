@@ -7,6 +7,8 @@ import (
 	"go/token"
 	"os"
 	"strings"
+
+	"github.com/miyamo2/braider/internal/detect"
 )
 
 // handleCodeAction processes a textDocument/codeAction request.
@@ -61,8 +63,14 @@ func (s *Server) handleCodeAction(id any, rawParams json.RawMessage) error {
 		}
 	}
 
+	// Resolve the module path for fork-safe annotation package import paths.
+	modPath, _ := detect.ModulePath()
+	if modPath == "" {
+		modPath = "github.com/miyamo2/braider"
+	}
+
 	// Determine package aliases used in the file.
-	annotationAlias, provideAlias := effectiveImportAliases(targetFile)
+	annotationAlias, provideAlias := effectiveImportAliases(targetFile, modPath)
 
 	// Build the Provide registration snippet.
 	provideSnippet := fmt.Sprintf("var _ = %s.Provide[%s.Default](%s)\n",
@@ -79,7 +87,7 @@ func (s *Server) handleCodeAction(id any, rawParams json.RawMessage) error {
 	var allEdits []TextEdit
 
 	// Add missing import statements if needed.
-	importEdit := buildMissingImportEdit(fset, targetFile, fileContent, annotationAlias, provideAlias)
+	importEdit := buildMissingImportEdit(fset, targetFile, fileContent, annotationAlias, provideAlias, modPath)
 	if importEdit != nil {
 		allEdits = append(allEdits, *importEdit)
 	}
@@ -104,9 +112,12 @@ func (s *Server) handleCodeAction(id any, rawParams json.RawMessage) error {
 
 // effectiveImportAliases returns the local aliases used in the file for the
 // annotation and provide packages. Falls back to "annotation" / "provide".
-func effectiveImportAliases(f *ast.File) (annotationAlias, provideAlias string) {
+// modPath is the binary's module path, used to construct fork-safe import paths.
+func effectiveImportAliases(f *ast.File, modPath string) (annotationAlias, provideAlias string) {
 	annotationAlias = "annotation"
 	provideAlias = "provide"
+	annotationPkg := modPath + "/pkg/annotation"
+	providePkg := modPath + "/pkg/annotation/provide"
 	for _, imp := range f.Imports {
 		path := strings.Trim(imp.Path.Value, `"`)
 		var alias string
@@ -118,9 +129,9 @@ func effectiveImportAliases(f *ast.File) (annotationAlias, provideAlias string) 
 			alias = parts[len(parts)-1]
 		}
 		switch path {
-		case annotationProvidePkg:
+		case annotationPkg:
 			annotationAlias = alias
-		case "github.com/miyamo2/braider/pkg/annotation/provide":
+		case providePkg:
 			provideAlias = alias
 		}
 	}
@@ -129,9 +140,12 @@ func effectiveImportAliases(f *ast.File) (annotationAlias, provideAlias string) 
 
 // buildMissingImportEdit returns a TextEdit that adds missing import lines for
 // the annotation and/or provide packages, or nil if both are already present.
-func buildMissingImportEdit(fset *token.FileSet, f *ast.File, content, annotationAlias, provideAlias string) *TextEdit {
-	needAnnotation := !importedInFile(f, annotationProvidePkg)
-	needProvide := !importedInFile(f, "github.com/miyamo2/braider/pkg/annotation/provide")
+// modPath is the binary's module path, used to construct fork-safe import paths.
+func buildMissingImportEdit(fset *token.FileSet, f *ast.File, content, annotationAlias, provideAlias, modPath string) *TextEdit {
+	annotationPkg := modPath + "/pkg/annotation"
+	providePkg := modPath + "/pkg/annotation/provide"
+	needAnnotation := !importedInFile(f, annotationPkg)
+	needProvide := !importedInFile(f, providePkg)
 
 	if !needAnnotation && !needProvide {
 		return nil
@@ -139,10 +153,10 @@ func buildMissingImportEdit(fset *token.FileSet, f *ast.File, content, annotatio
 
 	var lines []string
 	if needAnnotation {
-		lines = append(lines, fmt.Sprintf("\t%q", annotationProvidePkg))
+		lines = append(lines, fmt.Sprintf("\t%q", annotationPkg))
 	}
 	if needProvide {
-		lines = append(lines, fmt.Sprintf("\t%q", "github.com/miyamo2/braider/pkg/annotation/provide"))
+		lines = append(lines, fmt.Sprintf("\t%q", providePkg))
 	}
 
 	// Try to append inside the existing import block.

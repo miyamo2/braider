@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	annotationProvidePkg    = "github.com/miyamo2/braider/pkg/annotation"
 	annotationProvideIdent  = "Provide"
 	annotationInjectIdent   = "Injectable"
 	annotationVariableIdent = "Variable"

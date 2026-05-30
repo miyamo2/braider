@@ -291,7 +291,7 @@ func TestIsAnnotationPkg(t *testing.T) {
 		want    bool
 	}{
 		// Canonical module path (explicit)
-		{annotationProvidePkg, canonical, true},
+		{"github.com/miyamo2/braider/pkg/annotation", canonical, true},
 		{"github.com/miyamo2/braider/pkg/annotation/inject", canonical, true},
 		{"github.com/miyamo2/braider/pkg/annotation/provide", canonical, true},
 		{"github.com/miyamo2/braider/pkg/annotation/variable", canonical, true},
@@ -299,7 +299,7 @@ func TestIsAnnotationPkg(t *testing.T) {
 		{"github.com/miyamo2/braider/pkg/annotation/namer", canonical, true},
 		{"github.com/miyamo2/braider/internal/annotation", canonical, true},
 		// Fallback (modPath == "")
-		{annotationProvidePkg, "", true},
+		{"github.com/miyamo2/braider/pkg/annotation", "", true},
 		{"github.com/miyamo2/braider/pkg/annotation/inject", "", true},
 		{"github.com/miyamo2/braider/internal/annotation", "", true},
 		// Fork scenario
