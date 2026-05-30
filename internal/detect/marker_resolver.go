@@ -45,6 +45,13 @@ func resolveModulePath() (string, error) {
 	return resolvedModulePath, resolvedModulePathErr
 }
 
+// ModulePath returns the module path of the running braider binary.
+// Enables fork-safe annotation-package-path checks in consumers (e.g. the LSP
+// server) without hard-coding the module path.
+func ModulePath() (string, error) {
+	return resolveModulePath()
+}
+
 // MarkerInterfaces holds resolved marker interfaces from internal/annotation.
 // These are used with types.Implements to identify annotation types.
 type MarkerInterfaces struct {

@@ -11,9 +11,12 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"golang.org/x/tools/go/packages"
+
+	"github.com/miyamo2/braider/internal/detect"
 )
 
 // Server is a minimal LSP server that provides DI annotation assistance for braider.
@@ -251,6 +254,11 @@ func (s *Server) analyzeWorkspace() {
 		return
 	}
 
+	// Resolve module path and marker interfaces outside any lock.
+	// Both are best-effort: failures degrade gracefully.
+	modPath, _ := detect.ModulePath()
+	markers, _ := detect.ResolveMarkers()
+
 	fset := token.NewFileSet()
 	cfg := &packages.Config{
 		Mode: packages.NeedName |
@@ -275,7 +283,8 @@ func (s *Server) analyzeWorkspace() {
 	localVariables := make(map[string]map[string]*variableEntry)
 
 	for _, pkg := range pkgs {
-		scanPackageForAnnotations(pkg, localProviders, localInjectors, localVariables)
+		scanPackageForAnnotations(pkg, modPath, localProviders, localInjectors, localVariables)
+		scanPackageForInjectables(pkg, markers, localInjectors)
 	}
 
 	// Swap in the results under a brief write lock.
@@ -288,10 +297,11 @@ func (s *Server) analyzeWorkspace() {
 	s.logger.Printf("workspace analysis complete: %d packages scanned", len(pkgs))
 }
 
-// scanPackageForAnnotations examines a package's AST for braider annotation
+// scanPackageForAnnotations examines a package's AST for braider Provide/Variable
 // call expressions and writes results into the supplied local maps.
 func scanPackageForAnnotations(
 	pkg *packages.Package,
+	modPath string,
 	providers map[string]map[string]*providerEntry,
 	injectors map[string]map[string]*injectorEntry,
 	variables map[string]map[string]*variableEntry,
@@ -303,10 +313,10 @@ func scanPackageForAnnotations(
 		ast.Inspect(f, func(n ast.Node) bool {
 			switch expr := n.(type) {
 			case *ast.IndexExpr:
-				tryRegisterAnnotation(pkg, expr.X, expr.Index, providers, injectors, variables)
+				tryRegisterAnnotation(pkg, expr.X, expr.Index, modPath, providers, injectors, variables)
 			case *ast.IndexListExpr:
 				for _, idx := range expr.Indices {
-					tryRegisterAnnotation(pkg, expr.X, idx, providers, injectors, variables)
+					tryRegisterAnnotation(pkg, expr.X, idx, modPath, providers, injectors, variables)
 				}
 			}
 			return true
@@ -314,17 +324,73 @@ func scanPackageForAnnotations(
 	}
 }
 
-// tryRegisterAnnotation checks whether fnExpr is a braider annotation and
-// records the type argument in the appropriate local map.
+// scanPackageForInjectables detects exported structs that embed annotation.Injectable[T]
+// via types.Implements and registers them as injector entries.
+func scanPackageForInjectables(
+	pkg *packages.Package,
+	markers *detect.MarkerInterfaces,
+	injectors map[string]map[string]*injectorEntry,
+) {
+	if pkg.Types == nil || markers == nil || markers.Injectable == nil {
+		return
+	}
+	scope := pkg.Types.Scope()
+	for _, name := range scope.Names() {
+		obj := scope.Lookup(name)
+		tn, ok := obj.(*types.TypeName)
+		if !ok || !tn.Exported() {
+			continue
+		}
+		t := tn.Type()
+		if !types.Implements(t, markers.Injectable) && !types.Implements(types.NewPointer(t), markers.Injectable) {
+			continue
+		}
+		typeName := pkg.PkgPath + "." + name
+		if injectors[typeName] == nil {
+			injectors[typeName] = make(map[string]*injectorEntry)
+		}
+		if _, exists := injectors[typeName][""]; !exists {
+			injectors[typeName][""] = &injectorEntry{PackagePath: pkg.PkgPath}
+		}
+	}
+}
+
+// tryRegisterAnnotation verifies that fnExpr is a braider annotation function
+// (by checking its resolved package path, not just its name) and records the
+// type argument in the appropriate local map.
 func tryRegisterAnnotation(
 	pkg *packages.Package,
 	fnExpr ast.Expr,
 	typeArgExpr ast.Expr,
+	modPath string,
 	providers map[string]map[string]*providerEntry,
 	injectors map[string]map[string]*injectorEntry,
 	variables map[string]map[string]*variableEntry,
 ) {
-	if annotationKind(selectorOrIdent(fnExpr)) == contextNone {
+	// Extract the identifier for the annotation function (e.g. "Provide").
+	var ident *ast.Ident
+	switch x := fnExpr.(type) {
+	case *ast.SelectorExpr:
+		ident = x.Sel
+	case *ast.Ident:
+		ident = x
+	default:
+		return
+	}
+
+	kind := annotationKind(ident.Name)
+	if kind == contextNone {
+		return
+	}
+
+	// Verify the function object comes from the braider annotation package so
+	// that user-defined functions named "Provide"/"Injectable"/"Variable" in
+	// unrelated packages are not mistakenly registered.
+	obj := pkg.TypesInfo.ObjectOf(ident)
+	if obj == nil || obj.Pkg() == nil {
+		return
+	}
+	if !isAnnotationPkg(obj.Pkg().Path(), modPath) {
 		return
 	}
 
@@ -343,18 +409,18 @@ func tryRegisterAnnotation(
 	if !ok {
 		return
 	}
-	// Skip types from annotation packages themselves (option types).
+	// Skip option types that belong to annotation sub-packages.
 	if named.Obj().Pkg() == nil {
 		return
 	}
 	pkgPath := named.Obj().Pkg().Path()
-	if isAnnotationPkg(pkgPath) {
+	if isAnnotationPkg(pkgPath, modPath) {
 		return
 	}
 
 	typeName := pkgPath + "." + named.Obj().Name()
 
-	switch annotationKind(selectorOrIdent(fnExpr)) {
+	switch kind {
 	case contextProvide:
 		if providers[typeName] == nil {
 			providers[typeName] = make(map[string]*providerEntry)
@@ -379,15 +445,16 @@ func tryRegisterAnnotation(
 	}
 }
 
-// isAnnotationPkg reports whether a package path belongs to the braider
-// annotation API (i.e., option types that should not be surfaced as user types).
-func isAnnotationPkg(pkgPath string) bool {
-	return pkgPath == annotationProvidePkg ||
-		pkgPath == "github.com/miyamo2/braider/pkg/annotation/inject" ||
-		pkgPath == "github.com/miyamo2/braider/pkg/annotation/provide" ||
-		pkgPath == "github.com/miyamo2/braider/pkg/annotation/variable" ||
-		pkgPath == "github.com/miyamo2/braider/pkg/annotation/app" ||
-		pkgPath == "github.com/miyamo2/braider/pkg/annotation/namer"
+// isAnnotationPkg reports whether pkgPath belongs to the braider annotation API.
+// modPath is the binary's module path (from detect.ModulePath); when non-empty it
+// is used for a fork-safe prefix check.  Falls back to the canonical module path
+// when modPath is empty (test environments / stripped binaries).
+func isAnnotationPkg(pkgPath, modPath string) bool {
+	if modPath == "" {
+		modPath = "github.com/miyamo2/braider"
+	}
+	return strings.HasPrefix(pkgPath, modPath+"/pkg/annotation") ||
+		strings.HasPrefix(pkgPath, modPath+"/internal/annotation")
 }
 
 // findSyntaxFile returns the *ast.File in pkg.Syntax whose path matches filePath.

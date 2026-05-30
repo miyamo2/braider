@@ -283,22 +283,36 @@ func TestLookupBindingVariable(t *testing.T) {
 }
 
 func TestIsAnnotationPkg(t *testing.T) {
+	const canonical = "github.com/miyamo2/braider"
+
 	cases := []struct {
-		pkg  string
-		want bool
+		pkg     string
+		modPath string // empty → fallback to canonical
+		want    bool
 	}{
-		{annotationProvidePkg, true},
-		{"github.com/miyamo2/braider/pkg/annotation/inject", true},
-		{"github.com/miyamo2/braider/pkg/annotation/provide", true},
-		{"github.com/miyamo2/braider/pkg/annotation/variable", true},
-		{"github.com/miyamo2/braider/pkg/annotation/app", true},
-		{"github.com/miyamo2/braider/pkg/annotation/namer", true},
-		{"example.com/user/myservice", false},
-		{"github.com/miyamo2/braider/internal/registry", false},
+		// Canonical module path (explicit)
+		{annotationProvidePkg, canonical, true},
+		{"github.com/miyamo2/braider/pkg/annotation/inject", canonical, true},
+		{"github.com/miyamo2/braider/pkg/annotation/provide", canonical, true},
+		{"github.com/miyamo2/braider/pkg/annotation/variable", canonical, true},
+		{"github.com/miyamo2/braider/pkg/annotation/app", canonical, true},
+		{"github.com/miyamo2/braider/pkg/annotation/namer", canonical, true},
+		{"github.com/miyamo2/braider/internal/annotation", canonical, true},
+		// Fallback (modPath == "")
+		{annotationProvidePkg, "", true},
+		{"github.com/miyamo2/braider/pkg/annotation/inject", "", true},
+		{"github.com/miyamo2/braider/internal/annotation", "", true},
+		// Fork scenario
+		{"github.com/forker/braider/pkg/annotation", "github.com/forker/braider", true},
+		{"github.com/forker/braider/pkg/annotation/inject", "github.com/forker/braider", true},
+		{"github.com/miyamo2/braider/pkg/annotation/inject", "github.com/forker/braider", false},
+		// Non-annotation packages
+		{"example.com/user/myservice", canonical, false},
+		{"github.com/miyamo2/braider/internal/registry", canonical, false},
 	}
 	for _, c := range cases {
-		if got := isAnnotationPkg(c.pkg); got != c.want {
-			t.Errorf("isAnnotationPkg(%q) = %v, want %v", c.pkg, got, c.want)
+		if got := isAnnotationPkg(c.pkg, c.modPath); got != c.want {
+			t.Errorf("isAnnotationPkg(%q, %q) = %v, want %v", c.pkg, c.modPath, got, c.want)
 		}
 	}
 }
