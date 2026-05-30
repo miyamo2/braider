@@ -1,7 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"os"
+
+	"github.com/miyamo2/phasedchecker"
+	"golang.org/x/tools/go/analysis"
 
 	"github.com/miyamo2/braider/internal/analyzer"
 	"github.com/miyamo2/braider/internal/detect"
@@ -13,8 +17,6 @@ import (
 	"github.com/miyamo2/braider/internal/report"
 	"github.com/miyamo2/braider/pkg/annotation"
 	"github.com/miyamo2/braider/pkg/annotation/app"
-	"github.com/miyamo2/phasedchecker"
-	"golang.org/x/tools/go/analysis"
 )
 
 var _ = annotation.App[app.Container[struct {
@@ -23,13 +25,45 @@ var _ = annotation.App[app.Container[struct {
 	aggregator         *analyzer.Aggregator
 }]](main)
 
+const lspHelp = `lsp subcommand:
+
+  braider lsp
+
+  Start an LSP server (JSON-RPC 2.0 over stdio) for editor integration.
+
+  Capabilities:
+    textDocument/completion   Surface exported type candidates for DI annotation type arguments.
+    textDocument/hover        Show which provider/injector/variable binding wins for the type under the cursor.
+    textDocument/codeAction   Offer "Register with annotation.Provide" quick-fix on exported constructors.
+
+  The server performs a best-effort go/packages load per request, using open-file
+  overlays for unsaved edits, and runs a background workspace scan on startup to
+  populate in-memory provider/injector/variable caches.
+`
+
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "lsp" {
+		if len(os.Args) > 2 && os.Args[2] == "--help" {
+			fmt.Print(lspHelp)
+			return
+		}
 		server := lsp.NewServer(os.Stdin, os.Stdout)
 		if err := server.Run(); err != nil {
 			os.Exit(1)
 		}
 		return
+	}
+
+	if len(os.Args) == 3 && os.Args[1] == "help" && os.Args[2] == "lsp" {
+		fmt.Print(lspHelp)
+		return
+	}
+
+	// phasedchecker.Main calls os.Exit after printing help, so we print the subcommands
+	// section first when a general help invocation is detected.
+	isGeneralHelp := len(os.Args) == 1 || (len(os.Args) == 2 && os.Args[1] == "help")
+	if isGeneralHelp {
+		fmt.Print("Subcommands:\n\n  lsp\n    Start an LSP server (JSON-RPC 2.0 over stdio) for editor integration.\n    Run 'braider help lsp' for details.\n\n")
 	}
 
 	phasedchecker.Main(
