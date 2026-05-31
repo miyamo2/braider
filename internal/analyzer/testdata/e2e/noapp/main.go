@@ -1,7 +1,9 @@
 package main
 
-// This package has no App annotation, so bootstrap generation should be skipped.
+// This package has no explicit App annotation. With the optional-app-annotation
+// feature, the analyzer infers this single main package as the entry point and
+// generates an empty bootstrap IIFE.
 
-func main() {
+func main() { // want "bootstrap code is missing \\(entry point inferred from single main package; add annotation.App to declare it explicitly\\)"
 	// No annotation.App call
 }

@@ -42,7 +42,7 @@ func NewDependencyAnalyzer(
 
 type DependencyAnalyzeRunner struct {
 	annotation.Injectable[inject.Default]
-	provideCallDetector detect.ProvideCallDetector
+	provideCallDetector  detect.ProvideCallDetector
 	injectDetector       detect.InjectDetector
 	structDetector       detect.StructDetector
 	fieldAnalyzer        detect.FieldAnalyzer
@@ -52,6 +52,7 @@ type DependencyAnalyzeRunner struct {
 	suggestedFixBuilder  report.SuggestedFixBuilder
 	diagnosticEmitter    report.DiagnosticEmitter
 	variableCallDetector detect.VariableCallDetector
+	appDetector          detect.AppDetector
 }
 
 // NewDependencyAnalyzeRunner is a constructor for DependencyAnalyzeRunner.
@@ -63,9 +64,10 @@ func NewDependencyAnalyzeRunner(
 	constructorAnalyzer detect.ConstructorAnalyzer, optionExtractor detect.OptionExtractor,
 	constructorGenerator generate.ConstructorGenerator, suggestedFixBuilder report.SuggestedFixBuilder,
 	diagnosticEmitter report.DiagnosticEmitter, variableCallDetector detect.VariableCallDetector,
+	appDetector detect.AppDetector,
 ) *DependencyAnalyzeRunner {
 	return &DependencyAnalyzeRunner{
-		provideCallDetector: provideCallDetector,
+		provideCallDetector:  provideCallDetector,
 		injectDetector:       injectDetector,
 		structDetector:       structDetector,
 		fieldAnalyzer:        fieldAnalyzer,
@@ -75,12 +77,29 @@ func NewDependencyAnalyzeRunner(
 		suggestedFixBuilder:  suggestedFixBuilder,
 		diagnosticEmitter:    diagnosticEmitter,
 		variableCallDetector: variableCallDetector,
+		appDetector:          appDetector,
 	}
 }
 
 func (r *DependencyAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 	reporter := &passReporter{pass: pass}
-	result := &DependencyResult{}
+	result := &DependencyResult{
+		PackagePath: pass.Pkg.Path(),
+	}
+
+	// Entry-point classification: record whether this package is a main package
+	// (package name "main" with a top-level "func main") and whether any explicit
+	// annotation.App declaration is present. These flags are aggregated across
+	// packages in Aggregator.AfterDependencyPhase to drive single-main inference
+	// and multi-main ambiguity detection in AppAnalyzeRunner.
+	if pass.Pkg.Name() == "main" && findMainFunction(pass) != nil {
+		result.IsMainPackage = true
+	}
+	if r.appDetector != nil {
+		if apps := r.appDetector.DetectAppAnnotations(pass); len(apps) > 0 {
+			result.HasExplicitApp = true
+		}
+	}
 
 	// Constructor Generation for Inject structs
 	// Detect Inject structs that need constructors and generate them via SuggestedFix

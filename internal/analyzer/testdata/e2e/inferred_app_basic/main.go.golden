@@ -1,0 +1,26 @@
+package main
+
+// No annotation.App is declared. With the optional-app-annotation feature,
+// the analyzer infers this single main package as the entry point and generates
+// a default-mode bootstrap IIFE wiring the service.
+
+import (
+	"example.com/inferred_app_basic/service"
+)
+
+func main() {
+	_ = dependency
+	// want "bootstrap code is missing \\(entry point inferred from single main package; add annotation.App to declare it explicitly\\)"
+}
+
+// braider:hash:1e77c4f2b7c4b0c2
+var dependency = func() struct {
+	userService *service.UserService
+} {
+	userService := service.NewUserService()
+	return struct {
+		userService *service.UserService
+	}{
+		userService: userService,
+	}
+}()

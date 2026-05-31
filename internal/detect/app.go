@@ -17,6 +17,15 @@ import (
 const AppFuncName = "App"
 
 // AppAnnotation represents a detected annotation.App call.
+//
+// When Inferred is true, the AppAnnotation does not originate from a real source
+// declaration: it is synthesized by AppAnalyzeRunner.Run when no explicit
+// annotation.App declaration is present in scope but exactly one main package is.
+// Downstream consumers must treat inferred values specially: skip
+// ValidateAppAnnotations, skip DeduplicateAppsByFile (trivial no-op anyway),
+// skip AppOptionExtractor (force default mode), and emit inferred-specific
+// diagnostics. Only File and Pos are populated on inferred values; CallExpr,
+// GenDecl, MainFunc, and TypeArgExpr remain nil.
 type AppAnnotation struct {
 	CallExpr    *ast.CallExpr // The App(main) call expression
 	GenDecl     *ast.GenDecl  // The var declaration containing the call
@@ -24,6 +33,7 @@ type AppAnnotation struct {
 	Pos         token.Pos     // Position for diagnostics
 	File        *ast.File     // The file containing this annotation
 	TypeArgExpr ast.Expr      // The type argument expression from App[T]; nil for non-generic form
+	Inferred    bool          // true when synthesized for single-main-package inference
 }
 
 // AppDetector detects annotation.App calls in packages.

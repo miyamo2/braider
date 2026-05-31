@@ -373,6 +373,106 @@ func TestDiagnosticEmitter_EmitBootstrapUpdateFix(t *testing.T) {
 	}
 }
 
+func TestDiagnosticEmitter_EmitInferredBootstrapFix(t *testing.T) {
+	emitter := report.NewDiagnosticEmitter()
+	reporter := &mockReporter{}
+	pos := token.Pos(50)
+	fix := analysis.SuggestedFix{
+		Message: "generate bootstrap code",
+		TextEdits: []analysis.TextEdit{
+			{Pos: token.Pos(100), End: token.Pos(100), NewText: []byte("// bootstrap")},
+		},
+	}
+
+	emitter.EmitInferredBootstrapFix(reporter, pos, fix)
+
+	if len(reporter.diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+	}
+	d := reporter.diagnostics[0]
+	if d.Pos != pos {
+		t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+	}
+	if d.Category != report.CategoryBootstrapGeneration {
+		t.Errorf("diagnostic.Category = %q, want %q", d.Category, report.CategoryBootstrapGeneration)
+	}
+	if !strings.Contains(d.Message, "inferred from single main package") {
+		t.Errorf("diagnostic.Message = %q; should mention 'inferred from single main package'", d.Message)
+	}
+	if !strings.Contains(d.Message, "bootstrap code is missing") {
+		t.Errorf("diagnostic.Message = %q; should mention 'bootstrap code is missing'", d.Message)
+	}
+	if len(d.SuggestedFixes) != 1 {
+		t.Fatalf("expected 1 SuggestedFix, got %d", len(d.SuggestedFixes))
+	}
+}
+
+func TestDiagnosticEmitter_EmitInferredBootstrapUpdateFix(t *testing.T) {
+	emitter := report.NewDiagnosticEmitter()
+	reporter := &mockReporter{}
+	pos := token.Pos(50)
+	fix := analysis.SuggestedFix{
+		Message: "update bootstrap code",
+		TextEdits: []analysis.TextEdit{
+			{Pos: token.Pos(100), End: token.Pos(200), NewText: []byte("// updated")},
+		},
+	}
+
+	emitter.EmitInferredBootstrapUpdateFix(reporter, pos, fix)
+
+	if len(reporter.diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+	}
+	d := reporter.diagnostics[0]
+	if d.Category != report.CategoryBootstrapGeneration {
+		t.Errorf("diagnostic.Category = %q, want %q", d.Category, report.CategoryBootstrapGeneration)
+	}
+	if !strings.Contains(d.Message, "inferred entry point") {
+		t.Errorf("diagnostic.Message = %q; should mention 'inferred entry point'", d.Message)
+	}
+	if !strings.Contains(d.Message, "outdated") {
+		t.Errorf("diagnostic.Message = %q; should mention 'outdated'", d.Message)
+	}
+	if len(d.SuggestedFixes) != 1 {
+		t.Fatalf("expected 1 SuggestedFix, got %d", len(d.SuggestedFixes))
+	}
+}
+
+func TestDiagnosticEmitter_EmitAmbiguousEntryPoint(t *testing.T) {
+	emitter := report.NewDiagnosticEmitter()
+	reporter := &mockReporter{}
+	pos := token.Pos(50)
+	paths := []string{"example.com/cmd/a", "example.com/cmd/b", "example.com/cmd/c"}
+
+	emitter.EmitAmbiguousEntryPoint(reporter, pos, paths)
+
+	if len(reporter.diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", len(reporter.diagnostics))
+	}
+	d := reporter.diagnostics[0]
+	if d.Pos != pos {
+		t.Errorf("diagnostic.Pos = %d, want %d", d.Pos, pos)
+	}
+	if d.Category != report.CategoryAppValidation {
+		t.Errorf("diagnostic.Category = %q, want %q", d.Category, report.CategoryAppValidation)
+	}
+	if len(d.SuggestedFixes) != 0 {
+		t.Errorf("expected no SuggestedFixes, got %d", len(d.SuggestedFixes))
+	}
+	for _, p := range paths {
+		if !strings.Contains(d.Message, p) {
+			t.Errorf("diagnostic.Message = %q; should contain candidate path %q", d.Message, p)
+		}
+	}
+	// Verify ordering: paths appear in the input (sorted) order in the message.
+	aIdx := strings.Index(d.Message, paths[0])
+	bIdx := strings.Index(d.Message, paths[1])
+	cIdx := strings.Index(d.Message, paths[2])
+	if !(aIdx < bIdx && bIdx < cIdx) {
+		t.Errorf("diagnostic.Message = %q; candidate paths not in input order", d.Message)
+	}
+}
+
 func TestDiagnosticEmitter_EmitDuplicateAppWarning(t *testing.T) {
 	emitter := report.NewDiagnosticEmitter()
 	reporter := &mockReporter{}
