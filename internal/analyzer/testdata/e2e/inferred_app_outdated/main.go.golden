@@ -1,0 +1,26 @@
+package main
+
+// Existing inferred bootstrap whose hash no longer matches the current dependency
+// graph (the empty-graph hash is stamped, but a UserService is now registered).
+// The analyzer must report an outdated-inferred-bootstrap diagnostic and update
+// the IIFE via SuggestedFix.
+
+import (
+	"example.com/inferred_app_outdated/service"
+)
+
+func main() { // want "bootstrap code is outdated \\(inferred entry point\\)"
+	_ = dependency
+}
+
+// braider:hash:803c2eb4f4fd8be2
+var dependency = func() struct {
+	userService *service.UserService
+} {
+	userService := service.NewUserService()
+	return struct {
+		userService *service.UserService
+	}{
+		userService: userService,
+	}
+}()

@@ -87,13 +87,15 @@ func buildIntegrationDeps(t *testing.T) (
 
 	// Aggregator (shared registries)
 	duplicateReg := registry.NewDuplicateRegistry()
-	agg := NewAggregator(providerReg, injectorReg, variableReg, duplicateReg)
+	entryPointReg := registry.NewEntryPointRegistry()
+	agg := NewAggregator(providerReg, injectorReg, variableReg, duplicateReg, entryPointReg)
 
 	depRunner := NewDependencyAnalyzeRunner(
 		provideCallDetector, injectDetector, structDetector,
 		fieldAnalyzer, constructorAnalyzer, optionExtractor,
 		constructorGenerator, suggestedFixBuilder, diagnosticEmitter,
 		variableCallDetector,
+		appDetector,
 	)
 	depAnalyzer := (*analysis.Analyzer)(NewDependencyAnalyzer(depRunner))
 
@@ -103,6 +105,7 @@ func buildIntegrationDeps(t *testing.T) (
 		suggestedFixBuilder, diagnosticEmitter,
 		variableReg,
 		appOptionExtractor, containerValidator, containerResolver, agg.DuplicateRegistry,
+		entryPointReg,
 	)
 	appAnalyzer := (*analysis.Analyzer)(NewAppAnalyzer(appRunner))
 
@@ -194,6 +197,12 @@ func TestIntegration(t *testing.T) {
 		{name: "NonMainReference", testdir: "nonmainapp"},
 		{name: "NoAppAnnotation", testdir: "noapp"},
 		{name: "MultipleEntryPoints", testdir: "multipleapp"},
+
+		// --- Inferred App (optional annotation.App) ---
+		{name: "InferredAppBasic", testdir: "inferred_app_basic"},
+		{name: "InferredAppIdempotent", testdir: "inferred_app_idempotent"},
+		{name: "InferredAppOutdated", testdir: "inferred_app_outdated"},
+		{name: "AmbiguousEntryPoint", testdir: "ambiguous_entry_point"},
 
 		// --- Error cases ---
 		{name: "ErrorCases", testdir: "error_cases"},

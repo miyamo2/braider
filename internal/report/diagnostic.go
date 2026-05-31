@@ -102,6 +102,20 @@ type DiagnosticEmitter interface {
 
 	// EmitContainerFieldError reports an unresolvable container field.
 	EmitContainerFieldError(reporter Reporter, pos token.Pos, fieldName string, fieldType string, reason string)
+
+	// EmitInferredBootstrapFix reports a diagnostic for missing bootstrap code
+	// at an inferred entry point. Inference fires when no explicit annotation.App
+	// declaration exists in scope and exactly one main package is in scope.
+	EmitInferredBootstrapFix(reporter Reporter, pos token.Pos, fix analysis.SuggestedFix)
+
+	// EmitInferredBootstrapUpdateFix reports a diagnostic for outdated bootstrap
+	// code at an inferred entry point (hash mismatch on the existing bootstrap).
+	EmitInferredBootstrapUpdateFix(reporter Reporter, pos token.Pos, fix analysis.SuggestedFix)
+
+	// EmitAmbiguousEntryPoint reports that the analyzed scope contains multiple
+	// main packages and no explicit annotation.App declaration. candidatePaths
+	// is the lexicographically sorted list of main-package import paths.
+	EmitAmbiguousEntryPoint(reporter Reporter, pos token.Pos, candidatePaths []string)
 }
 
 // diagnosticEmitter is the default implementation of DiagnosticEmitter.
@@ -204,6 +218,47 @@ func (e *diagnosticEmitter) EmitBootstrapUpdateFix(reporter Reporter, pos token.
 			Category:       CategoryBootstrapGeneration,
 			Message:        "bootstrap code is outdated",
 			SuggestedFixes: []analysis.SuggestedFix{fix},
+		},
+	)
+}
+
+// EmitInferredBootstrapFix reports missing bootstrap code at an inferred entry point.
+// Inference fires when no explicit annotation.App declaration exists in scope and
+// exactly one main package is in scope; the message hints at how to make the entry
+// point explicit.
+func (e *diagnosticEmitter) EmitInferredBootstrapFix(reporter Reporter, pos token.Pos, fix analysis.SuggestedFix) {
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:            pos,
+			Category:       CategoryBootstrapGeneration,
+			Message:        "bootstrap code is missing (entry point inferred from single main package; add annotation.App to declare it explicitly)",
+			SuggestedFixes: []analysis.SuggestedFix{fix},
+		},
+	)
+}
+
+// EmitInferredBootstrapUpdateFix reports outdated bootstrap code at an inferred entry point.
+func (e *diagnosticEmitter) EmitInferredBootstrapUpdateFix(reporter Reporter, pos token.Pos, fix analysis.SuggestedFix) {
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:            pos,
+			Category:       CategoryBootstrapGeneration,
+			Message:        "bootstrap code is outdated (inferred entry point)",
+			SuggestedFixes: []analysis.SuggestedFix{fix},
+		},
+	)
+}
+
+// EmitAmbiguousEntryPoint reports that the analyzed scope contains multiple main
+// packages and no explicit annotation.App declaration. candidatePaths is included
+// in the message so the developer can choose where to add the explicit declaration.
+func (e *diagnosticEmitter) EmitAmbiguousEntryPoint(reporter Reporter, pos token.Pos, candidatePaths []string) {
+	joined := strings.Join(candidatePaths, ", ")
+	reporter.Report(
+		analysis.Diagnostic{
+			Pos:      pos,
+			Category: CategoryAppValidation,
+			Message:  fmt.Sprintf("multiple main packages in scope and no annotation.App declared; add annotation.App[T](main) to one of: %s", joined),
 		},
 	)
 }

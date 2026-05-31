@@ -74,10 +74,11 @@ var dependency = func() struct {
 	namerValidatorImpl := detect.NewNamerValidatorImpl(packageLoader)
 	optionExtractorImpl := detect.NewOptionExtractorImpl(markerInterfaces, namerValidatorImpl)
 	duplicateRegistry := registry.NewDuplicateRegistry()
+	entryPointRegistry := registry.NewEntryPointRegistry()
 	injectorRegistry := registry.NewInjectorRegistry()
 	providerRegistry := registry.NewProviderRegistry()
 	variableRegistry := registry.NewVariableRegistry()
-	aggregator := analyzer.NewAggregator(providerRegistry, injectorRegistry, variableRegistry, duplicateRegistry)
+	aggregator := analyzer.NewAggregator(providerRegistry, injectorRegistry, variableRegistry, duplicateRegistry, entryPointRegistry)
 	diagnosticEmitter := report.NewDiagnosticEmitter()
 	suggestedFixBuilder := report.NewSuggestedFixBuilder()
 	appAnalyzeRunner := analyzer.NewAppAnalyzeRunner(
@@ -94,6 +95,7 @@ var dependency = func() struct {
 		containerValidatorImpl,
 		containerResolverImpl,
 		duplicateRegistry,
+		entryPointRegistry,
 	)
 	dependencyAnalyzeRunner := analyzer.NewDependencyAnalyzeRunner(
 		provideCallDetector,
@@ -106,6 +108,7 @@ var dependency = func() struct {
 		suggestedFixBuilder,
 		diagnosticEmitter,
 		variableCallDetector,
+		appDetector,
 	)
 	appAnalyzer := analyzer.NewAppAnalyzer(appAnalyzeRunner)
 	dependencyAnalyzer := analyzer.NewDependencyAnalyzer(dependencyAnalyzeRunner)

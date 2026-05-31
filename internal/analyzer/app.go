@@ -2,7 +2,6 @@ package analyzer
 
 import (
 	"fmt"
-	"go/ast"
 	"strings"
 
 	"github.com/miyamo2/braider/internal/detect"
@@ -52,6 +51,7 @@ type AppAnalyzeRunner struct {
 	containerValidator graph.ContainerValidator
 	containerResolver  graph.ContainerResolver
 	duplicateRegistry  *registry.DuplicateRegistry
+	entryPointRegistry *registry.EntryPointRegistry
 }
 
 // NewAppAnalyzeRunner is a constructor for AppAnalyzeRunner.
@@ -65,6 +65,7 @@ func NewAppAnalyzeRunner(
 	diagnosticEmitter report.DiagnosticEmitter, variableRegistry *registry.VariableRegistry,
 	appOptionExtractor detect.AppOptionExtractor, containerValidator graph.ContainerValidator,
 	containerResolver graph.ContainerResolver, duplicateRegistry *registry.DuplicateRegistry,
+	entryPointRegistry *registry.EntryPointRegistry,
 ) *AppAnalyzeRunner {
 	return &AppAnalyzeRunner{
 		appDetector:        appDetector,
@@ -80,6 +81,7 @@ func NewAppAnalyzeRunner(
 		containerValidator: containerValidator,
 		containerResolver:  containerResolver,
 		duplicateRegistry:  duplicateRegistry,
+		entryPointRegistry: entryPointRegistry,
 	}
 }
 
@@ -88,41 +90,85 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 	// Detect App annotations
 	apps := r.appDetector.DetectAppAnnotations(pass)
 
-	// Skip if no App annotation present
+	// No explicit App annotation in this package: consider inference.
+	//
+	// Inference rule (Requirement 1.x / 3.x):
+	//   - If any explicit App annotation exists anywhere in scope, do nothing
+	//     here (explicit always wins; the package owning it will generate).
+	//   - Otherwise, if this package is a main package AND exactly one main
+	//     package exists in scope, synthesize an inferred AppAnnotation and
+	//     route it through the existing default-mode bootstrap pipeline.
+	//   - If this package is a main package AND multiple main packages exist
+	//     in scope, emit the ambiguity diagnostic at this package's main and
+	//     skip generation.
+	//   - Otherwise (not a main package, or no main func), do nothing.
 	if len(apps) == 0 {
-		return nil, nil
+		if r.entryPointRegistry == nil {
+			return nil, nil
+		}
+		if r.entryPointRegistry.HasExplicitApp() {
+			return nil, nil
+		}
+		mainFunc := findMainFunction(pass)
+		if mainFunc == nil {
+			return nil, nil
+		}
+		mainPaths := r.entryPointRegistry.MainPackagePaths()
+		switch {
+		case len(mainPaths) > 1:
+			r.diagnosticEmitter.EmitAmbiguousEntryPoint(reporter, mainFunc.Pos(), mainPaths)
+			return nil, nil
+		case len(mainPaths) == 1:
+			apps = []*detect.AppAnnotation{{
+				File:     findFileForFunc(pass, mainFunc),
+				Pos:      mainFunc.Pos(),
+				Inferred: true,
+			}}
+		default:
+			// No main packages registered (defensive — should not happen when
+			// mainFunc != nil because the dependency phase would have registered
+			// this package).
+			return nil, nil
+		}
 	}
 
-	// Deduplicate by file (same file → first only)
+	// Deduplicate by file (same file → first only). Inferred entries are a
+	// single synthetic value; dedup is a no-op for them but harmless.
 	allApps := apps
 	apps = r.appDetector.DeduplicateAppsByFile(apps)
 
-	// Report warnings for duplicates (apps that were removed)
-	// Use map for O(n) lookup instead of O(n²) with slices.Contains
-	dedupedSet := make(map[*detect.AppAnnotation]bool)
-	for _, app := range apps {
-		dedupedSet[app] = true
-	}
-
-	for _, app := range allApps {
-		if !dedupedSet[app] {
-			r.diagnosticEmitter.EmitDuplicateAppWarning(reporter, app.Pos)
+	// Report warnings for duplicates (apps that were removed).
+	// Skip duplicate-warning emission entirely for inferred values: dedup is a
+	// no-op when the only entry is synthetic.
+	if !apps[0].Inferred {
+		dedupedSet := make(map[*detect.AppAnnotation]bool)
+		for _, app := range apps {
+			dedupedSet[app] = true
+		}
+		for _, app := range allApps {
+			if !dedupedSet[app] {
+				r.diagnosticEmitter.EmitDuplicateAppWarning(reporter, app.Pos)
+			}
 		}
 	}
 
-	// Validate App annotations
-	if err := r.appDetector.ValidateAppAnnotations(pass, apps); err != nil {
-		// Report validation error
-		if appErr, ok := err.(*detect.AppValidationError); ok {
-			switch appErr.Type {
-			case detect.NonMainReference:
-				r.diagnosticEmitter.EmitNonMainAppError(reporter, appErr.Positions[0], appErr.FuncName)
+	// Validate App annotations (skipped for inferred entries — there is no
+	// CallExpr / MainFunc ident to validate; synthesis already guarantees the
+	// main function exists).
+	if !apps[0].Inferred {
+		if err := r.appDetector.ValidateAppAnnotations(pass, apps); err != nil {
+			// Report validation error
+			if appErr, ok := err.(*detect.AppValidationError); ok {
+				switch appErr.Type {
+				case detect.NonMainReference:
+					r.diagnosticEmitter.EmitNonMainAppError(reporter, appErr.Positions[0], appErr.FuncName)
+				}
+				// Skip bootstrap generation after validation error
+				return nil, nil
 			}
-			// Skip bootstrap generation after validation error
+			// Unknown error type, skip bootstrap
 			return nil, nil
 		}
-		// Unknown error type, skip bootstrap
-		return nil, nil
 	}
 
 	// Report duplicate registration errors collected during dependency phase
@@ -173,13 +219,19 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 		return nil, nil
 	}
 
-	// Extract app option to determine mode (default vs container)
-	optionMeta, optionErr := r.appOptionExtractor.ExtractAppOption(pass, apps[0])
-
-	// Handle option extraction errors (e.g. non-struct type parameter)
-	if optionErr != nil {
-		r.diagnosticEmitter.EmitGraphBuildError(reporter, apps[0].Pos, optionErr.Error())
-		return nil, nil
+	// Extract app option to determine mode (default vs container).
+	// Inferred entries always run in default mode: there is no source CallExpr
+	// to extract type-parameter information from, and Container[T] cannot be
+	// inferred (no user-supplied container type).
+	var optionMeta detect.AppOptionMetadata
+	if !apps[0].Inferred {
+		var optionErr error
+		optionMeta, optionErr = r.appOptionExtractor.ExtractAppOption(pass, apps[0])
+		// Handle option extraction errors (e.g. non-struct type parameter)
+		if optionErr != nil {
+			r.diagnosticEmitter.EmitGraphBuildError(reporter, apps[0].Pos, optionErr.Error())
+			return nil, nil
+		}
 	}
 
 	// Find main function (needed for both modes)
@@ -253,7 +305,7 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 			r.diagnosticEmitter.EmitBootstrapFix(reporter, apps[0].Pos, fix)
 		}
 	} else {
-		// Default mode (existing behavior)
+		// Default mode (existing behavior, also used for inferred entries).
 		if existingBootstrap != nil {
 			if r.bootstrapGen.CheckBootstrapCurrent(pass, existingBootstrap, depGraph) {
 				return nil, nil
@@ -274,14 +326,22 @@ func (r *AppAnalyzeRunner) Run(pass *analysis.Pass) (interface{}, error) {
 				r.diagnosticEmitter.EmitGenerationError(reporter, apps[0].Pos, "bootstrap fix", fixErr.Error())
 				return nil, nil
 			}
-			r.diagnosticEmitter.EmitBootstrapUpdateFix(reporter, apps[0].Pos, fix)
+			if apps[0].Inferred {
+				r.diagnosticEmitter.EmitInferredBootstrapUpdateFix(reporter, apps[0].Pos, fix)
+			} else {
+				r.diagnosticEmitter.EmitBootstrapUpdateFix(reporter, apps[0].Pos, fix)
+			}
 		} else {
 			fix, fixErr = r.fixBuilder.BuildBootstrapFix(pass, apps[0], bootstrap, mainFunc)
 			if fixErr != nil {
 				r.diagnosticEmitter.EmitGenerationError(reporter, apps[0].Pos, "bootstrap fix", fixErr.Error())
 				return nil, nil
 			}
-			r.diagnosticEmitter.EmitBootstrapFix(reporter, apps[0].Pos, fix)
+			if apps[0].Inferred {
+				r.diagnosticEmitter.EmitInferredBootstrapFix(reporter, apps[0].Pos, fix)
+			} else {
+				r.diagnosticEmitter.EmitBootstrapFix(reporter, apps[0].Pos, fix)
+			}
 		}
 	}
 
@@ -310,16 +370,3 @@ func (r *AppAnalyzeRunner) buildNameMismatchHint(typeName string) string {
 	return fmt.Sprintf("did you mean %s?", strings.Join(hints, " or "))
 }
 
-// findMainFunction finds the main function declaration in the package.
-func findMainFunction(pass *analysis.Pass) *ast.FuncDecl {
-	for _, file := range pass.Files {
-		for _, decl := range file.Decls {
-			if fn, ok := decl.(*ast.FuncDecl); ok {
-				if fn.Name.Name == "main" {
-					return fn
-				}
-			}
-		}
-	}
-	return nil
-}
